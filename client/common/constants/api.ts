@@ -6,7 +6,7 @@ import Constants from 'expo-constants';
 // For production: Update with your production API URL
 const API_CONFIG = {
   // Development URLs
-  DEV_IP: '192.168.1.100', // Replace with your local IP
+  DEV_IP: '10.70.93.240', // Replace with your local IP
   DEV_PORT: '5001',
   
   // Production URL
@@ -23,7 +23,7 @@ const getBaseUrl = (): string => {
 
   // iOS Simulator can use localhost
   if (Platform.OS === 'ios' && !isPhysicalDevice) {
-    return `http://localhost:${DEV_PORT}`;
+    return `http://0.0.0.0:${DEV_PORT}`;
   }
 
   // Physical devices and Android emulator need the actual IP

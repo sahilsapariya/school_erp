@@ -14,9 +14,7 @@ export const useLogin = () => {
     try {
       const emailValidation = validateEmailField(email);
       if (!emailValidation.isValid) throw new Error(emailValidation.error);
-
-      const passwordValidation = validatePasswordField(password);
-      if (!passwordValidation.isValid) throw new Error(passwordValidation.error);
+      if (!password) throw new Error('Password is required');
 
       await authLogin(email, password);
     } catch (err: any) {

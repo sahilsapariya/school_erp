@@ -15,6 +15,8 @@ import { useResetPassword } from '@/common/hooks/useResetPassword';
 import { Colors } from '@/common/constants/colors';
 import { Ionicons } from '@expo/vector-icons';
 
+const resetPasswordIcon = require('@/assets/images/auth/reset-password.jpg');
+
 export default function ResetPasswordScreen() {
   const params = useLocalSearchParams();
   const token = (params.token as string) || '';
@@ -83,7 +85,7 @@ export default function ResetPasswordScreen() {
         <View style={styles.content}>
             <View style={styles.illustrationContainer}>
               <Image
-              source={{ uri: 'https://i.imgur.com/9K8J7L4.gif' }}
+              source={resetPasswordIcon}
                 style={styles.illustration}
                 resizeMode="contain"
               />

@@ -14,6 +14,8 @@ import AuthButton from '@/common/components/AuthButton';
 import { useLogin } from '@/common/hooks/useLogin';
 import { Colors } from '@/common/constants/colors';
 
+const loginIcon = require('@/assets/images/auth/login.jpg');
+
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -50,7 +52,7 @@ export default function LoginScreen() {
         <View style={styles.content}>
             <View style={styles.illustrationContainer}>
               <Image
-              source={{ uri: 'https://i.imgur.com/5K8J9L2.gif' }}
+              source={loginIcon}
                 style={styles.illustration}
                 resizeMode="contain"
               />

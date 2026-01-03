@@ -15,6 +15,8 @@ import { useForgotPassword } from '@/common/hooks/useForgotPassword';
 import { Colors } from '@/common/constants/colors';
 import { Ionicons } from '@expo/vector-icons';
 
+const forgotPasswordIcon = require('@/assets/images/auth/forgot-password.jpg');
+
 export default function ForgotPasswordScreen() {
   const [email, setEmail] = useState('');
   const [emailError, setEmailError] = useState('');
@@ -66,7 +68,7 @@ export default function ForgotPasswordScreen() {
         <View style={styles.content}>
             <View style={styles.illustrationContainer}>
               <Image
-              source={{ uri: 'https://i.imgur.com/7K9J8L3.gif' }}
+              source={forgotPasswordIcon}
                 style={styles.illustration}
                 resizeMode="contain"
               />

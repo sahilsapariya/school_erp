@@ -58,7 +58,7 @@ def reset_password():
     user.save()
 
     sessions = Session.query.filter_by(user_id=user.id, revoked=False).all()
-        for session in sessions:
-            session.revoke()
+    for session in sessions:
+        session.revoke()
 
     return jsonify({"message": "Password reset successful"}), 200

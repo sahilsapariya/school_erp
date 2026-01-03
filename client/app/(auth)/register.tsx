@@ -14,6 +14,8 @@ import AuthButton from '@/common/components/AuthButton';
 import { useRegister } from '@/common/hooks/useRegister';
 import { Colors } from '@/common/constants/colors';
 
+const registerIcon = require('@/assets/images/auth/register.jpg');
+
 export default function RegisterScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -50,7 +52,7 @@ export default function RegisterScreen() {
         <View style={styles.content}>
             <View style={styles.illustrationContainer}>
               <Image
-              source={{ uri: 'https://i.imgur.com/3ZqJ8K8.gif' }}
+              source={registerIcon}
                 style={styles.illustration}
                 resizeMode="contain"
               />
