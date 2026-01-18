@@ -18,6 +18,7 @@ const apiRequest = async (
   options: RequestInit = {}
 ): Promise<Response> => {
   const url = getApiUrl(endpoint);
+  console.log(`API Request: ${options.method || 'GET'} ${url}`);
   const accessToken = await getAccessToken();
   const refreshToken = await getRefreshToken();
 

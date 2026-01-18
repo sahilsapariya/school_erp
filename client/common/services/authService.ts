@@ -8,6 +8,7 @@ export interface LoginResponse {
     id: number;
     email: string;
   };
+  permissions: string[];
 }
 
 export interface MessageResponse {

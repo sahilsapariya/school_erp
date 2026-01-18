@@ -6,7 +6,8 @@ import Constants from 'expo-constants';
 // For production: Update with your production API URL
 const API_CONFIG = {
   // Development URLs
-  DEV_IP: '10.70.93.240', // Replace with your local IP
+  // use localhost LOCAL IP for physical devices
+  DEV_IP: process.env.EXPO_PUBLIC_LOCAL_IP, // Replace with your local IP
   DEV_PORT: '5001',
   
   // Production URL
