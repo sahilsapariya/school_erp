@@ -6,13 +6,16 @@ Usage:
     python setup_admin.py
 """
 
-from app import app
+from app import app, create_app
 from seed_rbac import seed_all
 from rbac_helpers import assign_admin_role
 
 def setup():
     """Setup RBAC system and assign admin role"""
-    with app.app_context():
+    # Initialize the Flask app properly
+    app_instance = create_app(app)
+    
+    with app_instance.app_context():
         print("\n" + "="*60)
         print("Setting up RBAC system...")
         print("="*60 + "\n")
