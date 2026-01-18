@@ -131,7 +131,7 @@ export default function ActivitiesScreen() {
           <TouchableOpacity style={styles.actionCard}>
             <View style={styles.cardContent}>
               <View style={styles.cardIcon}>
-                <Ionicons name="bell-outline" size={24} color={Colors.primary} />
+                <Ionicons name="notifications-outline" size={24} color={Colors.primary} />
               </View>
               <View style={styles.cardText}>
                 <Text style={styles.cardTitle}>All Notifications</Text>

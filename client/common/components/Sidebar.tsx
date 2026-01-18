@@ -216,7 +216,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     fontFamily: 'System',
   },
-  roleB adge: {
+  roleBadge: {
     backgroundColor: Colors.primary,
     paddingHorizontal: 12,
     paddingVertical: 4,

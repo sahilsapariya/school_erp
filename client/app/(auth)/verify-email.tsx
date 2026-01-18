@@ -43,10 +43,12 @@ export default function VerifyEmailScreen() {
       if (status === 'success' && accessToken && refreshToken) {
         try {
           // Set auth data to log the user in
+          // Note: Permissions will be fetched on next API call or app restart
           await setAuthData({
             access_token: accessToken,
             refresh_token: refreshToken,
             user: { id: parseInt(userId) || 0, email },
+            permissions: [], // Will be populated from backend on next authenticated request
           });
           setVerificationStatus('success');
         } catch {

@@ -50,6 +50,7 @@ export const STUDENT_MANAGE = 'student.manage';
 export const GRADE_CREATE = 'grade.create';
 export const GRADE_READ_SELF = 'grade.read.self';
 export const GRADE_READ_CLASS = 'grade.read.class';
+export const GRADE_READ_CHILD = 'grade.read.child';
 export const GRADE_READ_ALL = 'grade.read.all';
 export const GRADE_UPDATE = 'grade.update';
 export const GRADE_DELETE = 'grade.delete';

@@ -70,6 +70,7 @@ def seed_permissions():
         ('grade.create', 'Create grades'),
         ('grade.read.self', 'Read own grades'),
         ('grade.read.class', 'Read class grades'),
+        ('grade.read.child', 'Read child grades (for parents)'),
         ('grade.read.all', 'Read all grades'),
         ('grade.update', 'Update grades'),
         ('grade.delete', 'Delete grades'),
