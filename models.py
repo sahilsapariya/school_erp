@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 import os
 from dotenv import load_dotenv
 import secrets
-
+import uuid
 
 load_dotenv()
 
@@ -13,13 +13,17 @@ db = SQLAlchemy()
 class User(db.Model):
     __tablename__ = "users"
 
-    id = db.Column(db.Integer, primary_key=True)
+    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
 
     email = db.Column(db.String(120), unique=True, nullable=False, index=True)
     password_hash = db.Column(db.String(255), nullable=False)
 
     name = db.Column(db.String(120), nullable=True)
-    role = db.Column(db.String(20), nullable=False, default="user")
+    roles = db.relationship(
+        "Roles",
+        secondary="user_roles",
+        backref=db.backref("users", lazy=True)
+    )
 
     email_verified = db.Column(db.Boolean, default=False, nullable=False)
     verification_token = db.Column(db.String(255), nullable=True)
@@ -102,10 +106,10 @@ def refresh_token_expiry():
 class Session(db.Model):
     __tablename__ = "sessions"
 
-    id = db.Column(db.Integer, primary_key=True)
+    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
 
     user_id = db.Column(
-        db.Integer,
+        db.String(36),
         db.ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False
     )
@@ -146,3 +150,98 @@ class Session(db.Model):
 
     def __repr__(self):
         return f"<Session user_id={self.user_id} revoked={self.revoked}>"
+
+
+class Roles(db.Model):
+    __tablename__ = "roles"
+
+    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    name = db.Column(db.String(50), unique=True, nullable=False)
+    description = db.Column(db.String(255), nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    permissions = db.relationship(
+        "Permissions",
+        secondary="role_permissions",
+        backref=db.backref("roles", lazy=True)
+    )
+
+    def __repr__(self):
+        return f"<Role {self.name}>"
+    
+    def save(self):
+        db.session.add(self)
+        db.session.commit()
+
+
+class Permissions(db.Model):
+    __tablename__ = "permissions"
+
+    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    name = db.Column(db.String(100), unique=True, nullable=False)
+    description = db.Column(db.String(255), nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<Permission {self.name}>"
+    
+    def save(self):
+        db.session.add(self)
+        db.session.commit()
+
+
+class RolePermissions(db.Model):
+    __tablename__ = "role_permissions"
+
+    __table_args__ = (
+    db.UniqueConstraint("role_id", "permission_id", name="uq_role_permission"),
+)
+
+    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    role_id = db.Column(
+        db.String(36),
+        db.ForeignKey("roles.id", ondelete="CASCADE"),
+        nullable=False
+    )
+    permission_id = db.Column(
+        db.String(36),
+        db.ForeignKey("permissions.id", ondelete="CASCADE"),
+        nullable=False
+    )
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<RolePermission role_id={self.role_id} permission_id={self.permission_id}>"
+    
+    def save(self):
+        db.session.add(self)
+        db.session.commit()
+
+
+class UserRoles(db.Model):
+    __tablename__ = "user_roles"
+
+    __table_args__ = (
+        db.UniqueConstraint("user_id", "role_id", name="uq_user_role"),
+    )
+
+    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = db.Column(
+        db.String(36),
+        db.ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False
+    )
+    role_id = db.Column(
+        db.String(36),
+        db.ForeignKey("roles.id", ondelete="CASCADE"),
+        nullable=False
+    )
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<UserRole user_id={self.user_id} role_id={self.role_id}>"
+    
+    def save(self):
+        db.session.add(self)
+        db.session.commit()
+

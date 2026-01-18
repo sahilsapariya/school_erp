@@ -1,7 +1,7 @@
-import { Stack } from 'expo-router';
 import { useEffect } from 'react';
 import { useRouter, useSegments } from 'expo-router';
 import { useAuth } from '@/common/hooks/useAuth';
+import MainLayout from '@/common/components/MainLayout';
 
 export default function ProtectedLayout() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -21,10 +21,6 @@ export default function ProtectedLayout() {
     return null;
   }
 
-  return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="home" />
-    </Stack>
-  );
+  return <MainLayout />;
 }
 

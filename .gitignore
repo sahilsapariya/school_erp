@@ -3,6 +3,18 @@
 # dependencies
 node_modules/
 
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pyw
+*.pyz
+*.pywz
+
+# vscode
+.vscode/
+
 # Expo
 .expo/
 dist/
