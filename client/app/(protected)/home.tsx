@@ -10,7 +10,7 @@ import * as PERMS from '@/common/constants/permissions';
 
 export default function ProtectedHomeScreen() {
   const { user, logout } = useAuth();
-  const { permissions, hasPermission } = usePermissions();
+  const { permissions } = usePermissions();
 
   const handleLogout = async () => {
     await logout();

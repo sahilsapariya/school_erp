@@ -1,11 +1,10 @@
 import { useEffect } from 'react';
-import { useRouter, useSegments } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { useAuth } from '@/common/hooks/useAuth';
 import MainLayout from '@/common/components/MainLayout';
 
 export default function ProtectedLayout() {
   const { isAuthenticated, isLoading } = useAuth();
-  const segments = useSegments();
   const router = useRouter();
 
   useEffect(() => {
@@ -15,7 +14,7 @@ export default function ProtectedLayout() {
     if (!isAuthenticated) {
       router.replace('/(auth)/login');
     }
-  }, [isAuthenticated, isLoading]);
+  }, [isAuthenticated, isLoading, router]);
 
   if (isLoading || !isAuthenticated) {
     return null;

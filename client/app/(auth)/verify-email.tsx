@@ -64,7 +64,7 @@ export default function VerifyEmailScreen() {
     };
 
     processVerification();
-  }, [status, accessToken, refreshToken, userId, email, errorMessage]);
+  }, [status, accessToken, refreshToken, userId, email, errorMessage, setAuthData]);
 
   if (verificationStatus === 'processing') {
     return (
@@ -94,7 +94,7 @@ export default function VerifyEmailScreen() {
           </View>
           <Text style={styles.title}>Email Verified!</Text>
           <Text style={styles.message}>
-            Your email has been successfully verified. You're now logged in and ready to go!
+            Your email has been successfully verified. You&apos;re now logged in and ready to go!
           </Text>
           <AuthButton
             title="Continue to Home"

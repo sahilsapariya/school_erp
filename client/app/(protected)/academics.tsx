@@ -25,7 +25,7 @@ export default function AcademicsScreen() {
             {isAdmin && 'Manage academic operations'}
             {isTeacher && 'My teaching & classes'}
             {isStudent && 'My learning & progress'}
-            {isParent && "Child's academic progress"}
+            {isParent && "Child&apos;s academic progress"}
           </Text>
         </View>
 
@@ -220,7 +220,7 @@ export default function AcademicsScreen() {
                 <Ionicons name="time-outline" size={24} color={Colors.primary} />
               </View>
               <View style={styles.cardText}>
-                <Text style={styles.cardTitle}>Today's Schedule</Text>
+                <Text style={styles.cardTitle}>Today&apos;s Schedule</Text>
                 <Text style={styles.cardSubtitle}>View lectures and timings</Text>
               </View>
             </View>

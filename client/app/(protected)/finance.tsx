@@ -21,7 +21,7 @@ export default function FinanceScreen() {
           <Text style={styles.title}>Finance</Text>
           <Text style={styles.subtitle}>
             {isAdmin && 'Manage fee collection and reports'}
-            {isParent && "Manage child's fee payments"}
+            {isParent && "Manage child&apos;s fee payments"}
             {isStudent && 'View fee information'}
           </Text>
         </View>

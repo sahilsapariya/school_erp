@@ -20,7 +20,7 @@ export default function Index() {
     } else if (isAuthenticated && !inProtectedGroup) {
       router.replace('/(protected)/home');
     }
-  }, [isAuthenticated, isLoading, segments]);
+  }, [isAuthenticated, isLoading, segments, router]);
 
   if (isLoading) {
     return (

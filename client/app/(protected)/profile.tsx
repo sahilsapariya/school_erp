@@ -5,16 +5,13 @@ import { Ionicons } from '@expo/vector-icons';
 import SafeScreenWrapper from '@/common/components/SafeScreenWrapper';
 import { Protected } from '@/common/components/Protected';
 import { useAuth } from '@/common/hooks/useAuth';
-import { usePermissions } from '@/common/hooks/usePermissions';
 import { getUserRole } from '@/common/constants/navigation';
 import * as PERMS from '@/common/constants/permissions';
 
 export default function ProfileScreen() {
   const { user, logout, permissions } = useAuth();
-  const { hasAnyPermission } = usePermissions();
 
   const userRole = getUserRole(permissions);
-  const isAdmin = hasAnyPermission([PERMS.SYSTEM_MANAGE, PERMS.USER_MANAGE]);
 
   const handleLogout = async () => {
     await logout();
