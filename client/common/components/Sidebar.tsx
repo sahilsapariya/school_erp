@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/common/constants/colors';
 import { useAuth } from '@/common/hooks/useAuth';
+import { getVisibleTabs, getUserRole } from '@/common/constants/navigation';
 
 const { width } = Dimensions.get('window');
 const SIDEBAR_WIDTH = width * 0.75;
@@ -28,15 +29,24 @@ interface MenuItem {
   route: string;
 }
 
-const menuItems: MenuItem[] = [
-  { id: 'home', label: 'Home', icon: 'home', route: '/(protected)/home' },
-  { id: 'academics', label: 'Academics', icon: 'book', route: '/(protected)/academics' },
-  { id: 'activities', label: 'Activities', icon: 'clipboard', route: '/(protected)/activities' },
-  { id: 'finance', label: 'Finance', icon: 'cash', route: '/(protected)/finance' },
-];
-
 export default function Sidebar({ visible, onClose, currentRoute }: SidebarProps) {
-  const { logout } = useAuth();
+  const { logout, permissions, user } = useAuth();
+  
+  // Get visible tabs based on user permissions
+  const visibleTabs = useMemo(() => getVisibleTabs(permissions), [permissions]);
+  
+  // Get user role for display
+  const userRole = useMemo(() => getUserRole(permissions), [permissions]);
+  
+  // Convert tabs to menu items
+  const menuItems: MenuItem[] = useMemo(() => {
+    return visibleTabs.map(tab => ({
+      id: tab.name,
+      label: tab.title,
+      icon: tab.iconOutline,
+      route: `/(protected)/${tab.name}`,
+    }));
+  }, [visibleTabs]);
   const slideAnim = React.useRef(new Animated.Value(-SIDEBAR_WIDTH)).current;
 
   React.useEffect(() => {
@@ -99,6 +109,17 @@ export default function Sidebar({ visible, onClose, currentRoute }: SidebarProps
         ]}
       >
         <View style={styles.sidebarContent}>
+          {/* User Info Header */}
+          <View style={styles.userHeader}>
+            <View style={styles.userAvatar}>
+              <Ionicons name="person" size={32} color={Colors.primary} />
+            </View>
+            <Text style={styles.userName}>{user?.email}</Text>
+            <View style={styles.roleBadge}>
+              <Text style={styles.roleText}>{userRole}</Text>
+            </View>
+          </View>
+
           {/* Menu Items */}
           <View style={styles.menuItems}>
             {menuItems.map((item) => {
@@ -169,11 +190,47 @@ const styles = StyleSheet.create({
   },
   sidebarContent: {
     flex: 1,
-    paddingTop: 60,
+    paddingTop: 40,
     paddingHorizontal: 20,
+  },
+  userHeader: {
+    alignItems: 'center',
+    paddingVertical: 24,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.borderLight,
+    marginBottom: 16,
+  },
+  userAvatar: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: Colors.backgroundSecondary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  userName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.text,
+    marginBottom: 8,
+    fontFamily: 'System',
+  },
+  roleB adge: {
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  roleText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.background,
+    fontFamily: 'System',
   },
   menuItems: {
     flex: 1,
+    paddingTop: 8,
   },
   menuItem: {
     flexDirection: 'row',
