@@ -15,7 +15,8 @@ def auth_required(fn):
 
         payload = validate_jwt_token(access_token, token_type="access")
         if payload:
-            user = User.query.get(int(payload["sub"]))
+            # User ID is a UUID string, not an integer
+            user = User.query.get(payload["sub"])
             if not user:
                 return jsonify({"error": "User not found"}), 401
 
@@ -38,7 +39,8 @@ def auth_required(fn):
         if not session:
             return jsonify({"error": "Session not found"}), 401
 
-        user = session.user_id
+        # Get the User object from the session relationship
+        user = session.user
         g.current_user = user
 
         session.last_accessed_at = datetime.utcnow()

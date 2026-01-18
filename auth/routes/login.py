@@ -3,6 +3,7 @@ from models import User, Session
 from mailer.mail import send_email
 from datetime import datetime, timedelta
 import os
+from auth.services.rbac_service import get_user_permissions
 
 bp = Blueprint('login', __name__)
 
@@ -32,15 +33,30 @@ def login_user():
         )
         return jsonify({'message': 'Email was not verified. Verification URL is sent!'}), 201
 
+    # Fetch user permissions to enforce RBAC
+    # This ensures only users with assigned permissions can log in
+    permissions = get_user_permissions(user.id)
+    
+    # Security rule: Users with zero permissions cannot access the system
+    # This prevents orphaned or misconfigured accounts from logging in
+    if not permissions or len(permissions) == 0:
+        return jsonify({
+            'error': 'Access denied',
+            'message': 'User has no permissions assigned. Contact administrator.'
+        }), 401
+
     access_token, refresh_token = create_login_session(user, request)
 
+    # Return permissions to frontend for UI rendering and caching
+    # Backend will always validate permissions on every request
     return jsonify({
         'access_token': access_token,
         'refresh_token': refresh_token,
         'user': {
             'id': user.id,
             'email': user.email,
-        }
+        },
+        'permissions': permissions
     }), 200
 
 

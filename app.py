@@ -5,6 +5,7 @@ from models import db
 from auth.utils.auth_guard import auth_required
 
 from auth import auth_bp
+from auth.routes.admin import bp as admin_bp
 
 
 app = Flask(__name__)
@@ -28,13 +29,21 @@ def create_app(app):
                  "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
                  "allow_headers": ["Content-Type", "Authorization", "X-Refresh-Token"],
                  "expose_headers": ["X-New-Access-Token"]
+             },
+             r"/api/admin/*": {
+                 "origins": ["*"],
+                 "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+                 "allow_headers": ["Content-Type", "Authorization", "X-Refresh-Token"],
+                 "expose_headers": ["X-New-Access-Token"]
              }
          },
          supports_credentials=True)
 
     db.init_app(app)
 
+    # Register blueprints
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
+    app.register_blueprint(admin_bp, url_prefix='/api/admin')
 
     @app.route('/api')
     def health_check():
