@@ -1,8 +1,8 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { Colors } from '@/common/constants/colors';
+import { Spacing, Layout } from '@/common/constants/spacing';
 import { Ionicons } from '@expo/vector-icons';
-import SafeScreenWrapper from '@/common/components/SafeScreenWrapper';
 import { Protected } from '@/common/components/Protected';
 import { usePermissions } from '@/common/hooks/usePermissions';
 import * as PERMS from '@/common/constants/permissions';
@@ -14,18 +14,21 @@ export default function ActivitiesScreen() {
   const isTeacher = hasAnyPermission([PERMS.ATTENDANCE_MARK, PERMS.GRADE_CREATE]);
 
   return (
-    <SafeScreenWrapper backgroundColor={Colors.background}>
-      <ScrollView style={styles.container}>
-        <View style={styles.header}>
-          <Text style={styles.title}>Activities</Text>
-          <Text style={styles.subtitle}>
-            {isAdmin && 'Manage school activities and events'}
-            {isTeacher && 'Class activities and announcements'}
-            {!isAdmin && !isTeacher && 'Events and announcements'}
-          </Text>
-        </View>
+    <ScrollView 
+      style={styles.container}
+      contentContainerStyle={styles.contentContainer}
+      showsVerticalScrollIndicator={false}
+    >
+      <View style={styles.header}>
+        <Text style={styles.title}>Activities</Text>
+        <Text style={styles.subtitle}>
+          {isAdmin && 'Manage school activities and events'}
+          {isTeacher && 'Class activities and announcements'}
+          {!isAdmin && !isTeacher && 'Events and announcements'}
+        </Text>
+      </View>
 
-        {/* Events & Calendar */}
+      <View style={styles.content}>
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Events & Calendar</Text>
           
@@ -144,9 +147,8 @@ export default function ActivitiesScreen() {
             <Ionicons name="chevron-forward" size={20} color={Colors.textSecondary} />
           </TouchableOpacity>
         </View>
-
-      </ScrollView>
-    </SafeScreenWrapper>
+      </View>
+    </ScrollView>
   );
 }
 
@@ -154,15 +156,18 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  contentContainer: {
+    paddingBottom: Spacing.lg,
+  },
   header: {
-    padding: 24,
-    paddingBottom: 16,
+    padding: Spacing.lg,
+    paddingBottom: Spacing.md,
   },
   title: {
     fontSize: 32,
     fontWeight: '700',
     color: Colors.text,
-    marginBottom: 4,
+    marginBottom: Spacing.xs,
     fontFamily: 'System',
   },
   subtitle: {
@@ -170,15 +175,17 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     fontFamily: 'System',
   },
+  content: {
+    gap: Spacing.lg,
+  },
   section: {
-    paddingHorizontal: 24,
-    marginBottom: 24,
+    paddingHorizontal: Spacing.lg,
   },
   sectionTitle: {
     fontSize: 20,
     fontWeight: '600',
     color: Colors.text,
-    marginBottom: 16,
+    marginBottom: Spacing.md,
     fontFamily: 'System',
   },
   actionCard: {
@@ -186,9 +193,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: Colors.backgroundSecondary,
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
+    borderRadius: Layout.borderRadius.lg,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
   },
   primaryCard: {
     backgroundColor: Colors.primary,
@@ -201,11 +208,11 @@ const styles = StyleSheet.create({
   cardIcon: {
     width: 48,
     height: 48,
-    borderRadius: 12,
+    borderRadius: Layout.borderRadius.md,
     backgroundColor: Colors.background,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
+    marginRight: Spacing.md,
   },
   primaryIcon: {
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
@@ -238,8 +245,8 @@ const styles = StyleSheet.create({
     height: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 6,
-    marginLeft: 8,
+    paddingHorizontal: Spacing.sm,
+    marginLeft: Spacing.sm,
   },
   badgeText: {
     fontSize: 12,

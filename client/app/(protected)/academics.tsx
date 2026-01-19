@@ -1,8 +1,8 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { Colors } from '@/common/constants/colors';
+import { Spacing, Layout } from '@/common/constants/spacing';
 import { Ionicons } from '@expo/vector-icons';
-import SafeScreenWrapper from '@/common/components/SafeScreenWrapper';
 import { Protected } from '@/common/components/Protected';
 import { usePermissions } from '@/common/hooks/usePermissions';
 import * as PERMS from '@/common/constants/permissions';
@@ -10,26 +10,28 @@ import * as PERMS from '@/common/constants/permissions';
 export default function AcademicsScreen() {
   const { hasAnyPermission } = usePermissions();
 
-  // Check role type for UI adaptation
   const isAdmin = hasAnyPermission([PERMS.SYSTEM_MANAGE, PERMS.USER_MANAGE]);
   const isTeacher = hasAnyPermission([PERMS.ATTENDANCE_MARK, PERMS.GRADE_CREATE]);
   const isStudent = hasAnyPermission([PERMS.GRADE_READ_SELF, PERMS.ATTENDANCE_READ_SELF]);
   const isParent = hasAnyPermission([PERMS.GRADE_READ_CHILD]);
 
   return (
-    <SafeScreenWrapper backgroundColor={Colors.background}>
-      <ScrollView style={styles.container}>
-        <View style={styles.header}>
-          <Text style={styles.title}>Academics</Text>
-          <Text style={styles.subtitle}>
-            {isAdmin && 'Manage academic operations'}
-            {isTeacher && 'My teaching & classes'}
-            {isStudent && 'My learning & progress'}
-            {isParent && "Child&apos;s academic progress"}
-          </Text>
-        </View>
+    <ScrollView 
+      style={styles.container}
+      contentContainerStyle={styles.contentContainer}
+      showsVerticalScrollIndicator={false}
+    >
+      <View style={styles.header}>
+        <Text style={styles.title}>Academics</Text>
+        <Text style={styles.subtitle}>
+          {isAdmin && 'Manage academic operations'}
+          {isTeacher && 'My teaching & classes'}
+          {isStudent && 'My learning & progress'}
+          {isParent && "Child&apos;s academic progress"}
+        </Text>
+      </View>
 
-        {/* Admin View - Academic Overview */}
+      <View style={styles.content}>
         <Protected anyPermissions={[PERMS.SYSTEM_MANAGE, PERMS.USER_MANAGE]}>
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Overview</Text>
@@ -240,9 +242,8 @@ export default function AcademicsScreen() {
             <Ionicons name="chevron-forward" size={20} color={Colors.textSecondary} />
           </TouchableOpacity>
         </View>
-
-      </ScrollView>
-    </SafeScreenWrapper>
+      </View>
+    </ScrollView>
   );
 }
 
@@ -250,15 +251,18 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  contentContainer: {
+    paddingBottom: Spacing.lg,
+  },
   header: {
-    padding: 24,
-    paddingBottom: 16,
+    padding: Spacing.lg,
+    paddingBottom: Spacing.md,
   },
   title: {
     fontSize: 32,
     fontWeight: '700',
     color: Colors.text,
-    marginBottom: 4,
+    marginBottom: Spacing.xs,
     fontFamily: 'System',
   },
   subtitle: {
@@ -266,39 +270,41 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     fontFamily: 'System',
   },
+  content: {
+    gap: Spacing.lg,
+  },
   section: {
-    paddingHorizontal: 24,
-    marginBottom: 24,
+    paddingHorizontal: Spacing.lg,
   },
   sectionTitle: {
     fontSize: 20,
     fontWeight: '600',
     color: Colors.text,
-    marginBottom: 16,
+    marginBottom: Spacing.md,
     fontFamily: 'System',
   },
   statsGrid: {
     flexDirection: 'row',
-    gap: 12,
+    gap: Spacing.md,
   },
   statCard: {
     flex: 1,
     backgroundColor: Colors.backgroundSecondary,
-    borderRadius: 16,
-    padding: 20,
+    borderRadius: Layout.borderRadius.lg,
+    padding: Spacing.lg,
     alignItems: 'center',
   },
   statValue: {
     fontSize: 28,
     fontWeight: '700',
     color: Colors.text,
-    marginTop: 8,
+    marginTop: Spacing.sm,
     fontFamily: 'System',
   },
   statLabel: {
     fontSize: 14,
     color: Colors.textSecondary,
-    marginTop: 4,
+    marginTop: Spacing.xs,
     fontFamily: 'System',
   },
   actionCard: {
@@ -306,9 +312,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: Colors.backgroundSecondary,
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
+    borderRadius: Layout.borderRadius.lg,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
   },
   primaryCard: {
     backgroundColor: Colors.primary,
@@ -321,11 +327,11 @@ const styles = StyleSheet.create({
   cardIcon: {
     width: 48,
     height: 48,
-    borderRadius: 12,
+    borderRadius: Layout.borderRadius.md,
     backgroundColor: Colors.background,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
+    marginRight: Spacing.md,
   },
   primaryIcon: {
     backgroundColor: 'rgba(255, 255, 255, 0.2)',

@@ -10,6 +10,7 @@ import { Ionicons } from '@expo/vector-icons';
 import SafeScreenWrapper from '@/common/components/SafeScreenWrapper';
 import Sidebar from '@/common/components/Sidebar';
 import { Colors } from '@/common/constants/colors';
+import { Spacing, Layout } from '@/common/constants/spacing';
 import { useAuth } from '@/common/hooks/useAuth';
 
 export default function MainLayout() {
@@ -57,8 +58,11 @@ export default function MainLayout() {
           </TouchableOpacity>
         </View>
 
-        {/* Main Content - Slot renders the current route */}
-        <View style={styles.content}>
+        {/* Main Content */}
+        <View 
+          style={styles.content}
+          pointerEvents={sidebarVisible ? 'none' : 'auto'}
+        >
           <Slot />
         </View>
 
@@ -78,20 +82,20 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
+    height: Layout.headerHeight,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingHorizontal: Spacing.lg,
     backgroundColor: Colors.background,
     borderBottomWidth: 1,
     borderBottomColor: Colors.borderLight,
   },
   menuButton: {
-    padding: 8,
+    padding: Spacing.sm,
   },
   profileButton: {
-    padding: 4,
+    padding: Spacing.xs,
   },
   profileImage: {
     width: 36,
@@ -108,5 +112,6 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+    backgroundColor: Colors.background,
   },
 });

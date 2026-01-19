@@ -1,8 +1,8 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { Colors } from '@/common/constants/colors';
+import { Spacing, Layout } from '@/common/constants/spacing';
 import { Ionicons } from '@expo/vector-icons';
-import SafeScreenWrapper from '@/common/components/SafeScreenWrapper';
 import { useAuth } from '@/common/hooks/useAuth';
 import { usePermissions } from '@/common/hooks/usePermissions';
 import { Protected } from '@/common/components/Protected';
@@ -17,145 +17,150 @@ export default function ProtectedHomeScreen() {
   };
 
   return (
-    <SafeScreenWrapper backgroundColor={Colors.background}>
-      <ScrollView style={styles.container}>
-        <View style={styles.header}>
-          <View style={styles.iconContainer}>
-            <Ionicons name="shield-checkmark" size={64} color={Colors.primary} />
+    <ScrollView 
+      style={styles.container}
+      contentContainerStyle={styles.contentContainer}
+      showsVerticalScrollIndicator={false}
+    >
+      {/* Header Section */}
+      <View style={styles.header}>
+        <View style={styles.iconContainer}>
+          <Ionicons name="shield-checkmark" size={64} color={Colors.primary} />
+        </View>
+        <Text style={styles.title}>Welcome!</Text>
+        <Text style={styles.subtitle}>
+          {user?.email}
+        </Text>
+      </View>
+
+      {/* Cards Container */}
+      <View style={styles.cardsContainer}>
+        {/* User Info Card */}
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <Ionicons name="person-circle-outline" size={24} color={Colors.primary} />
+            <Text style={styles.cardTitle}>Your Profile</Text>
           </View>
-          <Text style={styles.title}>Welcome!</Text>
-          <Text style={styles.subtitle}>
-            {user?.email}
+          <View style={styles.cardContent}>
+            <Text style={styles.cardText}>Email: {user?.email}</Text>
+            <Text style={styles.cardText}>ID: {user?.id}</Text>
+          </View>
+        </View>
+
+        {/* Permissions Card */}
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <Ionicons name="key-outline" size={24} color={Colors.primary} />
+            <Text style={styles.cardTitle}>Your Permissions ({permissions.length})</Text>
+          </View>
+          <View style={styles.cardContent}>
+            {permissions.length > 0 ? (
+              permissions.slice(0, 5).map((perm, index) => (
+                <View key={index} style={styles.permissionItem}>
+                  <Ionicons name="checkmark-circle" size={16} color={Colors.success} />
+                  <Text style={styles.permissionText}>{perm}</Text>
+                </View>
+              ))
+            ) : (
+              <Text style={styles.noPermissions}>No permissions assigned</Text>
+            )}
+            {permissions.length > 5 && (
+              <Text style={styles.moreText}>
+                +{permissions.length - 5} more permissions
+              </Text>
+            )}
+          </View>
+        </View>
+
+        {/* Quick Actions - Shown based on permissions */}
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <Ionicons name="apps-outline" size={24} color={Colors.primary} />
+            <Text style={styles.cardTitle}>Quick Actions</Text>
+          </View>
+          <View style={styles.actionsGrid}>
+            {/* Show Create Student button */}
+            <Protected permission={PERMS.STUDENT_CREATE}>
+              <TouchableOpacity style={styles.actionButton}>
+                <Ionicons name="person-add" size={24} color={Colors.primary} />
+                <Text style={styles.actionText}>Create Student</Text>
+              </TouchableOpacity>
+            </Protected>
+
+            {/* Show Mark Attendance button */}
+            <Protected permission={PERMS.ATTENDANCE_MARK}>
+              <TouchableOpacity style={styles.actionButton}>
+                <Ionicons name="checkbox-outline" size={24} color={Colors.primary} />
+                <Text style={styles.actionText}>Mark Attendance</Text>
+              </TouchableOpacity>
+            </Protected>
+
+            {/* Show Grade Management for teachers/admins */}
+            <Protected anyPermissions={[PERMS.GRADE_CREATE, PERMS.GRADE_MANAGE]}>
+              <TouchableOpacity style={styles.actionButton}>
+                <Ionicons name="school-outline" size={24} color={Colors.primary} />
+                <Text style={styles.actionText}>Manage Grades</Text>
+              </TouchableOpacity>
+            </Protected>
+
+            {/* Show My Grades button */}
+            <Protected permission={PERMS.GRADE_READ_SELF}>
+              <TouchableOpacity style={styles.actionButton}>
+                <Ionicons name="ribbon-outline" size={24} color={Colors.primary} />
+                <Text style={styles.actionText}>My Grades</Text>
+              </TouchableOpacity>
+            </Protected>
+
+            {/* Show Admin Panel only for admins */}
+            <Protected anyPermissions={[PERMS.USER_MANAGE, PERMS.SYSTEM_MANAGE]}>
+              <TouchableOpacity style={styles.actionButton}>
+                <Ionicons name="settings-outline" size={24} color={Colors.primary} />
+                <Text style={styles.actionText}>Admin Panel</Text>
+              </TouchableOpacity>
+            </Protected>
+          </View>
+        </View>
+
+        {/* Info Card */}
+        <View style={styles.infoCard}>
+          <Ionicons name="information-circle-outline" size={20} color={Colors.primary} />
+          <Text style={styles.infoText}>
+            This dashboard shows features based on your assigned permissions. 
+            Contact your administrator if you need additional access.
           </Text>
         </View>
 
-        <View style={styles.content}>
-          {/* User Info Card */}
-          <View style={styles.card}>
-            <View style={styles.cardHeader}>
-              <Ionicons name="person-circle-outline" size={24} color={Colors.primary} />
-              <Text style={styles.cardTitle}>Your Profile</Text>
-            </View>
-            <View style={styles.cardContent}>
-              <Text style={styles.cardText}>Email: {user?.email}</Text>
-              <Text style={styles.cardText}>ID: {user?.id}</Text>
-            </View>
-          </View>
-
-          {/* Permissions Card */}
-          <View style={styles.card}>
-            <View style={styles.cardHeader}>
-              <Ionicons name="key-outline" size={24} color={Colors.primary} />
-              <Text style={styles.cardTitle}>Your Permissions ({permissions.length})</Text>
-            </View>
-            <View style={styles.cardContent}>
-              {permissions.length > 0 ? (
-                permissions.slice(0, 5).map((perm, index) => (
-                  <View key={index} style={styles.permissionItem}>
-                    <Ionicons name="checkmark-circle" size={16} color={Colors.success} />
-                    <Text style={styles.permissionText}>{perm}</Text>
-                  </View>
-                ))
-              ) : (
-                <Text style={styles.noPermissions}>No permissions assigned</Text>
-              )}
-              {permissions.length > 5 && (
-                <Text style={styles.moreText}>
-                  +{permissions.length - 5} more permissions
-                </Text>
-              )}
-            </View>
-          </View>
-
-          {/* Quick Actions - Shown based on permissions */}
-          <View style={styles.card}>
-            <View style={styles.cardHeader}>
-              <Ionicons name="apps-outline" size={24} color={Colors.primary} />
-              <Text style={styles.cardTitle}>Quick Actions</Text>
-            </View>
-            <View style={styles.actionsGrid}>
-              
-              {/* Show Create Student button only if user has permission */}
-              <Protected permission={PERMS.STUDENT_CREATE}>
-                <TouchableOpacity style={styles.actionButton}>
-                  <Ionicons name="person-add" size={24} color={Colors.primary} />
-                  <Text style={styles.actionText}>Create Student</Text>
-                </TouchableOpacity>
-              </Protected>
-
-              {/* Show Mark Attendance only if user has permission */}
-              <Protected permission={PERMS.ATTENDANCE_MARK}>
-                <TouchableOpacity style={styles.actionButton}>
-                  <Ionicons name="checkbox-outline" size={24} color={Colors.primary} />
-                  <Text style={styles.actionText}>Mark Attendance</Text>
-                </TouchableOpacity>
-              </Protected>
-
-              {/* Show Grade Management for teachers/admins */}
-              <Protected anyPermissions={[PERMS.GRADE_CREATE, PERMS.GRADE_MANAGE]}>
-                <TouchableOpacity style={styles.actionButton}>
-                  <Ionicons name="school-outline" size={24} color={Colors.primary} />
-                  <Text style={styles.actionText}>Manage Grades</Text>
-                </TouchableOpacity>
-              </Protected>
-
-              {/* Show View Grades for students */}
-              <Protected permission={PERMS.GRADE_READ_SELF}>
-                <TouchableOpacity style={styles.actionButton}>
-                  <Ionicons name="ribbon-outline" size={24} color={Colors.primary} />
-                  <Text style={styles.actionText}>My Grades</Text>
-                </TouchableOpacity>
-              </Protected>
-
-              {/* Show Admin Panel only for admins */}
-              <Protected anyPermissions={[PERMS.USER_MANAGE, PERMS.SYSTEM_MANAGE]}>
-                <TouchableOpacity style={styles.actionButton}>
-                  <Ionicons name="settings-outline" size={24} color={Colors.primary} />
-                  <Text style={styles.actionText}>Admin Panel</Text>
-                </TouchableOpacity>
-              </Protected>
-
-            </View>
-          </View>
-
-          {/* Info Card */}
-          <View style={styles.infoCard}>
-            <Ionicons name="information-circle-outline" size={20} color={Colors.primary} />
-            <Text style={styles.infoText}>
-              This dashboard shows features based on your assigned permissions. 
-              Contact your administrator if you need additional access.
-            </Text>
-          </View>
-
-          {/* Logout Button */}
-          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-            <Ionicons name="log-out-outline" size={20} color={Colors.error} />
-            <Text style={styles.logoutText}>Logout</Text>
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
-    </SafeScreenWrapper>
+        {/* Logout Button */}
+        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+          <Ionicons name="log-out-outline" size={20} color={Colors.error} />
+          <Text style={styles.logoutText}>Logout</Text>
+        </TouchableOpacity>
+      </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingHorizontal: 24,
-    paddingTop: 40,
+  },
+  contentContainer: {
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.xl,
+    paddingBottom: Spacing.lg,
   },
   header: {
     alignItems: 'center',
-    marginBottom: 32,
+    marginBottom: Spacing.xl,
   },
   iconContainer: {
-    marginBottom: 16,
+    marginBottom: Spacing.md,
   },
   title: {
     fontSize: 32,
     fontWeight: '700',
     color: Colors.text,
-    marginBottom: 8,
+    marginBottom: Spacing.sm,
     fontFamily: 'System',
   },
   subtitle: {
@@ -163,30 +168,28 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     fontFamily: 'System',
   },
-  content: {
-    flex: 1,
-    paddingBottom: 32,
+  cardsContainer: {
+    gap: Spacing.md,
   },
   card: {
     backgroundColor: Colors.backgroundSecondary,
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
+    borderRadius: Layout.borderRadius.lg,
+    padding: Spacing.md,
   },
   cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: Spacing.md,
   },
   cardTitle: {
     fontSize: 18,
     fontWeight: '600',
     color: Colors.text,
-    marginLeft: 8,
+    marginLeft: Spacing.sm,
     fontFamily: 'System',
   },
   cardContent: {
-    gap: 8,
+    gap: Spacing.sm,
   },
   cardText: {
     fontSize: 14,
@@ -196,12 +199,12 @@ const styles = StyleSheet.create({
   permissionItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 4,
+    paddingVertical: Spacing.xs,
   },
   permissionText: {
     fontSize: 13,
     color: Colors.text,
-    marginLeft: 8,
+    marginLeft: Spacing.sm,
     fontFamily: 'System',
   },
   noPermissions: {
@@ -213,44 +216,42 @@ const styles = StyleSheet.create({
   moreText: {
     fontSize: 12,
     color: Colors.primary,
-    marginTop: 4,
+    marginTop: Spacing.xs,
     fontFamily: 'System',
   },
   actionsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
-    marginTop: 8,
+    gap: Spacing.md,
+    marginTop: Spacing.sm,
   },
   actionButton: {
     backgroundColor: Colors.background,
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: Layout.borderRadius.md,
+    padding: Spacing.md,
     alignItems: 'center',
     justifyContent: 'center',
-    minWidth: '45%',
-    flex: 1,
+    width: '47%',
   },
   actionText: {
     fontSize: 12,
     color: Colors.text,
-    marginTop: 8,
+    marginTop: Spacing.sm,
     textAlign: 'center',
     fontFamily: 'System',
   },
   infoCard: {
     flexDirection: 'row',
     backgroundColor: Colors.backgroundSecondary,
-    padding: 16,
-    borderRadius: 12,
+    padding: Spacing.md,
+    borderRadius: Layout.borderRadius.md,
     borderLeftWidth: 4,
     borderLeftColor: Colors.primary,
-    marginBottom: 16,
   },
   infoText: {
     fontSize: 14,
     color: Colors.textSecondary,
-    marginLeft: 12,
+    marginLeft: Spacing.md,
     flex: 1,
     lineHeight: 20,
     fontFamily: 'System',
@@ -260,8 +261,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: Colors.backgroundSecondary,
-    padding: 16,
-    borderRadius: 12,
+    padding: Spacing.md,
+    borderRadius: Layout.borderRadius.md,
     borderWidth: 1,
     borderColor: Colors.error,
   },
@@ -269,7 +270,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: Colors.error,
-    marginLeft: 8,
+    marginLeft: Spacing.sm,
     fontFamily: 'System',
   },
 });

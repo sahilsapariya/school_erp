@@ -1,8 +1,8 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { Colors } from '@/common/constants/colors';
+import { Spacing, Layout } from '@/common/constants/spacing';
 import { Ionicons } from '@expo/vector-icons';
-import SafeScreenWrapper from '@/common/components/SafeScreenWrapper';
 import { Protected } from '@/common/components/Protected';
 import { useAuth } from '@/common/hooks/useAuth';
 import { getUserRole } from '@/common/constants/navigation';
@@ -18,8 +18,11 @@ export default function ProfileScreen() {
   };
 
   return (
-    <SafeScreenWrapper backgroundColor={Colors.background}>
-      <ScrollView style={styles.container}>
+    <ScrollView 
+      style={styles.container}
+      contentContainerStyle={styles.contentContainer}
+      showsVerticalScrollIndicator={false}
+    >
         {/* Profile Header */}
         <View style={styles.header}>
           <View style={styles.avatarContainer}>
@@ -34,7 +37,7 @@ export default function ProfileScreen() {
           <Text style={styles.email}>{user?.email}</Text>
         </View>
 
-        {/* Profile Information */}
+      <View style={styles.content}>
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Profile Information</Text>
           
@@ -192,10 +195,8 @@ export default function ProfileScreen() {
             <Text style={styles.logoutText}>Logout</Text>
           </TouchableOpacity>
         </View>
-
-        <View style={styles.spacer} />
-      </ScrollView>
-    </SafeScreenWrapper>
+      </View>
+    </ScrollView>
   );
 }
 
@@ -203,16 +204,19 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  contentContainer: {
+    paddingBottom: Spacing.lg,
+  },
   header: {
     alignItems: 'center',
-    padding: 32,
+    padding: Spacing.xl,
     backgroundColor: Colors.backgroundSecondary,
-    borderBottomLeftRadius: 32,
-    borderBottomRightRadius: 32,
+    borderBottomLeftRadius: Spacing.xl,
+    borderBottomRightRadius: Spacing.xl,
   },
   avatarContainer: {
     position: 'relative',
-    marginBottom: 16,
+    marginBottom: Spacing.md,
   },
   avatar: {
     width: 96,
@@ -229,9 +233,9 @@ const styles = StyleSheet.create({
     bottom: 0,
     right: -8,
     backgroundColor: Colors.primary,
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    borderRadius: Layout.borderRadius.md,
   },
   roleText: {
     fontSize: 12,
@@ -243,7 +247,7 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '700',
     color: Colors.text,
-    marginBottom: 4,
+    marginBottom: Spacing.xs,
     fontFamily: 'System',
   },
   email: {
@@ -251,15 +255,18 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     fontFamily: 'System',
   },
+  content: {
+    gap: Spacing.lg,
+    marginTop: Spacing.lg,
+  },
   section: {
-    paddingHorizontal: 24,
-    marginTop: 24,
+    paddingHorizontal: Spacing.lg,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
     color: Colors.text,
-    marginBottom: 16,
+    marginBottom: Spacing.md,
     fontFamily: 'System',
   },
   infoCard: {
@@ -267,9 +274,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: Colors.backgroundSecondary,
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
+    borderRadius: Layout.borderRadius.lg,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
   },
   cardContent: {
     flexDirection: 'row',
@@ -279,11 +286,11 @@ const styles = StyleSheet.create({
   cardIcon: {
     width: 48,
     height: 48,
-    borderRadius: 12,
+    borderRadius: Layout.borderRadius.md,
     backgroundColor: Colors.background,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
+    marginRight: Spacing.md,
   },
   cardText: {
     flex: 1,
@@ -307,20 +314,20 @@ const styles = StyleSheet.create({
   },
   permissionsCard: {
     backgroundColor: Colors.backgroundSecondary,
-    borderRadius: 16,
-    padding: 16,
+    borderRadius: Layout.borderRadius.lg,
+    padding: Spacing.md,
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: Spacing.sm,
   },
   permissionChip: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.background,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    gap: 4,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: Layout.borderRadius.lg,
+    gap: Spacing.xs,
   },
   permissionText: {
     fontSize: 12,
@@ -336,8 +343,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: Colors.backgroundSecondary,
-    padding: 16,
-    borderRadius: 16,
+    padding: Spacing.md,
+    borderRadius: Layout.borderRadius.lg,
     borderWidth: 1,
     borderColor: Colors.error,
   },
@@ -345,10 +352,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: Colors.error,
-    marginLeft: 8,
+    marginLeft: Spacing.sm,
     fontFamily: 'System',
-  },
-  spacer: {
-    height: 32,
   },
 });

@@ -1,8 +1,8 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { Colors } from '@/common/constants/colors';
+import { Spacing, Layout } from '@/common/constants/spacing';
 import { Ionicons } from '@expo/vector-icons';
-import SafeScreenWrapper from '@/common/components/SafeScreenWrapper';
 import { Protected } from '@/common/components/Protected';
 import { usePermissions } from '@/common/hooks/usePermissions';
 import * as PERMS from '@/common/constants/permissions';
@@ -15,18 +15,21 @@ export default function FinanceScreen() {
   const isStudent = hasAnyPermission([PERMS.FEE_READ_SELF]);
 
   return (
-    <SafeScreenWrapper backgroundColor={Colors.background}>
-      <ScrollView style={styles.container}>
-        <View style={styles.header}>
-          <Text style={styles.title}>Finance</Text>
-          <Text style={styles.subtitle}>
-            {isAdmin && 'Manage fee collection and reports'}
-            {isParent && "Manage child&apos;s fee payments"}
-            {isStudent && 'View fee information'}
-          </Text>
-        </View>
+    <ScrollView 
+      style={styles.container}
+      contentContainerStyle={styles.contentContainer}
+      showsVerticalScrollIndicator={false}
+    >
+      <View style={styles.header}>
+        <Text style={styles.title}>Finance</Text>
+        <Text style={styles.subtitle}>
+          {isAdmin && 'Manage fee collection and reports'}
+          {isParent && "Manage child&apos;s fee payments"}
+          {isStudent && 'View fee information'}
+        </Text>
+      </View>
 
-        {/* Admin Overview */}
+      <View style={styles.content}>
         <Protected anyPermissions={[PERMS.SYSTEM_MANAGE, PERMS.FEE_MANAGE]}>
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Overview</Text>
@@ -178,13 +181,12 @@ export default function FinanceScreen() {
                   <Text style={styles.cardSubtitle}>Pending fee students</Text>
                 </View>
               </View>
-              <Ionicons name="chevron-forward" size={20} color={Colors.textSecondary} />
-            </TouchableOpacity>
-          </View>
+            <Ionicons name="chevron-forward" size={20} color={Colors.textSecondary} />
+          </TouchableOpacity>
+        </View>
         </Protected>
-
-      </ScrollView>
-    </SafeScreenWrapper>
+      </View>
+    </ScrollView>
   );
 }
 
@@ -192,15 +194,18 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  contentContainer: {
+    paddingBottom: Spacing.lg,
+  },
   header: {
-    padding: 24,
-    paddingBottom: 16,
+    padding: Spacing.lg,
+    paddingBottom: Spacing.md,
   },
   title: {
     fontSize: 32,
     fontWeight: '700',
     color: Colors.text,
-    marginBottom: 4,
+    marginBottom: Spacing.xs,
     fontFamily: 'System',
   },
   subtitle: {
@@ -208,51 +213,53 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     fontFamily: 'System',
   },
+  content: {
+    gap: Spacing.lg,
+  },
   section: {
-    paddingHorizontal: 24,
-    marginBottom: 24,
+    paddingHorizontal: Spacing.lg,
   },
   sectionTitle: {
     fontSize: 20,
     fontWeight: '600',
     color: Colors.text,
-    marginBottom: 16,
+    marginBottom: Spacing.md,
     fontFamily: 'System',
   },
   statsGrid: {
     flexDirection: 'row',
-    gap: 12,
+    gap: Spacing.md,
   },
   statCard: {
     flex: 1,
     backgroundColor: Colors.backgroundSecondary,
-    borderRadius: 16,
-    padding: 20,
+    borderRadius: Layout.borderRadius.lg,
+    padding: Spacing.lg,
     alignItems: 'center',
   },
   statValue: {
     fontSize: 24,
     fontWeight: '700',
     color: Colors.text,
-    marginTop: 8,
+    marginTop: Spacing.sm,
     fontFamily: 'System',
   },
   statLabel: {
     fontSize: 14,
     color: Colors.textSecondary,
-    marginTop: 4,
+    marginTop: Spacing.xs,
     fontFamily: 'System',
   },
   feeStatusCard: {
     backgroundColor: Colors.backgroundSecondary,
-    borderRadius: 16,
-    padding: 20,
+    borderRadius: Layout.borderRadius.lg,
+    padding: Spacing.lg,
   },
   feeHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: Spacing.md,
   },
   feeTitle: {
     fontSize: 18,
@@ -262,9 +269,9 @@ const styles = StyleSheet.create({
   },
   statusBadge: {
     backgroundColor: Colors.warning,
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    borderRadius: Layout.borderRadius.md,
   },
   statusText: {
     fontSize: 12,
@@ -273,18 +280,18 @@ const styles = StyleSheet.create({
     fontFamily: 'System',
   },
   feeDetails: {
-    marginBottom: 12,
+    marginBottom: Spacing.md,
   },
   feeRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingVertical: 8,
+    paddingVertical: Spacing.sm,
   },
   feeRowBorder: {
     borderTopWidth: 1,
     borderTopColor: Colors.border,
-    marginTop: 8,
-    paddingTop: 12,
+    marginTop: Spacing.sm,
+    paddingTop: Spacing.md,
   },
   feeLabel: {
     fontSize: 15,
@@ -312,7 +319,7 @@ const styles = StyleSheet.create({
   dueDateRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: Spacing.sm,
   },
   dueDate: {
     fontSize: 13,
@@ -324,9 +331,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: Colors.backgroundSecondary,
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
+    borderRadius: Layout.borderRadius.lg,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
   },
   primaryCard: {
     backgroundColor: Colors.primary,
@@ -339,11 +346,11 @@ const styles = StyleSheet.create({
   cardIcon: {
     width: 48,
     height: 48,
-    borderRadius: 12,
+    borderRadius: Layout.borderRadius.md,
     backgroundColor: Colors.background,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
+    marginRight: Spacing.md,
   },
   primaryIcon: {
     backgroundColor: 'rgba(255, 255, 255, 0.2)',

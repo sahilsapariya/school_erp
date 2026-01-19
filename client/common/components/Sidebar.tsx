@@ -6,10 +6,12 @@ import {
   TouchableOpacity,
   Animated,
   Dimensions,
+  ScrollView,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/common/constants/colors';
+import { Spacing, Layout } from '@/common/constants/spacing';
 import { useAuth } from '@/common/hooks/useAuth';
 import { getVisibleTabs, getUserRole } from '@/common/constants/navigation';
 
@@ -48,13 +50,38 @@ export default function Sidebar({ visible, onClose, currentRoute }: SidebarProps
     }));
   }, [visibleTabs]);
   const slideAnim = React.useRef(new Animated.Value(-SIDEBAR_WIDTH)).current;
+  const opacityAnim = React.useRef(new Animated.Value(0)).current;
 
   React.useEffect(() => {
-    Animated.timing(slideAnim, {
-      toValue: visible ? 0 : -SIDEBAR_WIDTH,
-      duration: 300,
-      useNativeDriver: true,
-    }).start();
+    if (visible) {
+      // Show sidebar and backdrop
+      Animated.parallel([
+        Animated.timing(slideAnim, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(opacityAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      // Hide sidebar and backdrop
+      Animated.parallel([
+        Animated.timing(slideAnim, {
+          toValue: -SIDEBAR_WIDTH,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(opacityAnim, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
   }, [visible]);
 
   const handleMenuItemPress = (route: string) => {
@@ -86,20 +113,27 @@ export default function Sidebar({ visible, onClose, currentRoute }: SidebarProps
     return currentRoute.includes(screenName || '');
   };
 
-  if (!visible) {
-    return null;
-  }
 
   return (
     <>
-      {/* Overlay */}
-      <TouchableOpacity
-        style={styles.overlay}
-        activeOpacity={1}
-        onPress={onClose}
-      />
+      {/* Backdrop - Animated opacity */}
+      <Animated.View
+        style={[
+          styles.overlay,
+          {
+            opacity: opacityAnim,
+            pointerEvents: visible ? 'auto' : 'none',
+          },
+        ]}
+      >
+        <TouchableOpacity
+          style={StyleSheet.absoluteFill}
+          activeOpacity={1}
+          onPress={onClose}
+        />
+      </Animated.View>
       
-      {/* Sidebar */}
+      {/* Sidebar - Animated slide */}
       <Animated.View
         style={[
           styles.sidebar,
@@ -107,14 +141,20 @@ export default function Sidebar({ visible, onClose, currentRoute }: SidebarProps
             transform: [{ translateX: slideAnim }],
           },
         ]}
+        pointerEvents={visible ? 'auto' : 'none'}
       >
-        <View style={styles.sidebarContent}>
+        <ScrollView 
+          style={styles.sidebarContent}
+          contentContainerStyle={styles.sidebarContentContainer}
+          showsVerticalScrollIndicator={false}
+          bounces={false}
+        >
           {/* User Info Header */}
           <View style={styles.userHeader}>
             <View style={styles.userAvatar}>
               <Ionicons name="person" size={32} color={Colors.primary} />
             </View>
-            <Text style={styles.userName}>{user?.email}</Text>
+            <Text style={styles.userName} numberOfLines={1}>{user?.email}</Text>
             <View style={styles.roleBadge}>
               <Text style={styles.roleText}>{userRole}</Text>
             </View>
@@ -158,7 +198,7 @@ export default function Sidebar({ visible, onClose, currentRoute }: SidebarProps
             <Ionicons name="log-out-outline" size={24} color={Colors.error} />
             <Text style={styles.signOutText}>Sign Out</Text>
           </TouchableOpacity>
-        </View>
+        </ScrollView>
       </Animated.View>
     </>
   );
@@ -166,11 +206,7 @@ export default function Sidebar({ visible, onClose, currentRoute }: SidebarProps
 
 const styles = StyleSheet.create({
   overlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+    ...StyleSheet.absoluteFillObject,
     backgroundColor: Colors.overlay,
     zIndex: 998,
   },
@@ -190,15 +226,18 @@ const styles = StyleSheet.create({
   },
   sidebarContent: {
     flex: 1,
-    paddingTop: 40,
-    paddingHorizontal: 20,
+  },
+  sidebarContentContainer: {
+    paddingTop: Spacing.xxl,
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.lg,
   },
   userHeader: {
     alignItems: 'center',
-    paddingVertical: 24,
+    paddingVertical: Spacing.lg,
     borderBottomWidth: 1,
     borderBottomColor: Colors.borderLight,
-    marginBottom: 16,
+    marginBottom: Spacing.md,
   },
   userAvatar: {
     width: 64,
@@ -207,20 +246,20 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.backgroundSecondary,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 12,
+    marginBottom: Spacing.md,
   },
   userName: {
     fontSize: 16,
     fontWeight: '600',
     color: Colors.text,
-    marginBottom: 8,
+    marginBottom: Spacing.sm,
     fontFamily: 'System',
   },
   roleBadge: {
     backgroundColor: Colors.primary,
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    borderRadius: Layout.borderRadius.md,
   },
   roleText: {
     fontSize: 12,
@@ -229,16 +268,15 @@ const styles = StyleSheet.create({
     fontFamily: 'System',
   },
   menuItems: {
-    flex: 1,
-    paddingTop: 8,
+    paddingTop: Spacing.sm,
+    gap: Spacing.sm,
   },
   menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    borderRadius: 12,
-    marginBottom: 8,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    borderRadius: Layout.borderRadius.md,
   },
   menuItemActive: {
     backgroundColor: Colors.backgroundSecondary,
@@ -247,7 +285,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '500',
     color: Colors.text,
-    marginLeft: 16,
+    marginLeft: Spacing.md,
     fontFamily: 'System',
   },
   menuItemTextActive: {
@@ -257,19 +295,19 @@ const styles = StyleSheet.create({
   signOutButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    borderRadius: 12,
-    marginBottom: 32,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    borderRadius: Layout.borderRadius.md,
+    marginTop: Spacing.lg,
     borderTopWidth: 1,
     borderTopColor: Colors.borderLight,
-    paddingTop: 24,
+    paddingTop: Spacing.lg,
   },
   signOutText: {
     fontSize: 18,
     fontWeight: '600',
     color: Colors.error,
-    marginLeft: 16,
+    marginLeft: Spacing.md,
     fontFamily: 'System',
   },
 });
