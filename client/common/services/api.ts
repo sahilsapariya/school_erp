@@ -1,5 +1,9 @@
-import { getApiUrl } from '@/common/constants/api';
-import { getAccessToken, getRefreshToken, setAccessToken } from '@/common/utils/storage';
+import { getApiUrl } from "@/common/constants/api";
+import {
+  getAccessToken,
+  getRefreshToken,
+  setAccessToken,
+} from "@/common/utils/storage";
 
 export class ApiException extends Error {
   status?: number;
@@ -7,7 +11,7 @@ export class ApiException extends Error {
 
   constructor(message: string, status?: number, data?: any) {
     super(message);
-    this.name = 'ApiException';
+    this.name = "ApiException";
     this.status = status;
     this.data = data;
   }
@@ -15,76 +19,100 @@ export class ApiException extends Error {
 
 const apiRequest = async (
   endpoint: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
 ): Promise<Response> => {
   const url = getApiUrl(endpoint);
-  console.log(`API Request: ${options.method || 'GET'} ${url}`);
   const accessToken = await getAccessToken();
   const refreshToken = await getRefreshToken();
 
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
+    "Content-Type": "application/json",
     ...(options.headers as Record<string, string>),
   };
 
   if (accessToken) {
-    headers['Authorization'] = `Bearer ${accessToken}`;
+    headers["Authorization"] = `Bearer ${accessToken}`;
   }
   if (refreshToken) {
-    headers['X-Refresh-Token'] = refreshToken;
+    headers["X-Refresh-Token"] = refreshToken;
   }
 
   try {
     const response = await fetch(url, { ...options, headers });
 
-    // Handle token refresh
-    if (response.status === 401 && refreshToken) {
-      const newToken = response.headers.get('X-New-Access-Token');
-      if (newToken) {
-        await setAccessToken(newToken);
-        return apiRequest(endpoint, options);
-      }
+    // Handle transparent token refresh
+    // Backend sends 'X-New-Access-Token' header if access token was expired but refresh was valid
+    const newAccessToken = response.headers.get("X-New-Access-Token");
+    if (newAccessToken) {
+      console.log("Token refreshed transparently");
+      await setAccessToken(newAccessToken);
     }
 
     return response;
   } catch (error: any) {
-      throw new ApiException(
+    throw new ApiException(
       `Cannot connect to server. Please check your network connection.`,
-        0,
-        { originalError: error.message, url }
-      );
-    }
+      0,
+      { originalError: error.message, url },
+    );
+  }
 };
 
 const handleResponse = async <T>(response: Response): Promise<T> => {
-  const isJson = response.headers.get('content-type')?.includes('application/json');
+  const isJson = response.headers
+    .get("content-type")
+    ?.includes("application/json");
 
   let data: any;
   try {
     data = isJson ? await response.json() : await response.text();
   } catch {
-    throw new ApiException('Failed to parse response', response.status);
+    throw new ApiException("Failed to parse response", response.status);
   }
 
+  // Handle standardized backend response structure: { success, data, message, error }
+  // Backend returns success=true for successful operations
+  if (data && typeof data === 'object' && 'success' in data) {
+    if (data.success) {
+      // If data.data exists, use it, otherwise default to empty object
+      // We merge the top-level 'message' into the result so consumers can use it (e.g. MessageResponse)
+      const resultData = (data.data && typeof data.data === 'object') ? data.data : (data.data !== undefined ? { value: data.data } : {});
+      
+      if (data.message && typeof resultData === 'object' && !Array.isArray(resultData)) {
+        resultData.message = data.message;
+      }
+      
+      return resultData as T;
+    } else {
+      // Backend returned logic error (success=false)
+      throw new ApiException(
+        data.message || data.error || 'An error occurred',
+        response.status,
+        data
+      );
+    }
+  }
+
+  // Fallback for non-standard responses (e.g. from 3rd party or legacy endpoints)
   if (!response.ok) {
     throw new ApiException(
-      data?.error || data?.message || 'An error occurred',
+      data?.error || data?.message || "An error occurred",
       response.status,
-      data
+      data,
     );
   }
 
-  return data;
+  return data as T;
 };
 
 export const apiGet = async <T>(endpoint: string): Promise<T> => {
-  const response = await apiRequest(endpoint, { method: 'GET' });
+  const response = await apiRequest(endpoint, { method: "GET" });
   return handleResponse<T>(response);
 };
 
 export const apiPost = async <T>(endpoint: string, body?: any): Promise<T> => {
   const response = await apiRequest(endpoint, {
-    method: 'POST',
+    method: "POST",
     body: body ? JSON.stringify(body) : undefined,
   });
   return handleResponse<T>(response);
@@ -92,13 +120,13 @@ export const apiPost = async <T>(endpoint: string, body?: any): Promise<T> => {
 
 export const apiPut = async <T>(endpoint: string, body?: any): Promise<T> => {
   const response = await apiRequest(endpoint, {
-    method: 'PUT',
+    method: "PUT",
     body: body ? JSON.stringify(body) : undefined,
   });
   return handleResponse<T>(response);
 };
 
 export const apiDelete = async <T>(endpoint: string): Promise<T> => {
-  const response = await apiRequest(endpoint, { method: 'DELETE' });
+  const response = await apiRequest(endpoint, { method: "DELETE" });
   return handleResponse<T>(response);
 };

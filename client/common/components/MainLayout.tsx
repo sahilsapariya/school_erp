@@ -1,17 +1,12 @@
-import React, { useState } from 'react';
-import {
-  View,
-  StyleSheet,
-  TouchableOpacity,
-  Image,
-} from 'react-native';
-import { router, usePathname, Slot } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import SafeScreenWrapper from '@/common/components/SafeScreenWrapper';
-import Sidebar from '@/common/components/Sidebar';
-import { Colors } from '@/common/constants/colors';
-import { Spacing, Layout } from '@/common/constants/spacing';
-import { useAuth } from '@/common/hooks/useAuth';
+import React, { useState } from "react";
+import { View, StyleSheet, TouchableOpacity, Image } from "react-native";
+import { router, usePathname, Slot } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import SafeScreenWrapper from "@/common/components/SafeScreenWrapper";
+import Sidebar from "@/common/components/Sidebar";
+import { Colors } from "@/common/constants/colors";
+import { Spacing, Layout } from "@/common/constants/spacing";
+import { useAuth } from "@/common/hooks/useAuth";
 
 export default function MainLayout() {
   const [sidebarVisible, setSidebarVisible] = useState(false);
@@ -21,10 +16,10 @@ export default function MainLayout() {
   const handleProfilePress = () => {
     setSidebarVisible(false);
     // Check if already on profile page
-    if (pathname?.includes('profile')) {
+    if (pathname?.includes("profile")) {
       return;
     }
-    router.push('/(protected)/profile');
+    router.push("/(protected)/profile");
   };
 
   return (
@@ -45,9 +40,9 @@ export default function MainLayout() {
             onPress={handleProfilePress}
             activeOpacity={0.7}
           >
-            {user?.profilePicture ? (
+            {user?.profile_picture_url ? (
               <Image
-                source={{ uri: user.profilePicture }}
+                source={{ uri: user.profile_picture_url }}
                 style={styles.profileImage}
               />
             ) : (
@@ -59,9 +54,9 @@ export default function MainLayout() {
         </View>
 
         {/* Main Content */}
-        <View 
+        <View
           style={styles.content}
-          pointerEvents={sidebarVisible ? 'none' : 'auto'}
+          pointerEvents={sidebarVisible ? "none" : "auto"}
         >
           <Slot />
         </View>
@@ -83,9 +78,9 @@ const styles = StyleSheet.create({
   },
   header: {
     height: Layout.headerHeight,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: Spacing.lg,
     backgroundColor: Colors.background,
     borderBottomWidth: 1,
@@ -107,8 +102,8 @@ const styles = StyleSheet.create({
     height: 36,
     borderRadius: 18,
     backgroundColor: Colors.backgroundSecondary,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   content: {
     flex: 1,

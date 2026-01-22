@@ -7,6 +7,9 @@ export interface LoginResponse {
   user: {
     id: number;
     email: string;
+    name: string;
+    email_verified: boolean;
+    profile_picture_url?: string;
   };
   permissions: string[];
 }
@@ -15,8 +18,13 @@ export interface MessageResponse {
   message: string;
 }
 
-export const register = (data: { email: string; password: string }) => {
-  return apiPost<MessageResponse>(API_ENDPOINTS.REGISTER, data);
+// Updated based on backend returning {'email': email} in data
+export interface RegisterResponse {
+  email: string;
+}
+
+export const register = (data: { email: string; password: string; name?: string }) => {
+  return apiPost<RegisterResponse>(API_ENDPOINTS.REGISTER, data);
 };
 
 export const login = (data: { email: string; password: string }) => {
