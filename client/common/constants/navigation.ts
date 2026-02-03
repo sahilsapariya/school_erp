@@ -5,7 +5,7 @@
  */
 
 import { Ionicons } from '@expo/vector-icons';
-import * as PERMS from './permissions';
+import * as PERMS from '@/modules/permissions/constants/permissions';
 
 export interface TabConfig {
   name: string;

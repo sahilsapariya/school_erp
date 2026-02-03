@@ -1,4 +1,4 @@
-import { useAuthContext } from '@/common/context/AuthContext';
+import { useAuthContext } from '@/modules/auth/context/AuthContext';
 
 /**
  * Main authentication hook

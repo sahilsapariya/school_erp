@@ -1,12 +1,18 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
-import { Colors } from '@/common/constants/colors';
-import { Spacing, Layout } from '@/common/constants/spacing';
-import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from '@/common/hooks/useAuth';
-import { usePermissions } from '@/common/hooks/usePermissions';
-import { Protected } from '@/common/components/Protected';
-import * as PERMS from '@/common/constants/permissions';
+import React from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+} from "react-native";
+import { Colors } from "@/common/constants/colors";
+import { Spacing, Layout } from "@/common/constants/spacing";
+import { Ionicons } from "@expo/vector-icons";
+import { useAuth } from "@/modules/auth/hooks/useAuth";
+import { usePermissions } from "@/modules/permissions/hooks/usePermissions";
+import { Protected } from "@/modules/permissions/components/Protected";
+import * as PERMS from "@/modules/permissions/constants/permissions";
 
 export default function ProtectedHomeScreen() {
   const { user, logout } = useAuth();
@@ -17,7 +23,7 @@ export default function ProtectedHomeScreen() {
   };
 
   return (
-    <ScrollView 
+    <ScrollView
       style={styles.container}
       contentContainerStyle={styles.contentContainer}
       showsVerticalScrollIndicator={false}
@@ -28,9 +34,7 @@ export default function ProtectedHomeScreen() {
           <Ionicons name="shield-checkmark" size={64} color={Colors.primary} />
         </View>
         <Text style={styles.title}>Welcome!</Text>
-        <Text style={styles.subtitle}>
-          {user?.email}
-        </Text>
+        <Text style={styles.subtitle}>{user?.email}</Text>
       </View>
 
       {/* Cards Container */}
@@ -38,7 +42,11 @@ export default function ProtectedHomeScreen() {
         {/* User Info Card */}
         <View style={styles.card}>
           <View style={styles.cardHeader}>
-            <Ionicons name="person-circle-outline" size={24} color={Colors.primary} />
+            <Ionicons
+              name="person-circle-outline"
+              size={24}
+              color={Colors.primary}
+            />
             <Text style={styles.cardTitle}>Your Profile</Text>
           </View>
           <View style={styles.cardContent}>
@@ -51,13 +59,19 @@ export default function ProtectedHomeScreen() {
         <View style={styles.card}>
           <View style={styles.cardHeader}>
             <Ionicons name="key-outline" size={24} color={Colors.primary} />
-            <Text style={styles.cardTitle}>Your Permissions ({permissions.length})</Text>
+            <Text style={styles.cardTitle}>
+              Your Permissions ({permissions.length})
+            </Text>
           </View>
           <View style={styles.cardContent}>
             {permissions.length > 0 ? (
               permissions.slice(0, 5).map((perm, index) => (
                 <View key={index} style={styles.permissionItem}>
-                  <Ionicons name="checkmark-circle" size={16} color={Colors.success} />
+                  <Ionicons
+                    name="checkmark-circle"
+                    size={16}
+                    color={Colors.success}
+                  />
                   <Text style={styles.permissionText}>{perm}</Text>
                 </View>
               ))
@@ -90,15 +104,25 @@ export default function ProtectedHomeScreen() {
             {/* Show Mark Attendance button */}
             <Protected permission={PERMS.ATTENDANCE_MARK}>
               <TouchableOpacity style={styles.actionButton}>
-                <Ionicons name="checkbox-outline" size={24} color={Colors.primary} />
+                <Ionicons
+                  name="checkbox-outline"
+                  size={24}
+                  color={Colors.primary}
+                />
                 <Text style={styles.actionText}>Mark Attendance</Text>
               </TouchableOpacity>
             </Protected>
 
             {/* Show Grade Management for teachers/admins */}
-            <Protected anyPermissions={[PERMS.GRADE_CREATE, PERMS.GRADE_MANAGE]}>
+            <Protected
+              anyPermissions={[PERMS.GRADE_CREATE, PERMS.GRADE_MANAGE]}
+            >
               <TouchableOpacity style={styles.actionButton}>
-                <Ionicons name="school-outline" size={24} color={Colors.primary} />
+                <Ionicons
+                  name="school-outline"
+                  size={24}
+                  color={Colors.primary}
+                />
                 <Text style={styles.actionText}>Manage Grades</Text>
               </TouchableOpacity>
             </Protected>
@@ -106,15 +130,25 @@ export default function ProtectedHomeScreen() {
             {/* Show My Grades button */}
             <Protected permission={PERMS.GRADE_READ_SELF}>
               <TouchableOpacity style={styles.actionButton}>
-                <Ionicons name="ribbon-outline" size={24} color={Colors.primary} />
+                <Ionicons
+                  name="ribbon-outline"
+                  size={24}
+                  color={Colors.primary}
+                />
                 <Text style={styles.actionText}>My Grades</Text>
               </TouchableOpacity>
             </Protected>
 
             {/* Show Admin Panel only for admins */}
-            <Protected anyPermissions={[PERMS.USER_MANAGE, PERMS.SYSTEM_MANAGE]}>
+            <Protected
+              anyPermissions={[PERMS.USER_MANAGE, PERMS.SYSTEM_MANAGE]}
+            >
               <TouchableOpacity style={styles.actionButton}>
-                <Ionicons name="settings-outline" size={24} color={Colors.primary} />
+                <Ionicons
+                  name="settings-outline"
+                  size={24}
+                  color={Colors.primary}
+                />
                 <Text style={styles.actionText}>Admin Panel</Text>
               </TouchableOpacity>
             </Protected>
@@ -123,9 +157,13 @@ export default function ProtectedHomeScreen() {
 
         {/* Info Card */}
         <View style={styles.infoCard}>
-          <Ionicons name="information-circle-outline" size={20} color={Colors.primary} />
+          <Ionicons
+            name="information-circle-outline"
+            size={20}
+            color={Colors.primary}
+          />
           <Text style={styles.infoText}>
-            This dashboard shows features based on your assigned permissions. 
+            This dashboard shows features based on your assigned permissions.
             Contact your administrator if you need additional access.
           </Text>
         </View>
@@ -150,7 +188,7 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.lg,
   },
   header: {
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: Spacing.xl,
   },
   iconContainer: {
@@ -158,15 +196,15 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 32,
-    fontWeight: '700',
+    fontWeight: "700",
     color: Colors.text,
     marginBottom: Spacing.sm,
-    fontFamily: 'System',
+    fontFamily: "System",
   },
   subtitle: {
     fontSize: 16,
     color: Colors.textSecondary,
-    fontFamily: 'System',
+    fontFamily: "System",
   },
   cardsContainer: {
     gap: Spacing.md,
@@ -177,16 +215,16 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
   },
   cardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: Spacing.md,
   },
   cardTitle: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: "600",
     color: Colors.text,
     marginLeft: Spacing.sm,
-    fontFamily: 'System',
+    fontFamily: "System",
   },
   cardContent: {
     gap: Spacing.sm,
@@ -194,34 +232,34 @@ const styles = StyleSheet.create({
   cardText: {
     fontSize: 14,
     color: Colors.textSecondary,
-    fontFamily: 'System',
+    fontFamily: "System",
   },
   permissionItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingVertical: Spacing.xs,
   },
   permissionText: {
     fontSize: 13,
     color: Colors.text,
     marginLeft: Spacing.sm,
-    fontFamily: 'System',
+    fontFamily: "System",
   },
   noPermissions: {
     fontSize: 14,
     color: Colors.textSecondary,
-    fontStyle: 'italic',
-    fontFamily: 'System',
+    fontStyle: "italic",
+    fontFamily: "System",
   },
   moreText: {
     fontSize: 12,
     color: Colors.primary,
     marginTop: Spacing.xs,
-    fontFamily: 'System',
+    fontFamily: "System",
   },
   actionsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: Spacing.md,
     marginTop: Spacing.sm,
   },
@@ -229,19 +267,19 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
     borderRadius: Layout.borderRadius.md,
     padding: Spacing.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: '47%',
+    alignItems: "center",
+    justifyContent: "center",
+    width: "47%",
   },
   actionText: {
     fontSize: 12,
     color: Colors.text,
     marginTop: Spacing.sm,
-    textAlign: 'center',
-    fontFamily: 'System',
+    textAlign: "center",
+    fontFamily: "System",
   },
   infoCard: {
-    flexDirection: 'row',
+    flexDirection: "row",
     backgroundColor: Colors.backgroundSecondary,
     padding: Spacing.md,
     borderRadius: Layout.borderRadius.md,
@@ -254,12 +292,12 @@ const styles = StyleSheet.create({
     marginLeft: Spacing.md,
     flex: 1,
     lineHeight: 20,
-    fontFamily: 'System',
+    fontFamily: "System",
   },
   logoutButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     backgroundColor: Colors.backgroundSecondary,
     padding: Spacing.md,
     borderRadius: Layout.borderRadius.md,
@@ -268,10 +306,9 @@ const styles = StyleSheet.create({
   },
   logoutText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     color: Colors.error,
     marginLeft: Spacing.sm,
-    fontFamily: 'System',
+    fontFamily: "System",
   },
 });
-

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { resetPassword as resetPasswordService } from '@/common/services/authService';
+import { resetPassword as resetPasswordService } from '@/modules/auth/services/authService';
 import {
   validateEmailField,
   validatePasswordField,

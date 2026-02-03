@@ -1,25 +1,24 @@
 import { useState } from 'react';
-import { forgotPassword as forgotPasswordService } from '@/common/services/authService';
 import { validateEmailField } from '@/common/utils/validation';
+import { useAuth } from './useAuth';
 
-export const useForgotPassword = () => {
+export const useLogin = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
+  const { login: authLogin } = useAuth();
 
-  const forgotPassword = async (email: string) => {
+  const login = async (email: string, password: string) => {
     setError(null);
-    setSuccess(false);
     setLoading(true);
 
     try {
       const emailValidation = validateEmailField(email);
       if (!emailValidation.isValid) throw new Error(emailValidation.error);
+      if (!password) throw new Error('Password is required');
 
-      await forgotPasswordService({ email });
-      setSuccess(true);
+      await authLogin(email, password);
     } catch (err: any) {
-      const message = err?.message || 'Failed to send reset email';
+      const message = err?.message || 'Login failed';
       setError(message);
       throw err;
     } finally {
@@ -27,5 +26,5 @@ export const useForgotPassword = () => {
     }
   };
 
-  return { forgotPassword, loading, error, success };
+  return { login, loading, error };
 };

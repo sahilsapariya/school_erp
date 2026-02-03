@@ -1,7 +1,7 @@
-import { useEffect } from 'react';
-import { useRouter } from 'expo-router';
-import { useAuth } from '@/common/hooks/useAuth';
-import MainLayout from '@/common/components/MainLayout';
+import { useEffect } from "react";
+import { useRouter } from "expo-router";
+import { useAuth } from "@/modules/auth/hooks/useAuth";
+import MainLayout from "@/common/components/MainLayout";
 
 export default function ProtectedLayout() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -12,7 +12,7 @@ export default function ProtectedLayout() {
 
     // Redirect to login if not authenticated
     if (!isAuthenticated) {
-      router.replace('/(auth)/login');
+      router.replace("/(auth)/login");
     }
   }, [isAuthenticated, isLoading, router]);
 
@@ -22,4 +22,3 @@ export default function ProtectedLayout() {
 
   return <MainLayout />;
 }
-

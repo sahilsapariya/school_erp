@@ -19,7 +19,7 @@ import {
 import {
   login as loginService,
   LoginResponse,
-} from "@/common/services/authService";
+} from "@/modules/auth/services/authService";
 
 interface User {
   id: number;

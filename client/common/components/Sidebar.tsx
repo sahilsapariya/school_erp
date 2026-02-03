@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo } from "react";
 import {
   View,
   Text,
@@ -7,15 +7,15 @@ import {
   Animated,
   Dimensions,
   ScrollView,
-} from 'react-native';
-import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '@/common/constants/colors';
-import { Spacing, Layout } from '@/common/constants/spacing';
-import { useAuth } from '@/common/hooks/useAuth';
-import { getVisibleTabs, getUserRole } from '@/common/constants/navigation';
+} from "react-native";
+import { router } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import { Colors } from "@/common/constants/colors";
+import { Spacing, Layout } from "@/common/constants/spacing";
+import { useAuth } from "@/modules/auth/hooks/useAuth";
+import { getVisibleTabs, getUserRole } from "@/common/constants/navigation";
 
-const { width } = Dimensions.get('window');
+const { width } = Dimensions.get("window");
 const SIDEBAR_WIDTH = width * 0.75;
 
 interface SidebarProps {
@@ -31,18 +31,22 @@ interface MenuItem {
   route: string;
 }
 
-export default function Sidebar({ visible, onClose, currentRoute }: SidebarProps) {
+export default function Sidebar({
+  visible,
+  onClose,
+  currentRoute,
+}: SidebarProps) {
   const { logout, permissions, user } = useAuth();
-  
+
   // Get visible tabs based on user permissions
   const visibleTabs = useMemo(() => getVisibleTabs(permissions), [permissions]);
-  
+
   // Get user role for display
   const userRole = useMemo(() => getUserRole(permissions), [permissions]);
-  
+
   // Convert tabs to menu items
   const menuItems: MenuItem[] = useMemo(() => {
-    return visibleTabs.map(tab => ({
+    return visibleTabs.map((tab) => ({
       id: tab.name,
       label: tab.title,
       icon: tab.iconOutline,
@@ -98,9 +102,9 @@ export default function Sidebar({ visible, onClose, currentRoute }: SidebarProps
   const handleSignOut = async () => {
     try {
       await logout();
-      router.replace('/(auth)/login');
+      router.replace("/(auth)/login");
     } catch (error) {
-      console.error('Logout error:', error);
+      console.error("Logout error:", error);
     }
   };
 
@@ -108,11 +112,10 @@ export default function Sidebar({ visible, onClose, currentRoute }: SidebarProps
   const isRouteActive = (route: string): boolean => {
     if (!currentRoute) return false;
     // Extract the screen name from route (e.g., '/(protected)/home' -> 'home')
-    const screenName = route.split('/').pop();
+    const screenName = route.split("/").pop();
     // Check if currentRoute includes the screen name
-    return currentRoute.includes(screenName || '');
+    return currentRoute.includes(screenName || "");
   };
-
 
   return (
     <>
@@ -122,7 +125,7 @@ export default function Sidebar({ visible, onClose, currentRoute }: SidebarProps
           styles.overlay,
           {
             opacity: opacityAnim,
-            pointerEvents: visible ? 'auto' : 'none',
+            pointerEvents: visible ? "auto" : "none",
           },
         ]}
       >
@@ -132,7 +135,7 @@ export default function Sidebar({ visible, onClose, currentRoute }: SidebarProps
           onPress={onClose}
         />
       </Animated.View>
-      
+
       {/* Sidebar - Animated slide */}
       <Animated.View
         style={[
@@ -141,9 +144,9 @@ export default function Sidebar({ visible, onClose, currentRoute }: SidebarProps
             transform: [{ translateX: slideAnim }],
           },
         ]}
-        pointerEvents={visible ? 'auto' : 'none'}
+        pointerEvents={visible ? "auto" : "none"}
       >
-        <ScrollView 
+        <ScrollView
           style={styles.sidebarContent}
           contentContainerStyle={styles.sidebarContentContainer}
           showsVerticalScrollIndicator={false}
@@ -154,7 +157,9 @@ export default function Sidebar({ visible, onClose, currentRoute }: SidebarProps
             <View style={styles.userAvatar}>
               <Ionicons name="person" size={32} color={Colors.primary} />
             </View>
-            <Text style={styles.userName} numberOfLines={1}>{user?.email}</Text>
+            <Text style={styles.userName} numberOfLines={1}>
+              {user?.email}
+            </Text>
             <View style={styles.roleBadge}>
               <Text style={styles.roleText}>{userRole}</Text>
             </View>
@@ -211,7 +216,7 @@ const styles = StyleSheet.create({
     zIndex: 998,
   },
   sidebar: {
-    position: 'absolute',
+    position: "absolute",
     top: 0,
     left: 0,
     bottom: 0,
@@ -233,7 +238,7 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.lg,
   },
   userHeader: {
-    alignItems: 'center',
+    alignItems: "center",
     paddingVertical: Spacing.lg,
     borderBottomWidth: 1,
     borderBottomColor: Colors.borderLight,
@@ -244,16 +249,16 @@ const styles = StyleSheet.create({
     height: 64,
     borderRadius: 32,
     backgroundColor: Colors.backgroundSecondary,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginBottom: Spacing.md,
   },
   userName: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     color: Colors.text,
     marginBottom: Spacing.sm,
-    fontFamily: 'System',
+    fontFamily: "System",
   },
   roleBadge: {
     backgroundColor: Colors.primary,
@@ -263,17 +268,17 @@ const styles = StyleSheet.create({
   },
   roleText: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: "600",
     color: Colors.background,
-    fontFamily: 'System',
+    fontFamily: "System",
   },
   menuItems: {
     paddingTop: Spacing.sm,
     gap: Spacing.sm,
   },
   menuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingVertical: Spacing.md,
     paddingHorizontal: Spacing.lg,
     borderRadius: Layout.borderRadius.md,
@@ -283,18 +288,18 @@ const styles = StyleSheet.create({
   },
   menuItemText: {
     fontSize: 18,
-    fontWeight: '500',
+    fontWeight: "500",
     color: Colors.text,
     marginLeft: Spacing.md,
-    fontFamily: 'System',
+    fontFamily: "System",
   },
   menuItemTextActive: {
     color: Colors.primary,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   signOutButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingVertical: Spacing.md,
     paddingHorizontal: Spacing.lg,
     borderRadius: Layout.borderRadius.md,
@@ -305,9 +310,9 @@ const styles = StyleSheet.create({
   },
   signOutText: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: "600",
     color: Colors.error,
     marginLeft: Spacing.md,
-    fontFamily: 'System',
+    fontFamily: "System",
   },
 });

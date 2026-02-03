@@ -1,5 +1,5 @@
-import React, { ReactNode } from 'react';
-import { usePermissions } from '@/common/hooks/usePermissions';
+import React, { ReactNode } from "react";
+import { usePermissions } from "@/modules/permissions/hooks/usePermissions";
 
 interface ProtectedProps {
   children: ReactNode;
@@ -11,25 +11,25 @@ interface ProtectedProps {
 
 /**
  * Component for conditionally rendering content based on permissions
- * 
+ *
  * @example
  * // Single permission
  * <Protected permission="student.create">
  *   <Button>Create Student</Button>
  * </Protected>
- * 
+ *
  * @example
  * // Any of multiple permissions
  * <Protected anyPermissions={['student.read', 'student.manage']}>
  *   <StudentList />
  * </Protected>
- * 
+ *
  * @example
  * // All permissions required
  * <Protected allPermissions={['student.read', 'class.read']}>
  *   <StudentClassView />
  * </Protected>
- * 
+ *
  * @example
  * // With fallback
  * <Protected permission="admin.access" fallback={<Text>Access Denied</Text>}>
@@ -43,7 +43,8 @@ export const Protected: React.FC<ProtectedProps> = ({
   allPermissions,
   fallback = null,
 }) => {
-  const { hasPermission, hasAnyPermission, hasAllPermissions } = usePermissions();
+  const { hasPermission, hasAnyPermission, hasAllPermissions } =
+    usePermissions();
 
   // Check single permission
   if (permission && !hasPermission(permission)) {

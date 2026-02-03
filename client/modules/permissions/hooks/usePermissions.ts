@@ -1,4 +1,4 @@
-import { useAuth } from './useAuth';
+import { useAuth } from '@/modules/auth/hooks/useAuth';
 
 /**
  * Hook for checking permissions

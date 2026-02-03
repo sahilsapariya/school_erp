@@ -1,8 +1,8 @@
-import { Stack } from 'expo-router';
-import { useFonts } from 'expo-font';
-import * as SplashScreen from 'expo-splash-screen';
-import { useEffect } from 'react';
-import { AuthProvider } from '@/common/context/AuthContext';
+import { Stack } from "expo-router";
+import { useFonts } from "expo-font";
+import * as SplashScreen from "expo-splash-screen";
+import { useEffect } from "react";
+import { AuthProvider } from "@/modules/auth/context/AuthContext";
 
 // Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync();
@@ -37,4 +37,3 @@ export default function RootLayout() {
     </AuthProvider>
   );
 }
-

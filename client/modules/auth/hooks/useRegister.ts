@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { register as registerService } from '@/common/services/authService';
+import { register as registerService } from '@/modules/auth/services/authService';
 import { validateEmailField, validatePasswordField } from '@/common/utils/validation';
 
 export const useRegister = () => {

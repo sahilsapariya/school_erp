@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -6,48 +6,48 @@ import {
   ScrollView,
   Image,
   TouchableOpacity,
-} from 'react-native';
-import { useLocalSearchParams, router } from 'expo-router';
-import SafeScreenWrapper from '@/common/components/SafeScreenWrapper';
-import AuthInput from '@/common/components/AuthInput';
-import AuthButton from '@/common/components/AuthButton';
-import { useResetPassword } from '@/common/hooks/useResetPassword';
-import { Colors } from '@/common/constants/colors';
-import { Ionicons } from '@expo/vector-icons';
+} from "react-native";
+import { useLocalSearchParams, router } from "expo-router";
+import SafeScreenWrapper from "@/common/components/SafeScreenWrapper";
+import AuthInput from "@/common/components/AuthInput";
+import AuthButton from "@/common/components/AuthButton";
+import { useResetPassword } from "@/modules/auth/hooks/useResetPassword";
+import { Colors } from "@/common/constants/colors";
+import { Ionicons } from "@expo/vector-icons";
 
-const resetPasswordIcon = require('@/assets/images/auth/reset-password.jpg');
+const resetPasswordIcon = require("@/assets/images/auth/reset-password.jpg");
 
 export default function ResetPasswordScreen() {
   const params = useLocalSearchParams();
-  const token = (params.token as string) || '';
-  const email = (params.email as string) || '';
+  const token = (params.token as string) || "";
+  const email = (params.email as string) || "";
 
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [passwordError, setPasswordError] = useState('');
-  const [confirmPasswordError, setConfirmPasswordError] = useState('');
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordError, setPasswordError] = useState("");
+  const [confirmPasswordError, setConfirmPasswordError] = useState("");
   const [success, setSuccess] = useState(false);
 
   const { resetPassword, loading, error } = useResetPassword();
 
   useEffect(() => {
     if (!token || !email) {
-      router.replace('/(auth)/forgot-password');
+      router.replace("/(auth)/forgot-password");
     }
   }, [token, email]);
 
   const handleResetPassword = async () => {
-    setPasswordError('');
-    setConfirmPasswordError('');
+    setPasswordError("");
+    setConfirmPasswordError("");
 
     try {
       await resetPassword(email, token, newPassword, confirmPassword);
       setSuccess(true);
     } catch (err: any) {
-      const message = err?.message || '';
-      if (message.includes('match')) {
+      const message = err?.message || "";
+      if (message.includes("match")) {
         setConfirmPasswordError(message);
-      } else if (message.includes('password')) {
+      } else if (message.includes("password")) {
         setPasswordError(message);
       }
     }
@@ -58,15 +58,20 @@ export default function ResetPasswordScreen() {
       <SafeScreenWrapper backgroundColor={Colors.background}>
         <View style={styles.successContainer}>
           <View style={styles.successIconContainer}>
-            <Ionicons name="checkmark-circle" size={80} color={Colors.success} />
+            <Ionicons
+              name="checkmark-circle"
+              size={80}
+              color={Colors.success}
+            />
           </View>
           <Text style={styles.successTitle}>Password Reset!</Text>
           <Text style={styles.successMessage}>
-            Your password has been successfully reset. You can now sign in with your new password.
+            Your password has been successfully reset. You can now sign in with
+            your new password.
           </Text>
           <AuthButton
             title="Go to Sign In"
-            onPress={() => router.replace('/(auth)/login')}
+            onPress={() => router.replace("/(auth)/login")}
             style={styles.backButton}
           />
         </View>
@@ -83,63 +88,63 @@ export default function ResetPasswordScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.content}>
-            <View style={styles.illustrationContainer}>
-              <Image
+          <View style={styles.illustrationContainer}>
+            <Image
               source={resetPasswordIcon}
-                style={styles.illustration}
-                resizeMode="contain"
-              />
-            </View>
+              style={styles.illustration}
+              resizeMode="contain"
+            />
+          </View>
 
-            <View style={styles.header}>
-              <Text style={styles.title}>Reset Password</Text>
+          <View style={styles.header}>
+            <Text style={styles.title}>Reset Password</Text>
             <Text style={styles.subtitle}>Enter your new password below</Text>
-            </View>
+          </View>
 
-            <View style={styles.form}>
-              <AuthInput
-                label="New Password"
-                placeholder="Enter new password"
-                value={newPassword}
-                onChangeText={setNewPassword}
-                secureTextEntry
-                showPasswordToggle
-                autoCapitalize="none"
-                autoComplete="password-new"
-                icon="lock-closed-outline"
-                error={passwordError}
-              />
+          <View style={styles.form}>
+            <AuthInput
+              label="New Password"
+              placeholder="Enter new password"
+              value={newPassword}
+              onChangeText={setNewPassword}
+              secureTextEntry
+              showPasswordToggle
+              autoCapitalize="none"
+              autoComplete="password-new"
+              icon="lock-closed-outline"
+              error={passwordError}
+            />
 
-              <AuthInput
-                label="Confirm Password"
-                placeholder="Confirm new password"
-                value={confirmPassword}
-                onChangeText={setConfirmPassword}
-                secureTextEntry
-                showPasswordToggle
-                autoCapitalize="none"
-                autoComplete="password-new"
-                icon="lock-closed-outline"
-                error={confirmPasswordError}
-              />
+            <AuthInput
+              label="Confirm Password"
+              placeholder="Confirm new password"
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+              secureTextEntry
+              showPasswordToggle
+              autoCapitalize="none"
+              autoComplete="password-new"
+              icon="lock-closed-outline"
+              error={confirmPasswordError}
+            />
 
-              {error && <Text style={styles.errorText}>{error}</Text>}
+            {error && <Text style={styles.errorText}>{error}</Text>}
 
-              <AuthButton
-                title="Reset Password"
-                onPress={handleResetPassword}
-                loading={loading}
-                style={styles.resetButton}
-              />
+            <AuthButton
+              title="Reset Password"
+              onPress={handleResetPassword}
+              loading={loading}
+              style={styles.resetButton}
+            />
 
-              <View style={styles.footer}>
-                <TouchableOpacity onPress={() => router.push('/(auth)/login')}>
-                  <Text style={styles.linkText}>Back to Sign In</Text>
-                </TouchableOpacity>
-              </View>
+            <View style={styles.footer}>
+              <TouchableOpacity onPress={() => router.push("/(auth)/login")}>
+                <Text style={styles.linkText}>Back to Sign In</Text>
+              </TouchableOpacity>
             </View>
           </View>
-        </ScrollView>
+        </View>
+      </ScrollView>
     </SafeScreenWrapper>
   );
 }
@@ -158,7 +163,7 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
   },
   illustrationContainer: {
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: 32,
   },
   illustration: {
@@ -170,7 +175,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 32,
-    fontWeight: '700',
+    fontWeight: "700",
     color: Colors.text,
     marginBottom: 8,
   },
@@ -188,21 +193,21 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.error,
     marginBottom: 16,
-    textAlign: 'center',
+    textAlign: "center",
   },
   footer: {
-    alignItems: 'center',
+    alignItems: "center",
     marginTop: 24,
   },
   linkText: {
     fontSize: 14,
     color: Colors.primary,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   successContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     paddingHorizontal: 24,
   },
   successIconContainer: {
@@ -210,19 +215,19 @@ const styles = StyleSheet.create({
   },
   successTitle: {
     fontSize: 28,
-    fontWeight: '700',
+    fontWeight: "700",
     color: Colors.text,
     marginBottom: 16,
-    textAlign: 'center',
+    textAlign: "center",
   },
   successMessage: {
     fontSize: 16,
     color: Colors.textSecondary,
-    textAlign: 'center',
+    textAlign: "center",
     marginBottom: 32,
     lineHeight: 24,
   },
   backButton: {
-    width: '100%',
+    width: "100%",
   },
 });

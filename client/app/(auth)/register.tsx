@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -6,36 +6,36 @@ import {
   ScrollView,
   Image,
   TouchableOpacity,
-} from 'react-native';
-import { Link, router } from 'expo-router';
-import SafeScreenWrapper from '@/common/components/SafeScreenWrapper';
-import AuthInput from '@/common/components/AuthInput';
-import AuthButton from '@/common/components/AuthButton';
-import { useRegister } from '@/common/hooks/useRegister';
-import { Colors } from '@/common/constants/colors';
+} from "react-native";
+import { Link, router } from "expo-router";
+import SafeScreenWrapper from "@/common/components/SafeScreenWrapper";
+import AuthInput from "@/common/components/AuthInput";
+import AuthButton from "@/common/components/AuthButton";
+import { useRegister } from "@/modules/auth/hooks/useRegister";
+import { Colors } from "@/common/constants/colors";
 
-const registerIcon = require('@/assets/images/auth/register.jpg');
+const registerIcon = require("@/assets/images/auth/register.jpg");
 
 export default function RegisterScreen() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [emailError, setEmailError] = useState('');
-  const [passwordError, setPasswordError] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [emailError, setEmailError] = useState("");
+  const [passwordError, setPasswordError] = useState("");
 
   const { register, loading, error } = useRegister();
 
   const handleRegister = async () => {
-    setEmailError('');
-    setPasswordError('');
+    setEmailError("");
+    setPasswordError("");
 
     try {
       await register(email, password);
-      router.push('/(auth)/login');
+      router.push("/(auth)/login");
     } catch (err: any) {
-      const message = err?.message || '';
-      if (message.includes('email')) {
+      const message = err?.message || "";
+      if (message.includes("email")) {
         setEmailError(message);
-      } else if (message.includes('password')) {
+      } else if (message.includes("password")) {
         setPasswordError(message);
       }
     }
@@ -50,65 +50,67 @@ export default function RegisterScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.content}>
-            <View style={styles.illustrationContainer}>
-              <Image
+          <View style={styles.illustrationContainer}>
+            <Image
               source={registerIcon}
-                style={styles.illustration}
-                resizeMode="contain"
-              />
-            </View>
+              style={styles.illustration}
+              resizeMode="contain"
+            />
+          </View>
 
-            <View style={styles.header}>
-              <Text style={styles.title}>Create Account</Text>
-            <Text style={styles.subtitle}>Sign up to get started with your account</Text>
-            </View>
+          <View style={styles.header}>
+            <Text style={styles.title}>Create Account</Text>
+            <Text style={styles.subtitle}>
+              Sign up to get started with your account
+            </Text>
+          </View>
 
-            <View style={styles.form}>
-              <AuthInput
-                label="Email"
-                placeholder="Enter your email"
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoComplete="email"
-                icon="mail-outline"
-                error={emailError}
-              />
+          <View style={styles.form}>
+            <AuthInput
+              label="Email"
+              placeholder="Enter your email"
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoComplete="email"
+              icon="mail-outline"
+              error={emailError}
+            />
 
-              <AuthInput
-                label="Password"
-                placeholder="Create a password"
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry
-                showPasswordToggle
-                autoCapitalize="none"
-                autoComplete="password-new"
-                icon="lock-closed-outline"
-                error={passwordError}
-              />
+            <AuthInput
+              label="Password"
+              placeholder="Create a password"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+              showPasswordToggle
+              autoCapitalize="none"
+              autoComplete="password-new"
+              icon="lock-closed-outline"
+              error={passwordError}
+            />
 
-              {error && <Text style={styles.errorText}>{error}</Text>}
+            {error && <Text style={styles.errorText}>{error}</Text>}
 
-              <AuthButton
-                title="Create Account"
-                onPress={handleRegister}
-                loading={loading}
-                style={styles.registerButton}
-              />
+            <AuthButton
+              title="Create Account"
+              onPress={handleRegister}
+              loading={loading}
+              style={styles.registerButton}
+            />
 
-              <View style={styles.footer}>
-                <Text style={styles.footerText}>Already have an account? </Text>
-                <Link href="/(auth)/login" asChild>
-                  <TouchableOpacity>
-                    <Text style={styles.linkText}>Sign In</Text>
-                  </TouchableOpacity>
-                </Link>
-              </View>
+            <View style={styles.footer}>
+              <Text style={styles.footerText}>Already have an account? </Text>
+              <Link href="/(auth)/login" asChild>
+                <TouchableOpacity>
+                  <Text style={styles.linkText}>Sign In</Text>
+                </TouchableOpacity>
+              </Link>
             </View>
           </View>
-        </ScrollView>
+        </View>
+      </ScrollView>
     </SafeScreenWrapper>
   );
 }
@@ -127,7 +129,7 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
   },
   illustrationContainer: {
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: 32,
   },
   illustration: {
@@ -139,7 +141,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 32,
-    fontWeight: '700',
+    fontWeight: "700",
     color: Colors.text,
     marginBottom: 8,
   },
@@ -157,12 +159,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.error,
     marginBottom: 16,
-    textAlign: 'center',
+    textAlign: "center",
   },
   footer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
     marginTop: 24,
   },
   footerText: {
@@ -172,6 +174,6 @@ const styles = StyleSheet.create({
   linkText: {
     fontSize: 14,
     color: Colors.primary,
-    fontWeight: '600',
+    fontWeight: "600",
   },
 });

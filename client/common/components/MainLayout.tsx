@@ -6,7 +6,7 @@ import SafeScreenWrapper from "@/common/components/SafeScreenWrapper";
 import Sidebar from "@/common/components/Sidebar";
 import { Colors } from "@/common/constants/colors";
 import { Spacing, Layout } from "@/common/constants/spacing";
-import { useAuth } from "@/common/hooks/useAuth";
+import { useAuth } from "@/modules/auth/hooks/useAuth";
 
 export default function MainLayout() {
   const [sidebarVisible, setSidebarVisible] = useState(false);
