@@ -82,11 +82,17 @@ def register_blueprints(app: Flask):
     from backend.modules.auth import auth_bp
     from backend.modules.rbac import rbac_bp
     from backend.modules.users import users_bp
+    from backend.modules.classes import classes_bp
+    from backend.modules.students import students_bp
     
     # Register blueprints with URL prefixes
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(rbac_bp, url_prefix='/api/rbac')
     app.register_blueprint(users_bp, url_prefix='/api/users')
+    
+    # New Modules
+    app.register_blueprint(classes_bp, url_prefix='/api/classes')
+    app.register_blueprint(students_bp, url_prefix='/api/students')
     
     # Future modules can be registered here:
     # app.register_blueprint(students_bp, url_prefix='/api/students')
@@ -192,6 +198,8 @@ def register_health_check(app: Flask):
                 'auth': '/api/auth',
                 'rbac': '/api/rbac',
                 'users': '/api/users',
+                'classes': '/api/classes',
+                'students': '/api/students',
                 'health': '/api/health'
             }
         }), 200

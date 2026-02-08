@@ -1,0 +1,209 @@
+from flask import request, g
+from backend.modules.students import students_bp
+from backend.core.decorators import require_permission, auth_required
+from backend.shared.helpers import (
+    success_response,
+    error_response,
+    not_found_response,
+    unauthorized_response,
+    validation_error_response
+)
+from . import services
+
+# Permissions
+PERM_CREATE = 'student.create'
+PERM_READ_ALL = 'student.read.all'
+PERM_READ_CLASS = 'student.read.class'
+PERM_READ_SELF = 'student.read.self'
+PERM_UPDATE = 'student.update'
+PERM_DELETE = 'student.delete'
+
+@students_bp.route('/', methods=['GET'], strict_slashes=False)
+@auth_required
+def list_students():
+    """
+    List students based on permissions.
+    """
+    user_id = g.current_user.id
+    from backend.modules.rbac.services import has_permission
+    
+    class_id = request.args.get('class_id')
+    search = request.args.get('search')
+    
+    # Check permissions
+    if has_permission(user_id, PERM_READ_ALL):
+        # Admin can see all
+        students = services.list_students(class_id, search)
+        return success_response(data=students)
+        
+    if has_permission(user_id, PERM_READ_CLASS):
+        # Teacher: Filter by assigned classes
+        students = services.list_students(class_id, search)
+        return success_response(data=students)
+        
+    return unauthorized_response()
+
+@students_bp.route('/', methods=['POST'], strict_slashes=False)
+@auth_required
+@require_permission(PERM_CREATE)
+def create_student():
+    """
+    Create a new student.
+    
+    Required fields:
+        - name: Full name
+        - academic_year: Academic year (e.g., "2025-2026")
+        - guardian_name: Guardian's full name
+        - guardian_relationship: Relationship to student
+        - guardian_phone: Guardian's phone number
+        
+    Optional fields:
+        - admission_number: Unique admission number (auto-generated if not provided)
+        - email: Student's email (creates login credentials if provided)
+        - phone: Student's phone number
+        - date_of_birth: Date in YYYY-MM-DD format
+        - gender: Gender (Male/Female/Other)
+        - class_id: Class UUID
+        - roll_number: Roll number in class
+        - address: Physical address
+        - guardian_email: Guardian's email
+        
+    Returns:
+        201: Student created with credentials if email provided
+        400: Validation error
+    """
+    data = request.get_json()
+    
+    # Validate required fields (admission_number is now optional)
+    required = ['name', 'academic_year', 'guardian_name', 
+                'guardian_relationship', 'guardian_phone']
+    missing = [field for field in required if not data.get(field)]
+    if missing:
+        return validation_error_response(f"Missing required fields: {', '.join(missing)}")
+    
+    
+    # Call service
+    result = services.create_student(
+        name=data['name'],
+        academic_year=data['academic_year'],
+        guardian_name=data['guardian_name'],
+        guardian_relationship=data['guardian_relationship'],
+        guardian_phone=data['guardian_phone'],
+        admission_number=data.get('admission_number'),
+        email=data.get('email'),
+        phone=data.get('phone'),
+        date_of_birth=data.get('date_of_birth'),
+        gender=data.get('gender'),
+        class_id=data.get('class_id'),
+        roll_number=data.get('roll_number'),
+        address=data.get('address'),
+        guardian_email=data.get('guardian_email')
+    )
+
+    if result['success']:
+        response_data = {
+            'student': result['student']
+        }
+
+        response_data['credentials'] = result.get('credentials', {})
+        # send mail to the student email address with the credentials
+        from backend.modules.mailer.service import send_template_email
+        send_template_email(
+            to_email=result.get('student', {}).get('email', ''),
+            template_name='student_creation.html',
+            subject='Welcome to the school',
+            context={
+                'username': result.get('credentials', {}).get('username', ''),
+                'password': result.get('credentials', {}).get('password', ''),
+                'admission_number': result.get('student', {}).get('admission_number', '')
+            }
+        )
+        
+        return success_response(
+            data=response_data,
+            message='Student created successfully',
+            status_code=201
+        )
+    
+    return error_response('CreationError', result['error'], 400)
+
+@students_bp.route('/<student_id>', methods=['GET'])
+@auth_required
+def get_student(student_id):
+    """Get student details"""
+    user_id = g.current_user.id
+    from backend.modules.rbac.services import has_permission
+    
+    student = services.get_student_by_id(student_id)
+    if not student:
+        return not_found_response('Student')
+        
+    # RBAC Checks
+    # 1. Admin/Staff
+    if has_permission(user_id, PERM_READ_ALL):
+        return success_response(data=student)
+        
+    # 2. Self (Student)
+    if has_permission(user_id, PERM_READ_SELF):
+        # Check if the requested student is the current user
+        if student['user_id'] == user_id:
+            return success_response(data=student)
+            
+    # 3. Teacher (Class)
+    if has_permission(user_id, PERM_READ_CLASS):
+        # Check if student is in teacher's class
+        return success_response(data=student)
+        
+    return unauthorized_response()
+
+@students_bp.route('/me', methods=['GET'])
+@auth_required
+def get_my_student_profile():
+    """Get current user's student profile"""
+    user_id = g.current_user.id
+    student = services.get_student_by_user_id(user_id)
+    
+    if student:
+        return success_response(data=student)
+    return not_found_response('Student profile')
+
+@students_bp.route('/<student_id>', methods=['PUT'])
+@auth_required
+@require_permission(PERM_UPDATE)
+def update_student(student_id):
+    """
+    Update student details.
+    
+    Only updates fields that are provided in the request.
+    """
+    data = request.get_json()
+    
+    result = services.update_student(
+        student_id,
+        name=data.get('name'),
+        academic_year=data.get('academic_year'),
+        class_id=data.get('class_id'),
+        roll_number=data.get('roll_number'),
+        date_of_birth=data.get('date_of_birth'),
+        gender=data.get('gender'),
+        phone=data.get('phone'),
+        address=data.get('address'),
+        guardian_name=data.get('guardian_name'),
+        guardian_relationship=data.get('guardian_relationship'),
+        guardian_phone=data.get('guardian_phone'),
+        guardian_email=data.get('guardian_email')
+    )
+    
+    if result['success']:
+        return success_response(data=result['student'], message='Student updated successfully')
+    return error_response('UpdateError', result['error'], 400)
+
+@students_bp.route('/<student_id>', methods=['DELETE'])
+@auth_required
+@require_permission(PERM_DELETE)
+def delete_student(student_id):
+    """Delete student"""
+    result = services.delete_student(student_id)
+    if result['success']:
+        return success_response(message='Student deleted successfully')
+    return error_response('DeleteError', result['error'], 400)

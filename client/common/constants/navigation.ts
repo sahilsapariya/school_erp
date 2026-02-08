@@ -25,6 +25,17 @@ export const ALL_TABS: TabConfig[] = [
     // Visible to all authenticated users
   },
   {
+    name: 'students',
+    title: 'Students',
+    icon: 'people',
+    iconOutline: 'people-outline',
+    requiredPermissions: [
+      PERMS.STUDENT_READ_ALL,
+      PERMS.STUDENT_READ_CLASS,
+      PERMS.STUDENT_MANAGE,
+    ],
+  },
+  {
     name: 'academics',
     title: 'Academics',
     icon: 'school',

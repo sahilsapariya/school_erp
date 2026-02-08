@@ -74,6 +74,13 @@ PERMISSIONS = [
     ('grades.update', 'Update grade entries'),
     ('grades.manage', 'Full grades management access'),
     
+    # Class permissions
+    ('class.read', 'View class information'),
+    ('class.create', 'Create new classes'),
+    ('class.update', 'Update class information'),
+    ('class.delete', 'Delete classes'),
+    ('class.manage', 'Full class management access'),
+
     # Course permissions
     ('course.read', 'View course information'),
     ('course.create', 'Create new courses'),
@@ -97,6 +104,7 @@ ROLES = {
             'attendance.manage',
             'grades.manage',
             'course.manage',
+            'class.manage',
         ]
     },
     'Teacher': {
@@ -109,6 +117,7 @@ ROLES = {
             'grades.update',
             'grades.read.class',
             'course.read',
+            'class.read',
         ]
     },
     'Student': {

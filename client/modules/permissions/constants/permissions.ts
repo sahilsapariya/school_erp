@@ -40,6 +40,8 @@ export const ATTENDANCE_MANAGE = 'attendance.manage';
 // Student Management
 export const STUDENT_CREATE = 'student.create';
 export const STUDENT_READ = 'student.read';
+export const STUDENT_READ_CLASS = 'student.read.class';
+export const STUDENT_READ_ALL = 'student.read.all';
 export const STUDENT_READ_SELF = 'student.read.self';
 export const STUDENT_UPDATE = 'student.update';
 export const STUDENT_UPDATE_SELF = 'student.update.self';

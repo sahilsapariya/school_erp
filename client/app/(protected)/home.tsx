@@ -12,11 +12,13 @@ import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "@/modules/auth/hooks/useAuth";
 import { usePermissions } from "@/modules/permissions/hooks/usePermissions";
 import { Protected } from "@/modules/permissions/components/Protected";
+import { useRouter } from "expo-router";
 import * as PERMS from "@/modules/permissions/constants/permissions";
 
 export default function ProtectedHomeScreen() {
   const { user, logout } = useAuth();
   const { permissions } = usePermissions();
+  const router = useRouter();
 
   const handleLogout = async () => {
     await logout();
@@ -95,7 +97,15 @@ export default function ProtectedHomeScreen() {
           <View style={styles.actionsGrid}>
             {/* Show Create Student button */}
             <Protected permission={PERMS.STUDENT_CREATE}>
-              <TouchableOpacity style={styles.actionButton}>
+              <TouchableOpacity
+                style={styles.actionButton}
+                onPress={() =>
+                  router.push({
+                    pathname: "/(protected)/students",
+                    params: { action: "create" },
+                  })
+                }
+              >
                 <Ionicons name="person-add" size={24} color={Colors.primary} />
                 <Text style={styles.actionText}>Create Student</Text>
               </TouchableOpacity>

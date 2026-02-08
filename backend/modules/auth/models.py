@@ -38,6 +38,7 @@ class User(db.Model):
     # Password Reset
     reset_password_token = db.Column(db.String(255), nullable=True)
     reset_password_sent_at = db.Column(db.DateTime, nullable=True)
+    force_password_reset = db.Column(db.Boolean, default=False, nullable=False)
 
     # Metadata
     last_login_at = db.Column(db.DateTime, nullable=True)
