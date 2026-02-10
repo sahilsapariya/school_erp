@@ -14,6 +14,7 @@ import { usePermissions } from "@/modules/permissions/hooks/usePermissions";
 import { Protected } from "@/modules/permissions/components/Protected";
 import { useRouter } from "expo-router";
 import * as PERMS from "@/modules/permissions/constants/permissions";
+import { isAdmin } from "@/common/constants/navigation";
 
 export default function ProtectedHomeScreen() {
   const { user, logout } = useAuth();
@@ -111,41 +112,82 @@ export default function ProtectedHomeScreen() {
               </TouchableOpacity>
             </Protected>
 
-            {/* Show Mark Attendance button */}
+            {/* Show Mark Attendance button (Teacher only, not admin) */}
             <Protected permission={PERMS.ATTENDANCE_MARK}>
-              <TouchableOpacity style={styles.actionButton}>
+              {!isAdmin(permissions) && (
+                <TouchableOpacity
+                  style={styles.actionButton}
+                  onPress={() => router.push("/(protected)/attendance/my-classes" as any)}
+                >
+                  <Ionicons
+                    name="checkbox-outline"
+                    size={24}
+                    color={Colors.primary}
+                  />
+                  <Text style={styles.actionText}>Mark Attendance</Text>
+                </TouchableOpacity>
+              )}
+            </Protected>
+
+            {/* Show My Attendance button (Student only, not admin) */}
+            <Protected permission={PERMS.ATTENDANCE_READ_SELF}>
+              {!isAdmin(permissions) && (
+                <TouchableOpacity
+                  style={styles.actionButton}
+                  onPress={() => router.push("/(protected)/attendance/my-attendance" as any)}
+                >
+                  <Ionicons
+                    name="calendar-outline"
+                    size={24}
+                    color={Colors.primary}
+                  />
+                  <Text style={styles.actionText}>My Attendance</Text>
+                </TouchableOpacity>
+              )}
+            </Protected>
+
+            {/* Show Attendance Overview (Admin) */}
+            <Protected permission={PERMS.ATTENDANCE_READ_ALL}>
+              <TouchableOpacity
+                style={styles.actionButton}
+                onPress={() => router.push("/(protected)/attendance/overview" as any)}
+              >
                 <Ionicons
-                  name="checkbox-outline"
+                  name="stats-chart-outline"
                   size={24}
                   color={Colors.primary}
                 />
-                <Text style={styles.actionText}>Mark Attendance</Text>
+                <Text style={styles.actionText}>Attendance Overview</Text>
               </TouchableOpacity>
             </Protected>
 
-            {/* Show Grade Management for teachers/admins */}
-            <Protected
-              anyPermissions={[PERMS.GRADE_CREATE, PERMS.GRADE_MANAGE]}
-            >
-              <TouchableOpacity style={styles.actionButton}>
+            {/* Show Teachers (Admin) */}
+            <Protected anyPermissions={[PERMS.TEACHER_READ, PERMS.TEACHER_MANAGE]}>
+              <TouchableOpacity
+                style={styles.actionButton}
+                onPress={() => router.push("/(protected)/teachers" as any)}
+              >
                 <Ionicons
                   name="school-outline"
                   size={24}
                   color={Colors.primary}
                 />
-                <Text style={styles.actionText}>Manage Grades</Text>
+                <Text style={styles.actionText}>Teachers</Text>
               </TouchableOpacity>
             </Protected>
 
-            {/* Show My Grades button */}
-            <Protected permission={PERMS.GRADE_READ_SELF}>
-              <TouchableOpacity style={styles.actionButton}>
+            {/* Show Classes */}
+            <Protected anyPermissions={[PERMS.CLASS_READ, PERMS.CLASS_MANAGE]}>
+              <TouchableOpacity
+                style={styles.actionButton}
+                onPress={() => router.push("/(protected)/classes" as any)}
+              >
                 <Ionicons
-                  name="ribbon-outline"
+                  name="library-outline"
                   size={24}
                   color={Colors.primary}
                 />
-                <Text style={styles.actionText}>My Grades</Text>
+                <Text style={styles.actionText}>Classes</Text>
               </TouchableOpacity>
             </Protected>
 

@@ -37,8 +37,10 @@ def list_students():
         return success_response(data=students)
         
     if has_permission(user_id, PERM_READ_CLASS):
-        # Teacher: Filter by assigned classes
-        students = services.list_students(class_id, search)
+        # Teacher: Filter by assigned classes only
+        from backend.modules.attendance.services import get_teacher_class_ids
+        teacher_class_ids = get_teacher_class_ids(user_id)
+        students = services.list_students_by_class_ids(teacher_class_ids, search)
         return success_response(data=students)
         
     return unauthorized_response()
@@ -149,10 +151,12 @@ def get_student(student_id):
         if student['user_id'] == user_id:
             return success_response(data=student)
             
-    # 3. Teacher (Class)
+    # 3. Teacher (Class) — only if student is in one of teacher's assigned classes
     if has_permission(user_id, PERM_READ_CLASS):
-        # Check if student is in teacher's class
-        return success_response(data=student)
+        from backend.modules.attendance.services import get_teacher_class_ids
+        teacher_class_ids = get_teacher_class_ids(user_id)
+        if student.get('class_id') in teacher_class_ids:
+            return success_response(data=student)
         
     return unauthorized_response()
 
@@ -176,6 +180,19 @@ def update_student(student_id):
     
     Only updates fields that are provided in the request.
     """
+    user_id = g.current_user.id
+    from backend.modules.rbac.services import has_permission as _has_perm
+
+    # If teacher (not admin), verify student is in their class
+    if not _has_perm(user_id, PERM_READ_ALL):
+        student = services.get_student_by_id(student_id)
+        if not student:
+            return not_found_response('Student')
+        from backend.modules.attendance.services import get_teacher_class_ids
+        teacher_class_ids = get_teacher_class_ids(user_id)
+        if student.get('class_id') not in teacher_class_ids:
+            return unauthorized_response()
+
     data = request.get_json()
     
     result = services.update_student(

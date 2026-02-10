@@ -36,10 +36,30 @@ export const ALL_TABS: TabConfig[] = [
     ],
   },
   {
-    name: 'academics',
-    title: 'Academics',
+    name: 'teachers',
+    title: 'Teachers',
     icon: 'school',
     iconOutline: 'school-outline',
+    requiredPermissions: [
+      PERMS.TEACHER_READ,
+      PERMS.TEACHER_MANAGE,
+    ],
+  },
+  {
+    name: 'classes',
+    title: 'Classes',
+    icon: 'library',
+    iconOutline: 'library-outline',
+    requiredPermissions: [
+      PERMS.CLASS_READ,
+      PERMS.CLASS_MANAGE,
+    ],
+  },
+  {
+    name: 'academics',
+    title: 'Academics',
+    icon: 'book',
+    iconOutline: 'book-outline',
     requiredPermissions: [
       PERMS.STUDENT_READ,
       PERMS.GRADE_READ_SELF,

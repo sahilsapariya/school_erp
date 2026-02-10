@@ -1,11 +1,11 @@
 from flask import request
 from backend.modules.classes import classes_bp
-from backend.core.decorators import require_permission
+from backend.core.decorators import require_permission, auth_required
 from backend.shared.helpers import (
     success_response,
     error_response,
     not_found_response,
-    validation_error_response
+    validation_error_response,
 )
 from . import services
 
@@ -15,7 +15,9 @@ PERM_CREATE = 'class.create'
 PERM_UPDATE = 'class.update'
 PERM_DELETE = 'class.delete'
 
+
 @classes_bp.route('/', methods=['GET'])
+@auth_required
 @require_permission(PERM_READ)
 def get_classes():
     """List all classes"""
@@ -23,36 +25,44 @@ def get_classes():
     classes = services.get_all_classes(academic_year)
     return success_response(data=classes)
 
+
 @classes_bp.route('/', methods=['POST'])
+@auth_required
 @require_permission(PERM_CREATE)
 def create_class():
     """Create a new class"""
     data = request.get_json()
-    
+
     if not all(k in data for k in ('name', 'section', 'academic_year')):
         return validation_error_response({'message': 'Missing required fields'})
-        
+
     result = services.create_class(
         name=data['name'],
         section=data['section'],
         academic_year=data['academic_year'],
-        teacher_id=data.get('teacher_id')
+        teacher_id=data.get('teacher_id'),
+        start_date=data.get('start_date'),
+        end_date=data.get('end_date'),
     )
-    
+
     if result['success']:
         return success_response(data=result['class'], message='Class created successfully', status_code=201)
     return error_response('CreationError', result['error'], 400)
 
+
 @classes_bp.route('/<class_id>', methods=['GET'])
+@auth_required
 @require_permission(PERM_READ)
 def get_class(class_id):
-    """Get class details"""
-    cls = services.get_class_by_id(class_id)
+    """Get class details with students and teachers."""
+    cls = services.get_class_detail(class_id)
     if cls:
         return success_response(data=cls)
     return not_found_response('Class')
 
+
 @classes_bp.route('/<class_id>', methods=['PUT'])
+@auth_required
 @require_permission(PERM_UPDATE)
 def update_class(class_id):
     """Update class details"""
@@ -62,14 +72,18 @@ def update_class(class_id):
         name=data.get('name'),
         section=data.get('section'),
         academic_year=data.get('academic_year'),
-        teacher_id=data.get('teacher_id')
+        teacher_id=data.get('teacher_id'),
+        start_date=data.get('start_date'),
+        end_date=data.get('end_date'),
     )
-    
+
     if result['success']:
         return success_response(data=result['class'], message='Class updated successfully')
     return error_response('UpdateError', result['error'], 400)
 
+
 @classes_bp.route('/<class_id>', methods=['DELETE'])
+@auth_required
 @require_permission(PERM_DELETE)
 def delete_class(class_id):
     """Delete a class"""
@@ -77,3 +91,82 @@ def delete_class(class_id):
     if result['success']:
         return success_response(message='Class deleted successfully')
     return error_response('DeletionError', result['error'], 400)
+
+
+# ── Assignment Endpoints ──────────────────────────────────────
+
+@classes_bp.route('/<class_id>/students', methods=['POST'])
+@auth_required
+@require_permission(PERM_UPDATE)
+def assign_student(class_id):
+    """Assign a student to a class."""
+    data = request.get_json()
+    student_id = data.get('student_id')
+    if not student_id:
+        return validation_error_response('student_id is required')
+
+    result = services.assign_student_to_class(class_id, student_id)
+    if result['success']:
+        return success_response(message=result['message'])
+    return error_response('AssignmentError', result['error'], 400)
+
+
+@classes_bp.route('/<class_id>/students/<student_id>', methods=['DELETE'])
+@auth_required
+@require_permission(PERM_UPDATE)
+def remove_student(class_id, student_id):
+    """Remove a student from a class."""
+    result = services.remove_student_from_class(class_id, student_id)
+    if result['success']:
+        return success_response(message=result['message'])
+    return error_response('AssignmentError', result['error'], 400)
+
+
+@classes_bp.route('/<class_id>/teachers', methods=['POST'])
+@auth_required
+@require_permission(PERM_UPDATE)
+def assign_teacher(class_id):
+    """Assign a teacher to a class."""
+    data = request.get_json()
+    teacher_id = data.get('teacher_id')
+    if not teacher_id:
+        return validation_error_response('teacher_id is required')
+
+    result = services.assign_teacher_to_class(
+        class_id,
+        teacher_id,
+        subject=data.get('subject'),
+        is_class_teacher=data.get('is_class_teacher', False),
+    )
+    if result['success']:
+        return success_response(data=result.get('assignment'), message=result['message'])
+    return error_response('AssignmentError', result['error'], 400)
+
+
+@classes_bp.route('/<class_id>/teachers/<teacher_id>', methods=['DELETE'])
+@auth_required
+@require_permission(PERM_UPDATE)
+def remove_teacher(class_id, teacher_id):
+    """Remove a teacher from a class."""
+    result = services.remove_teacher_from_class(class_id, teacher_id)
+    if result['success']:
+        return success_response(message=result['message'])
+    return error_response('AssignmentError', result['error'], 400)
+
+
+@classes_bp.route('/<class_id>/unassigned-students', methods=['GET'])
+@auth_required
+@require_permission(PERM_READ)
+def get_unassigned_students(class_id):
+    """Get students not assigned to any class."""
+    students = services.get_unassigned_students(class_id)
+    return success_response(data=students)
+
+
+@classes_bp.route('/<class_id>/unassigned-teachers', methods=['GET'])
+@auth_required
+@require_permission(PERM_READ)
+def get_unassigned_teachers(class_id):
+    """Get teachers not yet assigned to this class."""
+    teachers = services.get_unassigned_teachers(class_id)
+    return success_response(data=teachers)

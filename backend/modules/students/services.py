@@ -263,6 +263,28 @@ def list_students(class_id: str = None, search: str = None) -> List[Dict]:
     students = query.all()
     return [s.to_dict() for s in students]
 
+def list_students_by_class_ids(class_ids: List[str], search: str = None) -> List[Dict]:
+    """List students filtered to specific class IDs (for teacher scoping)."""
+    if not class_ids:
+        return []
+
+    query = Student.query.join(User).filter(Student.class_id.in_(class_ids))
+
+    if search:
+        search_pattern = f'%{search}%'
+        query = query.filter(
+            db.or_(
+                User.name.ilike(search_pattern),
+                User.email.ilike(search_pattern),
+                Student.admission_number.ilike(search_pattern)
+            )
+        )
+
+    query = query.order_by(Student.class_id, User.name)
+    students = query.all()
+    return [s.to_dict() for s in students]
+
+
 def get_student_by_id(student_id: str) -> Optional[Dict]:
     """Get student details by ID"""
     student = Student.query.get(student_id)

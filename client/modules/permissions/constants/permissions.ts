@@ -85,6 +85,13 @@ export const FEE_DELETE = 'fee.delete';
 export const FEE_PAY = 'fee.pay';
 export const FEE_MANAGE = 'fee.manage';
 
+// Teacher Management
+export const TEACHER_CREATE = 'teacher.create';
+export const TEACHER_READ = 'teacher.read';
+export const TEACHER_UPDATE = 'teacher.update';
+export const TEACHER_DELETE = 'teacher.delete';
+export const TEACHER_MANAGE = 'teacher.manage';
+
 // Class Management
 export const CLASS_CREATE = 'class.create';
 export const CLASS_READ = 'class.read';

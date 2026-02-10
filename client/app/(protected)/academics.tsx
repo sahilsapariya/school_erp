@@ -11,10 +11,12 @@ import { Spacing, Layout } from "@/common/constants/spacing";
 import { Ionicons } from "@expo/vector-icons";
 import { Protected } from "@/modules/permissions/components/Protected";
 import { usePermissions } from "@/modules/permissions/hooks/usePermissions";
+import { useRouter } from "expo-router";
 import * as PERMS from "@/modules/permissions/constants/permissions";
 
 export default function AcademicsScreen() {
   const { hasAnyPermission } = usePermissions();
+  const router = useRouter();
 
   const isAdmin = hasAnyPermission([PERMS.SYSTEM_MANAGE, PERMS.USER_MANAGE]);
   const isTeacher = hasAnyPermission([
@@ -112,59 +114,98 @@ export default function AcademicsScreen() {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Attendance</Text>
 
-            {/* Teacher: Mark Attendance */}
+            {/* Teacher: Mark Attendance (not admin) */}
             <Protected permission={PERMS.ATTENDANCE_MARK}>
-              <TouchableOpacity style={[styles.actionCard, styles.primaryCard]}>
+              {!isAdmin && (
+                <TouchableOpacity
+                  style={[styles.actionCard, styles.primaryCard]}
+                  onPress={() => router.push("/(protected)/attendance/my-classes" as any)}
+                >
+                  <View style={styles.cardContent}>
+                    <View style={[styles.cardIcon, styles.primaryIcon]}>
+                      <Ionicons
+                        name="checkbox-outline"
+                        size={24}
+                        color={Colors.background}
+                      />
+                    </View>
+                    <View style={styles.cardText}>
+                      <Text style={[styles.cardTitle, styles.primaryText]}>
+                        Mark Attendance
+                      </Text>
+                      <Text style={[styles.cardSubtitle, styles.primarySubtext]}>
+                        Take attendance for your classes
+                      </Text>
+                    </View>
+                  </View>
+                  <Ionicons
+                    name="chevron-forward"
+                    size={20}
+                    color={Colors.background}
+                  />
+                </TouchableOpacity>
+              )}
+            </Protected>
+
+            {/* View Attendance (Student/Parent, not admin) */}
+            <Protected anyPermissions={[PERMS.ATTENDANCE_READ_SELF]}>
+              {!isAdmin && (
+                <TouchableOpacity
+                  style={styles.actionCard}
+                  onPress={() => router.push("/(protected)/attendance/my-attendance" as any)}
+                >
+                  <View style={styles.cardContent}>
+                    <View style={styles.cardIcon}>
+                      <Ionicons
+                        name="calendar-outline"
+                        size={24}
+                        color={Colors.primary}
+                      />
+                    </View>
+                    <View style={styles.cardText}>
+                      <Text style={styles.cardTitle}>My Attendance</Text>
+                      <Text style={styles.cardSubtitle}>
+                        View attendance history and percentage
+                      </Text>
+                    </View>
+                  </View>
+                  <Ionicons
+                    name="chevron-forward"
+                    size={20}
+                    color={Colors.textSecondary}
+                  />
+                </TouchableOpacity>
+              )}
+            </Protected>
+
+            {/* View Attendance (Admin) */}
+            <Protected permission={PERMS.ATTENDANCE_READ_ALL}>
+              <TouchableOpacity
+                style={styles.actionCard}
+                onPress={() => router.push("/(protected)/attendance/overview" as any)}
+              >
                 <View style={styles.cardContent}>
-                  <View style={[styles.cardIcon, styles.primaryIcon]}>
+                  <View style={styles.cardIcon}>
                     <Ionicons
-                      name="checkbox-outline"
+                      name="stats-chart-outline"
                       size={24}
-                      color={Colors.background}
+                      color={Colors.primary}
                     />
                   </View>
                   <View style={styles.cardText}>
-                    <Text style={[styles.cardTitle, styles.primaryText]}>
-                      Mark Attendance
-                    </Text>
-                    <Text style={[styles.cardSubtitle, styles.primarySubtext]}>
-                      Take attendance for your classes
+                    <Text style={styles.cardTitle}>Attendance Overview</Text>
+                    <Text style={styles.cardSubtitle}>
+                      View all attendance records by class and date
                     </Text>
                   </View>
                 </View>
                 <Ionicons
                   name="chevron-forward"
                   size={20}
-                  color={Colors.background}
+                  color={Colors.textSecondary}
                 />
               </TouchableOpacity>
             </Protected>
-
-            {/* View Attendance */}
-            <TouchableOpacity style={styles.actionCard}>
-              <View style={styles.cardContent}>
-                <View style={styles.cardIcon}>
-                  <Ionicons
-                    name="calendar-outline"
-                    size={24}
-                    color={Colors.primary}
-                  />
-                </View>
-                <View style={styles.cardText}>
-                  <Text style={styles.cardTitle}>View Attendance</Text>
-                  <Text style={styles.cardSubtitle}>
-                    {isAdmin && "All attendance records"}
-                    {isTeacher && "Class attendance reports"}
-                    {(isStudent || isParent) && "Attendance history"}
-                  </Text>
-                </View>
-              </View>
-              <Ionicons
-                name="chevron-forward"
-                size={20}
-                color={Colors.textSecondary}
-              />
-            </TouchableOpacity>
           </View>
         </Protected>
 

@@ -84,22 +84,17 @@ def register_blueprints(app: Flask):
     from backend.modules.users import users_bp
     from backend.modules.classes import classes_bp
     from backend.modules.students import students_bp
+    from backend.modules.teachers import teachers_bp
+    from backend.modules.attendance import attendance_bp
     
     # Register blueprints with URL prefixes
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(rbac_bp, url_prefix='/api/rbac')
     app.register_blueprint(users_bp, url_prefix='/api/users')
-    
-    # New Modules
     app.register_blueprint(classes_bp, url_prefix='/api/classes')
     app.register_blueprint(students_bp, url_prefix='/api/students')
-    
-    # Future modules can be registered here:
-    # app.register_blueprint(students_bp, url_prefix='/api/students')
-    # app.register_blueprint(teachers_bp, url_prefix='/api/teachers')
-    # app.register_blueprint(attendance_bp, url_prefix='/api/attendance')
-    # app.register_blueprint(academics_bp, url_prefix='/api/academics')
-    # etc.
+    app.register_blueprint(teachers_bp, url_prefix='/api/teachers')
+    app.register_blueprint(attendance_bp, url_prefix='/api/attendance')
 
 
 def register_error_handlers(app: Flask):
@@ -200,6 +195,8 @@ def register_health_check(app: Flask):
                 'users': '/api/users',
                 'classes': '/api/classes',
                 'students': '/api/students',
+                'teachers': '/api/teachers',
+                'attendance': '/api/attendance',
                 'health': '/api/health'
             }
         }), 200

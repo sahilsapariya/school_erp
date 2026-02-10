@@ -25,6 +25,10 @@ def init_db(app):
         # This is needed before db.create_all()
         from backend.modules.auth.models import User, Session
         from backend.modules.rbac.models import Role, Permission, RolePermission, UserRole
+        from backend.modules.students.models import Student
+        from backend.modules.classes.models import Class, ClassTeacher
+        from backend.modules.teachers.models import Teacher
+        from backend.modules.attendance.models import Attendance
         
         # Create all tables
         db.create_all()
