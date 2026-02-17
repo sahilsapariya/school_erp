@@ -14,6 +14,7 @@ from backend.core.database import db
 # Status values for Tenant
 TENANT_STATUS_ACTIVE = "active"
 TENANT_STATUS_SUSPENDED = "suspended"
+TENANT_STATUS_DELETED = "deleted"  # Soft delete; login and API access blocked
 
 
 class Plan(db.Model):

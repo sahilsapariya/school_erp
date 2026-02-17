@@ -49,12 +49,16 @@ class Config:
     # RBAC
     DEFAULT_USER_ROLE = os.getenv('DEFAULT_USER_ROLE', 'Student')
     
-    # CORS
-    CORS_ORIGINS = ['*']  # Should be more restrictive in production
-    CORS_METHODS = ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
-    CORS_ALLOW_HEADERS = ['Content-Type', 'Authorization', 'X-Refresh-Token']
+    # CORS (development permissive; production must set CORS_ORIGINS)
+    CORS_ORIGINS = ['*']
+    CORS_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']
+    CORS_ALLOW_HEADERS = ['Content-Type', 'Authorization', 'X-Refresh-Token', 'X-Tenant-ID']
     CORS_EXPOSE_HEADERS = ['X-New-Access-Token']
     CORS_SUPPORTS_CREDENTIALS = True
+
+    # Rate limiting (storage URL optional; default in-memory)
+    RATELIMIT_ENABLED = True
+    RATELIMIT_DEFAULT = "200 per minute"
     
     # Pagination
     DEFAULT_PAGE_SIZE = 20
@@ -82,8 +86,7 @@ class ProductionConfig(Config):
     BACKEND_URL = os.getenv('BACKEND_URL')  # Must be set in production
     FRONTEND_URL = os.getenv('FRONTEND_URL', 'schoolerp://')
     
-    # More restrictive CORS in production
-    CORS_ORIGINS = os.getenv('CORS_ORIGINS', '*').split(',')
+    CORS_ORIGINS = [o.strip() for o in os.getenv('CORS_ORIGINS', '').split(',') if o.strip()]
     
     # Enforce secure settings
     SESSION_COOKIE_SECURE = True

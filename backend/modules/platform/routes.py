@@ -9,11 +9,16 @@ from flask import request, g
 
 from backend.modules.platform import platform_bp
 from backend.core.decorators import auth_required, platform_admin_required
+from backend.core.extensions import limiter
 from backend.shared.helpers import success_response, error_response, not_found_response, validation_error_response
 from backend.modules.platform import services
 
+# Rate limit: 30 requests per minute per IP for all platform routes
+PLATFORM_LIMIT = "30 per minute"
+
 
 @platform_bp.route("/plans", methods=["GET"])
+@limiter.limit(PLATFORM_LIMIT)
 @auth_required
 @platform_admin_required
 def list_plans():
@@ -23,6 +28,7 @@ def list_plans():
 
 
 @platform_bp.route("/dashboard", methods=["GET"])
+@limiter.limit(PLATFORM_LIMIT)
 @auth_required
 @platform_admin_required
 def dashboard():
@@ -36,6 +42,7 @@ def dashboard():
 
 
 @platform_bp.route("/tenants", methods=["POST"])
+@limiter.limit(PLATFORM_LIMIT)
 @auth_required
 @platform_admin_required
 def create_tenant():
@@ -67,6 +74,7 @@ def create_tenant():
 
 
 @platform_bp.route("/tenants/<tenant_id>/suspend", methods=["PATCH"])
+@limiter.limit(PLATFORM_LIMIT)
 @auth_required
 @platform_admin_required
 def suspend_tenant(tenant_id):
@@ -78,6 +86,7 @@ def suspend_tenant(tenant_id):
 
 
 @platform_bp.route("/tenants/<tenant_id>/activate", methods=["PATCH"])
+@limiter.limit(PLATFORM_LIMIT)
 @auth_required
 @platform_admin_required
 def activate_tenant(tenant_id):
@@ -89,6 +98,7 @@ def activate_tenant(tenant_id):
 
 
 @platform_bp.route("/tenants/<tenant_id>/change-plan", methods=["PATCH"])
+@limiter.limit(PLATFORM_LIMIT)
 @auth_required
 @platform_admin_required
 def change_plan(tenant_id):
@@ -110,6 +120,7 @@ def change_plan(tenant_id):
 
 
 @platform_bp.route("/tenants/<tenant_id>/reset-admin", methods=["POST"])
+@limiter.limit(PLATFORM_LIMIT)
 @auth_required
 @platform_admin_required
 def reset_admin(tenant_id):
@@ -125,6 +136,7 @@ def reset_admin(tenant_id):
 
 
 @platform_bp.route("/tenants", methods=["GET"])
+@limiter.limit(PLATFORM_LIMIT)
 @auth_required
 @platform_admin_required
 def list_tenants():

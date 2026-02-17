@@ -65,12 +65,15 @@ def resolve_tenant():
             404,
         )
 
+    # Block suspended and deleted tenants (only active can access)
     if tenant.status != TENANT_STATUS_ACTIVE:
+        error_code = "TenantSuspended" if tenant.status == "suspended" else "TenantUnavailable"
+        message = "Tenant is suspended" if tenant.status == "suspended" else "Tenant is not available"
         return (
             jsonify(
                 success=False,
-                error="TenantSuspended",
-                message="Tenant is suspended",
+                error=error_code,
+                message=message,
             ),
             403,
         )
@@ -84,6 +87,7 @@ def tenant_required(fn):
     Decorator that enforces tenant context.
 
     Ensures g.tenant_id is set (by calling resolve_tenant() if not).
+    Returns 404/403 from resolve_tenant() when tenant not found or not active.
     Use on API routes that must run in a tenant context.
 
     Usage:
@@ -96,6 +100,8 @@ def tenant_required(fn):
     @wraps(fn)
     def wrapper(*args, **kwargs):
         if getattr(g, "tenant_id", None) is None:
-            resolve_tenant()
+            result = resolve_tenant()
+            if result is not None:
+                return result
         return fn(*args, **kwargs)
     return wrapper

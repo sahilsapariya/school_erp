@@ -27,6 +27,7 @@ from .services import (
 )
 from backend.core.decorators import auth_required, tenant_required
 from backend.core.database import db
+from backend.core.extensions import limiter
 from backend.shared.helpers import success_response, error_response
 
 
@@ -118,6 +119,7 @@ def register():
 # ==================== LOGIN ====================
 
 @auth_bp.route('/login', methods=['POST'])
+@limiter.limit("5 per minute")
 @tenant_required
 def login():
     """
