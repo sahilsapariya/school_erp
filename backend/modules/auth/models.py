@@ -44,6 +44,9 @@ class User(TenantBaseModel):
     reset_password_sent_at = db.Column(db.DateTime, nullable=True)
     force_password_reset = db.Column(db.Boolean, default=False, nullable=False)
 
+    # Platform Admin (Super Admin panel access)
+    is_platform_admin = db.Column(db.Boolean, nullable=False, default=False)
+
     # Metadata
     last_login_at = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)

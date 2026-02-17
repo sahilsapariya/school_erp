@@ -6,7 +6,8 @@ from backend.shared.helpers import (
     error_response,
     not_found_response,
     unauthorized_response,
-    validation_error_response
+    validation_error_response,
+    forbidden_response,
 )
 from . import services
 
@@ -128,7 +129,10 @@ def create_student():
             message='Student created successfully',
             status_code=201
         )
-    
+
+    # Plan limit enforcement returns 403
+    if "limit" in result.get("error", "").lower():
+        return forbidden_response(result["error"])
     return error_response('CreationError', result['error'], 400)
 
 @students_bp.route('/<student_id>', methods=['GET'])

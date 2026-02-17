@@ -31,6 +31,7 @@ Usage:
 
 from .auth import auth_required
 from .rbac import require_permission
+from .platform import platform_admin_required
 from backend.core.tenant import tenant_required
 
-__all__ = ['auth_required', 'require_permission', 'tenant_required']
+__all__ = ['auth_required', 'require_permission', 'tenant_required', 'platform_admin_required']

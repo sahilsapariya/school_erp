@@ -6,10 +6,28 @@ import string
 
 from backend.core.database import db
 from backend.core.tenant import get_tenant_id
+from backend.core.models import Tenant
 from backend.modules.auth.models import User
 from backend.modules.rbac.services import assign_role_to_user_by_email
 from backend.modules.classes.models import Class
 from .models import Student
+
+
+def _check_student_plan_limit(tenant_id: str) -> tuple:
+    """
+    Enforce plan max_students. Returns (True, None) if allowed, (False, message) if limit exceeded.
+    If tenant has no plan, allow (no limit).
+    """
+    tenant = Tenant.query.get(tenant_id)
+    if not tenant or not tenant.plan_id:
+        return True, None
+    plan = tenant.plan
+    if not plan:
+        return True, None
+    current = Student.query.filter_by(tenant_id=tenant_id).count()
+    if current >= plan.max_students:
+        return False, f"Student limit reached for your plan (max {plan.max_students}). Contact support to upgrade."
+    return True, None
 
 
 def generate_admission_number() -> str:
@@ -143,6 +161,11 @@ def create_student(
         tenant_id = get_tenant_id()
         if not tenant_id:
             return {'success': False, 'error': 'Tenant context is required'}
+
+        # Plan enforcement: do not allow creating students beyond plan limit
+        allowed, limit_msg = _check_student_plan_limit(tenant_id)
+        if not allowed:
+            return {'success': False, 'error': limit_msg}
 
         # Validate admission number uniqueness (tenant-scoped; query auto-filtered)
         if Student.query.filter_by(admission_number=admission_number).first():

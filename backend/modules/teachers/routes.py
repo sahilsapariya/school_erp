@@ -6,6 +6,7 @@ from backend.shared.helpers import (
     error_response,
     not_found_response,
     validation_error_response,
+    forbidden_response,
 )
 from . import services
 
@@ -64,6 +65,9 @@ def create_teacher():
             response_data['credentials'] = result['credentials']
         return success_response(data=response_data, message='Teacher created successfully', status_code=201)
 
+    # Plan limit enforcement returns 403
+    if "limit" in result.get("error", "").lower():
+        return forbidden_response(result["error"])
     return error_response('CreationError', result['error'], 400)
 
 

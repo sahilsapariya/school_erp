@@ -1,7 +1,7 @@
 """
 Core Models
 
-Tenant and TenantBaseModel for multi-tenant SaaS.
+Tenant, Plan, AuditLog, and TenantBaseModel for multi-tenant SaaS.
 All tenant-scoped business models inherit from TenantBaseModel.
 """
 
@@ -14,6 +14,32 @@ from backend.core.database import db
 # Status values for Tenant
 TENANT_STATUS_ACTIVE = "active"
 TENANT_STATUS_SUSPENDED = "suspended"
+
+
+class Plan(db.Model):
+    """
+    Plan Model (platform-level, not tenant-scoped).
+
+    Subscription plan defining limits (max_students, max_teachers) and price.
+    """
+    __tablename__ = "plans"
+
+    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    name = db.Column(db.String(100), unique=True, nullable=False, index=True)
+    price_monthly = db.Column(db.Numeric(12, 2), nullable=False)
+    max_students = db.Column(db.Integer, nullable=False)
+    max_teachers = db.Column(db.Integer, nullable=False)
+    features_json = db.Column(db.JSON, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = db.Column(
+        db.DateTime,
+        nullable=False,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+    )
+
+    def __repr__(self):
+        return f"<Plan {self.name}>"
 
 
 class Tenant(db.Model):
@@ -31,7 +57,12 @@ class Tenant(db.Model):
     contact_email = db.Column(db.String(120), nullable=True)
     phone = db.Column(db.String(20), nullable=True)
     address = db.Column(db.Text, nullable=True)
-    plan_id = db.Column(db.String(36), nullable=True)  # nullable for now
+    plan_id = db.Column(
+        db.String(36),
+        db.ForeignKey("plans.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     status = db.Column(
         db.String(20),
         nullable=False,
@@ -46,8 +77,40 @@ class Tenant(db.Model):
         onupdate=datetime.utcnow,
     )
 
+    plan = db.relationship("Plan", backref="tenants", lazy=True)
+
     def __repr__(self):
         return f"<Tenant {self.subdomain}>"
+
+
+class AuditLog(db.Model):
+    """
+    Audit log for platform-critical actions (tenant created, suspended, plan changed, etc.).
+    Not tenant-scoped; tenant_id nullable for platform-wide actions.
+    """
+    __tablename__ = "audit_logs"
+    __tenant_scoped__ = False
+
+    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    tenant_id = db.Column(
+        db.String(36),
+        db.ForeignKey("tenants.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    platform_admin_id = db.Column(
+        db.String(36),
+        db.ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    action = db.Column(db.String(100), nullable=False, index=True)
+    # Python name 'extra_data' to avoid conflict with SQLAlchemy's reserved 'metadata'
+    extra_data = db.Column("metadata", db.JSON, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, index=True)
+
+    def __repr__(self):
+        return f"<AuditLog {self.action} {self.created_at}>"
 
 
 class TenantBaseModel(db.Model):

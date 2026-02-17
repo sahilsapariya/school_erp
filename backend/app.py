@@ -79,6 +79,9 @@ def register_tenant_middleware(app: Flask):
         path = request.path.rstrip("/") if request.path else ""
         if path in ("/api/health", "/api"):
             return None
+        # Platform routes bypass tenant resolution (platform admin operates across tenants)
+        if request.path.startswith("/api/platform/"):
+            return None
         if request.path.startswith("/api/"):
             return resolve_tenant()
         return None
@@ -106,9 +109,11 @@ def register_blueprints(app: Flask):
     from backend.modules.students import students_bp
     from backend.modules.teachers import teachers_bp
     from backend.modules.attendance import attendance_bp
-    
+    from backend.modules.platform import platform_bp
+
     # Register blueprints with URL prefixes
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
+    app.register_blueprint(platform_bp, url_prefix='/api')
     app.register_blueprint(rbac_bp, url_prefix='/api/rbac')
     app.register_blueprint(users_bp, url_prefix='/api/users')
     app.register_blueprint(classes_bp, url_prefix='/api/classes')
@@ -217,6 +222,7 @@ def register_health_check(app: Flask):
                 'students': '/api/students',
                 'teachers': '/api/teachers',
                 'attendance': '/api/attendance',
+                'platform': '/api/platform',
                 'health': '/api/health'
             }
         }), 200

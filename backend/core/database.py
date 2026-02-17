@@ -55,7 +55,7 @@ def init_db(app):
     event.listen(Query, "before_compile", _tenant_scope_query, retval=True)
 
     with app.app_context():
-        from backend.core.models import Tenant
+        from backend.core.models import Tenant, Plan, AuditLog
         from backend.modules.auth.models import User, Session
         from backend.modules.rbac.models import Role, Permission, RolePermission, UserRole
         from backend.modules.students.models import Student
