@@ -1,37 +1,37 @@
 """
 Database Module
 
-Centralized database instance and utility functions.
+Centralized database instance, Flask-Migrate, and utility functions.
+Schema is managed via migrations (flask db upgrade); db.create_all() is not called on init.
 """
 
+from flask_migrate import Migrate
 from flask_sqlalchemy import SQLAlchemy
 
 # Initialize SQLAlchemy instance
 # This will be initialized with the app in the application factory
 db = SQLAlchemy()
+migrate = Migrate()
 
 
 def init_db(app):
     """
-    Initialize database with Flask app.
-    
+    Initialize database and migrations with Flask app.
+    Tables are created/updated by running: flask db upgrade
+
     Args:
         app: Flask application instance
     """
     db.init_app(app)
-    
+    migrate.init_app(app, db, directory="backend/migrations")
+
     with app.app_context():
-        # Import all models to ensure they are registered with SQLAlchemy
-        # This is needed before db.create_all()
         from backend.modules.auth.models import User, Session
         from backend.modules.rbac.models import Role, Permission, RolePermission, UserRole
         from backend.modules.students.models import Student
         from backend.modules.classes.models import Class, ClassTeacher
         from backend.modules.teachers.models import Teacher
         from backend.modules.attendance.models import Attendance
-        
-        # Create all tables
-        db.create_all()
 
 
 def reset_db(app):

@@ -1,0 +1,12 @@
+Flask-Migrate (Alembic) migrations for School ERP.
+
+Commands (run from project root with FLASK_APP=backend.app:app):
+
+  flask db upgrade     Apply all pending migrations
+  flask db downgrade   Revert one revision
+  flask db migrate -m "message"   Generate a new migration from model changes
+  flask db current     Show current revision
+  flask db history     Show revision history
+
+Legacy manual SQL scripts (add_student_phone.sql, add_student_fields.sql) are
+kept for reference; schema is now managed by these migrations.
