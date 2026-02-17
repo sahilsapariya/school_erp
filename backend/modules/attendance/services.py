@@ -3,6 +3,7 @@ from sqlalchemy.exc import IntegrityError
 from datetime import datetime, date
 
 from backend.core.database import db
+from backend.core.tenant import get_tenant_id
 from backend.modules.classes.models import Class
 from backend.modules.students.models import Student
 from backend.modules.teachers.models import Teacher
@@ -98,7 +99,9 @@ def mark_attendance(
                 existing.updated_at = datetime.utcnow()
                 updated += 1
             else:
+                tenant_id = get_tenant_id()
                 att = Attendance(
+                    tenant_id=tenant_id,
                     date=att_date,
                     class_id=class_id,
                     student_id=student_id,

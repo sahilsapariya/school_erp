@@ -1,15 +1,16 @@
 from backend.core.database import db
+from backend.core.models import TenantBaseModel
 from datetime import datetime
 import uuid
 
 
-class Class(db.Model):
+class Class(TenantBaseModel):
     """
     Class/Section Model
 
     Represents a specific class division (e.g., Grade 10-A) for an academic year.
     Students are assigned to a Class.
-    A Teacher is assigned as the class teacher.
+    A Teacher is assigned as the class teacher. Scoped by tenant.
     """
     __tablename__ = "classes"
 
@@ -23,13 +24,16 @@ class Class(db.Model):
     end_date = db.Column(db.Date, nullable=True)     # e.g. 2026-03-31
 
     # Class Teacher (User with Teacher role)
-    teacher_id = db.Column(db.String(36), db.ForeignKey('users.id'), nullable=True)
+    teacher_id = db.Column(db.String(36), db.ForeignKey("users.id"), nullable=True)
 
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     __table_args__ = (
-        db.UniqueConstraint('name', 'section', 'academic_year', name='uq_class_section_year'),
+        db.UniqueConstraint(
+            "name", "section", "academic_year", "tenant_id",
+            name="uq_class_section_year_tenant",
+        ),
     )
 
     # Relationships
@@ -56,25 +60,28 @@ class Class(db.Model):
         return f"<Class {self.name}-{self.section} ({self.academic_year})>"
 
 
-class ClassTeacher(db.Model):
+class ClassTeacher(TenantBaseModel):
     """
     Class-Teacher Junction Table
 
     Maps teachers to classes they teach. A teacher can be assigned to multiple classes,
-    and a class can have multiple teachers (for different subjects).
+    and a class can have multiple teachers (for different subjects). Scoped by tenant.
     """
     __tablename__ = "class_teachers"
 
     id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    class_id = db.Column(db.String(36), db.ForeignKey('classes.id'), nullable=False)
-    teacher_id = db.Column(db.String(36), db.ForeignKey('teachers.id'), nullable=False)
+    class_id = db.Column(db.String(36), db.ForeignKey("classes.id"), nullable=False)
+    teacher_id = db.Column(db.String(36), db.ForeignKey("teachers.id"), nullable=False)
     subject = db.Column(db.String(100), nullable=True)  # What subject the teacher teaches in this class
     is_class_teacher = db.Column(db.Boolean, default=False)
 
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
     __table_args__ = (
-        db.UniqueConstraint('class_id', 'teacher_id', name='uq_class_teacher'),
+        db.UniqueConstraint(
+            "class_id", "teacher_id", "tenant_id",
+            name="uq_class_teacher_tenant",
+        ),
     )
 
     # Relationships

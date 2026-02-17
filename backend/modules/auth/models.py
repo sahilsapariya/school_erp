@@ -5,6 +5,7 @@ Database models for user authentication and session management.
 """
 
 from backend.core.database import db
+from backend.core.models import TenantBaseModel
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
 import os
@@ -12,19 +13,22 @@ import secrets
 import uuid
 
 
-class User(db.Model):
+class User(TenantBaseModel):
     """
     User Model
     
     Represents a user in the system. Users can have multiple roles
-    and authenticate using email/password.
+    and authenticate using email/password. Scoped by tenant.
     """
     __tablename__ = "users"
+    __table_args__ = (
+        db.UniqueConstraint("email", "tenant_id", name="uq_users_email_tenant"),
+    )
 
     id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
 
     # Authentication
-    email = db.Column(db.String(120), unique=True, nullable=False, index=True)
+    email = db.Column(db.String(120), nullable=False, index=True)
     password_hash = db.Column(db.String(255), nullable=False)
 
     # Profile
@@ -69,9 +73,12 @@ class User(db.Model):
         return check_password_hash(self.password_hash, password)
     
     @classmethod
-    def get_user_by_email(cls, email: str):
-        """Get user by email address"""
-        return cls.query.filter_by(email=email).first()
+    def get_user_by_email(cls, email: str, tenant_id: str = None):
+        """Get user by email address (and tenant_id when provided)."""
+        q = cls.query.filter_by(email=email)
+        if tenant_id is not None:
+            q = q.filter_by(tenant_id=tenant_id)
+        return q.first()
     
     def generate_email_verification_token(self) -> str:
         """Generate a unique token for email verification"""
@@ -79,9 +86,9 @@ class User(db.Model):
         self.verification_token = token
         return token
 
-    def get_email_verification_token(self, email) -> str:
-        """Get verification token for a user by email"""
-        user = User.query.filter_by(email=email).first()
+    def get_email_verification_token(self, email, tenant_id=None) -> str:
+        """Get verification token for a user by email (and tenant when provided)."""
+        user = User.get_user_by_email(email, tenant_id=tenant_id)
         if user:
             return user.verification_token
         return None
@@ -121,12 +128,12 @@ def refresh_token_expiry():
     return datetime.utcnow() + timedelta(days=REFRESH_DAYS)
 
 
-class Session(db.Model):
+class Session(TenantBaseModel):
     """
     Session Model
     
     Represents a user session with refresh token.
-    Supports multiple concurrent sessions per user.
+    Supports multiple concurrent sessions per user. Scoped by tenant.
     """
     __tablename__ = "sessions"
 

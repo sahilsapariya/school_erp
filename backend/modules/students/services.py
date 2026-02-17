@@ -5,6 +5,7 @@ import secrets
 import string
 
 from backend.core.database import db
+from backend.core.tenant import get_tenant_id
 from backend.modules.auth.models import User
 from backend.modules.rbac.services import assign_role_to_user_by_email
 from backend.modules.classes.models import Class
@@ -139,25 +140,29 @@ def create_student(
         if not admission_number:
             admission_number = generate_admission_number()
         
-        # Validate admission number uniqueness
+        tenant_id = get_tenant_id()
+        if not tenant_id:
+            return {'success': False, 'error': 'Tenant context is required'}
+
+        # Validate admission number uniqueness (tenant-scoped; query auto-filtered)
         if Student.query.filter_by(admission_number=admission_number).first():
             return {'success': False, 'error': 'Admission number already exists'}
-        
-        # Validate class exists if provided
+
+        # Validate class exists if provided (tenant-scoped)
         if class_id:
             class_obj = Class.query.get(class_id)
             if not class_obj:
                 return {'success': False, 'error': 'Class not found'}
-        
+
         user = None
         temp_password = None
-        
+
         # Create User with login credentials if email provided
         if email:
-            # Check if email already exists
-            existing_user = User.get_user_by_email(email)
+            # Check if email already exists in this tenant
+            existing_user = User.get_user_by_email(email, tenant_id=tenant_id)
             if existing_user:
-                # Check if already linked to a student
+                # Check if already linked to a student in this tenant
                 if Student.query.filter_by(user_id=existing_user.id).first():
                     return {'success': False, 'error': 'Email already linked to another student'}
                 # Link to existing user
@@ -167,6 +172,7 @@ def create_student(
                 # Password = First 3 letters of name + birth year
                 temp_password = generate_student_password(name, date_of_birth)
                 user = User()
+                user.tenant_id = tenant_id
                 user.email = email
                 user.name = name
                 user.set_password(temp_password)
@@ -184,15 +190,17 @@ def create_student(
         if not user:
             # Use admission number as email identifier
             user = User()
+            user.tenant_id = tenant_id
             user.email = f"{admission_number.lower()}@student.placeholder"
             user.name = name
             user.set_password(secrets.token_urlsafe(32))  # Random unusable password
             user.email_verified = False
             user.force_password_reset = False
             user.save()
-        
-        # Create Student Profile
+
+        # Create Student Profile (tenant-scoped)
         student = Student(
+            tenant_id=tenant_id,
             user_id=user.id,
             admission_number=admission_number,
             academic_year=academic_year,

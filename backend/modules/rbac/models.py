@@ -5,23 +5,28 @@ Database models for roles, permissions, and their relationships.
 """
 
 from backend.core.database import db
+from backend.core.models import TenantBaseModel
 from datetime import datetime
 import uuid
 
 
-class Role(db.Model):
+class Role(TenantBaseModel):
     """
     Role Model
     
     Represents a role that groups permissions together.
     Roles are assigned to users, and users inherit permissions from their roles.
+    Scoped by tenant.
     
     Examples: Admin, Teacher, Student, Parent
     """
     __tablename__ = "roles"
+    __table_args__ = (
+        db.UniqueConstraint("name", "tenant_id", name="uq_roles_name_tenant"),
+    )
 
     id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    name = db.Column(db.String(50), unique=True, nullable=False, index=True)
+    name = db.Column(db.String(50), nullable=False, index=True)
     description = db.Column(db.String(255), nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
@@ -75,16 +80,19 @@ class Permission(db.Model):
         db.session.commit()
 
 
-class RolePermission(db.Model):
+class RolePermission(TenantBaseModel):
     """
     RolePermission Junction Table
     
-    Maps permissions to roles (many-to-many relationship).
+    Maps permissions to roles (many-to-many relationship). Scoped by tenant.
     """
     __tablename__ = "role_permissions"
 
     __table_args__ = (
-        db.UniqueConstraint("role_id", "permission_id", name="uq_role_permission"),
+        db.UniqueConstraint(
+            "role_id", "permission_id", "tenant_id",
+            name="uq_role_permission_tenant",
+        ),
     )
 
     id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -111,17 +119,20 @@ class RolePermission(db.Model):
         db.session.commit()
 
 
-class UserRole(db.Model):
+class UserRole(TenantBaseModel):
     """
     UserRole Junction Table
     
     Maps roles to users (many-to-many relationship).
-    Users can have multiple roles.
+    Users can have multiple roles. Scoped by tenant.
     """
     __tablename__ = "user_roles"
 
     __table_args__ = (
-        db.UniqueConstraint("user_id", "role_id", name="uq_user_role"),
+        db.UniqueConstraint(
+            "user_id", "role_id", "tenant_id",
+            name="uq_user_role_tenant",
+        ),
     )
 
     id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))

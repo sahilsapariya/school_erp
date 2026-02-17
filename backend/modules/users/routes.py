@@ -15,7 +15,8 @@ Routes:
 from flask import request, g
 
 from . import users_bp
-from backend.core.decorators import auth_required, require_permission
+from backend.core.decorators import auth_required, require_permission, tenant_required
+from backend.core.tenant import get_tenant_id
 from backend.shared.helpers import success_response, error_response
 from backend.modules.rbac.services import get_user_permissions, get_user_roles
 from .services import (
@@ -25,6 +26,7 @@ from .services import (
 
 
 @users_bp.route('', methods=['GET'])
+@tenant_required
 @auth_required
 @require_permission('user.read')
 def list_users_route():
@@ -53,7 +55,8 @@ def list_users_route():
         search=search,
         page=page,
         per_page=per_page,
-        email_verified=email_verified
+        email_verified=email_verified,
+        tenant_id=get_tenant_id(),
     )
     
     return success_response({
@@ -70,6 +73,7 @@ def list_users_route():
 
 
 @users_bp.route('/<user_id>', methods=['GET'])
+@tenant_required
 @auth_required
 @require_permission('user.read')
 def get_user_route(user_id):
@@ -97,6 +101,7 @@ def get_user_route(user_id):
 
 
 @users_bp.route('/<user_id>', methods=['PUT'])
+@tenant_required
 @auth_required
 @require_permission('user.manage')
 def update_user_route(user_id):
@@ -124,6 +129,7 @@ def update_user_route(user_id):
 
 
 @users_bp.route('/<user_id>', methods=['DELETE'])
+@tenant_required
 @auth_required
 @require_permission('user.manage')
 def delete_user_route(user_id):
@@ -153,6 +159,7 @@ def delete_user_route(user_id):
 
 
 @users_bp.route('/<user_id>/verify-email', methods=['POST'])
+@tenant_required
 @auth_required
 @require_permission('user.manage')
 def verify_email_route(user_id):
@@ -174,17 +181,18 @@ def verify_email_route(user_id):
 
 
 @users_bp.route('/by-email/<email>', methods=['GET'])
+@tenant_required
 @auth_required
 @require_permission('user.read')
 def get_user_by_email_route(email):
     """
-    Get user by email address.
+    Get user by email address (tenant-scoped).
     
     Returns:
         200: User details
         404: User not found
     """
-    user = get_user_by_email(email)
+    user = get_user_by_email(email, tenant_id=get_tenant_id())
     
     if not user:
         return error_response('NotFound', 'User not found', 404)

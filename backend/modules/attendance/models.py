@@ -1,33 +1,37 @@
 from backend.core.database import db
+from backend.core.models import TenantBaseModel
 from datetime import datetime
 import uuid
 
 
-class Attendance(db.Model):
+class Attendance(TenantBaseModel):
     """
     Attendance Model
 
     Records daily attendance for each student in a class.
-    Unique constraint prevents duplicate records per date/class/student.
+    Unique constraint prevents duplicate records per date/class/student. Scoped by tenant.
     """
     __tablename__ = "attendance"
 
     id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
 
     date = db.Column(db.Date, nullable=False, index=True)
-    class_id = db.Column(db.String(36), db.ForeignKey('classes.id'), nullable=False)
-    student_id = db.Column(db.String(36), db.ForeignKey('students.id'), nullable=False)
+    class_id = db.Column(db.String(36), db.ForeignKey("classes.id"), nullable=False)
+    student_id = db.Column(db.String(36), db.ForeignKey("students.id"), nullable=False)
     status = db.Column(db.String(10), nullable=False)  # present / absent / late
     remarks = db.Column(db.Text, nullable=True)
 
     # Who marked the attendance
-    marked_by = db.Column(db.String(36), db.ForeignKey('users.id'), nullable=False)
+    marked_by = db.Column(db.String(36), db.ForeignKey("users.id"), nullable=False)
 
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     __table_args__ = (
-        db.UniqueConstraint('date', 'class_id', 'student_id', name='uq_attendance_date_class_student'),
+        db.UniqueConstraint(
+            "date", "class_id", "student_id", "tenant_id",
+            name="uq_attendance_date_class_student_tenant",
+        ),
     )
 
     # Relationships

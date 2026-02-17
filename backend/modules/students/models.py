@@ -1,24 +1,30 @@
 from backend.core.database import db
+from backend.core.models import TenantBaseModel
 from datetime import datetime
 import uuid
 
-class Student(db.Model):
+
+class Student(TenantBaseModel):
     """
     Student Model
     
     Extends the User model with student-specific data.
-    Linked to a Class.
+    Linked to a Class. Scoped by tenant.
     """
     __tablename__ = "students"
+    __table_args__ = (
+        db.UniqueConstraint("admission_number", "tenant_id", name="uq_students_admission_number_tenant"),
+        db.UniqueConstraint("user_id", "tenant_id", name="uq_students_user_id_tenant"),
+    )
 
     id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    
+
     # Link to Auth User (One-to-One)
     # The User record handles email, password, name, profile pic
-    user_id = db.Column(db.String(36), db.ForeignKey('users.id'), unique=True, nullable=False)
-    
+    user_id = db.Column(db.String(36), db.ForeignKey("users.id"), nullable=False)
+
     # Academic Info
-    admission_number = db.Column(db.String(20), unique=True, nullable=False, index=True)
+    admission_number = db.Column(db.String(20), nullable=False, index=True)
     roll_number = db.Column(db.Integer, nullable=True)
     academic_year = db.Column(db.String(20), nullable=True)  # e.g. "2025-2026"
     

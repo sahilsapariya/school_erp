@@ -4,6 +4,7 @@ from datetime import datetime
 import secrets
 
 from backend.core.database import db
+from backend.core.tenant import get_tenant_id
 from backend.modules.auth.models import User
 from backend.modules.rbac.services import assign_role_to_user_by_email
 from .models import Teacher
@@ -82,14 +83,19 @@ def create_teacher(
         actual_email = email if email else f"{employee_id.lower()}@teacher.school"
         temp_password = generate_teacher_password(name)
 
-        # Check email uniqueness
-        existing_user = User.get_user_by_email(actual_email)
+        tenant_id = get_tenant_id()
+        if not tenant_id:
+            return {'success': False, 'error': 'Tenant context is required'}
+
+        # Check email uniqueness (tenant-scoped)
+        existing_user = User.get_user_by_email(actual_email, tenant_id=tenant_id)
         if existing_user:
             if Teacher.query.filter_by(user_id=existing_user.id).first():
                 return {'success': False, 'error': 'Email already linked to another teacher'}
             user = existing_user
         else:
             user = User()
+            user.tenant_id = tenant_id
             user.email = actual_email
             user.name = name
             user.set_password(temp_password)
@@ -103,6 +109,7 @@ def create_teacher(
                 print(f"Warning: Could not assign Teacher role: {role_result.get('error')}")
 
         teacher = Teacher(
+            tenant_id=tenant_id,
             user_id=user.id,
             employee_id=employee_id,
             designation=designation,

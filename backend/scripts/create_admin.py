@@ -13,7 +13,7 @@ from backend.modules.auth.models import User
 from backend.modules.rbac.services import assign_role_to_user_by_email
 
 
-def create_admin_user(email: str, password: str, name: str = None):
+def create_admin_user(email: str, password: str, name: str = None, tenant_id: str = None):
     """
     Create an admin user and assign Admin role.
     
@@ -21,19 +21,33 @@ def create_admin_user(email: str, password: str, name: str = None):
         email: Admin email
         password: Admin password
         name: Admin name (optional)
+        tenant_id: Tenant ID (optional; uses default tenant if not set)
         
     Returns:
         Boolean indicating success
     """
     try:
-        # Check if user already exists
-        existing_user = User.get_user_by_email(email)
+        from backend.core.models import Tenant
+        from backend.core.tenant import get_tenant_id
+
+        if not tenant_id:
+            tenant_id = get_tenant_id()
+        if not tenant_id:
+            default_tenant = Tenant.query.filter_by(subdomain="default").first()
+            if not default_tenant:
+                print("✗ No default tenant found. Run migrations first: flask db upgrade")
+                return False
+            tenant_id = default_tenant.id
+
+        # Check if user already exists in this tenant
+        existing_user = User.get_user_by_email(email, tenant_id=tenant_id)
         if existing_user:
-            print(f"✗ User with email {email} already exists!")
+            print(f"✗ User with email {email} already exists in this tenant!")
             return False
         
-        # Create user
+        # Create user (tenant-scoped)
         user = User()
+        user.tenant_id = tenant_id
         user.email = email
         user.set_password(password)
         user.email_verified = True  # Auto-verify admin
@@ -81,10 +95,18 @@ def main():
     
     name = input("Enter admin name (optional): ").strip()
     
-    # Create app and user
+    # Create app and user (set tenant context so RBAC and queries are tenant-scoped)
     app = create_app()
     with app.app_context():
-        success = create_admin_user(email, password, name if name else None)
+        from backend.core.models import Tenant
+        from flask import g
+        default_tenant = Tenant.query.filter_by(subdomain="default").first()
+        if not default_tenant:
+            print("✗ No default tenant found. Run migrations first: flask db upgrade")
+            return
+        with app.test_request_context():
+            g.tenant_id = default_tenant.id
+            success = create_admin_user(email, password, name if name else None)
         
         if success:
             print("\n" + "="*60)

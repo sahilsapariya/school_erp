@@ -18,6 +18,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import joinedload
 
 from backend.core.database import db
+from backend.core.tenant import get_tenant_id
 from backend.modules.auth.models import User
 from .models import Role, Permission, RolePermission, UserRole
 
@@ -310,9 +311,13 @@ def delete_permission(permission_id: str) -> Dict:
 # ==================== ROLE CRUD ====================
 
 def create_role(name: str, description: str = None) -> Dict:
-    """Create a new role."""
+    """Create a new role (tenant-scoped)."""
     try:
-        # Check if role already exists
+        tenant_id = get_tenant_id()
+        if not tenant_id:
+            return {'success': False, 'error': 'Tenant context is required', 'role': None}
+
+        # Check if role already exists in this tenant
         existing = Role.query.filter_by(name=name).first()
         if existing:
             return {
@@ -320,9 +325,9 @@ def create_role(name: str, description: str = None) -> Dict:
                 'error': 'Role already exists',
                 'role': None
             }
-        
-        # Create new role
-        role = Role(name=name, description=description)
+
+        # Create new role (tenant-scoped)
+        role = Role(tenant_id=tenant_id, name=name, description=description)
         role.save()
         
         return {
@@ -473,11 +478,12 @@ def assign_permission_to_role(role_id: str, permission_id: str) -> Dict:
                 'success': False,
                 'error': 'Permission already assigned to this role'
             }
-        
-        # Create association
+
+        # Create association (tenant-scoped)
         role_permission = RolePermission(
+            tenant_id=role.tenant_id,
             role_id=role_id,
-            permission_id=permission_id
+            permission_id=permission_id,
         )
         role_permission.save()
         
@@ -578,9 +584,13 @@ def assign_role_to_user(user_id: str, role_id: str) -> Dict:
                 'success': False,
                 'error': 'Role already assigned to this user'
             }
-        
-        # Create association
-        user_role = UserRole(user_id=user_id, role_id=role_id)
+
+        # Create association (tenant_id from user)
+        user_role = UserRole(
+            tenant_id=user.tenant_id,
+            user_id=user_id,
+            role_id=role_id,
+        )
         user_role.save()
         
         return {

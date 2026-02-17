@@ -1,24 +1,29 @@
 from backend.core.database import db
+from backend.core.models import TenantBaseModel
 from datetime import datetime
 import uuid
 
 
-class Teacher(db.Model):
+class Teacher(TenantBaseModel):
     """
     Teacher Model
 
     Extends the User model with teacher-specific professional data.
-    Linked to a User account for authentication.
+    Linked to a User account for authentication. Scoped by tenant.
     """
     __tablename__ = "teachers"
+    __table_args__ = (
+        db.UniqueConstraint("employee_id", "tenant_id", name="uq_teachers_employee_id_tenant"),
+        db.UniqueConstraint("user_id", "tenant_id", name="uq_teachers_user_id_tenant"),
+    )
 
     id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
 
     # Link to Auth User (One-to-One)
-    user_id = db.Column(db.String(36), db.ForeignKey('users.id'), unique=True, nullable=False)
+    user_id = db.Column(db.String(36), db.ForeignKey("users.id"), nullable=False)
 
     # Professional Info
-    employee_id = db.Column(db.String(20), unique=True, nullable=False, index=True)
+    employee_id = db.Column(db.String(20), nullable=False, index=True)
     designation = db.Column(db.String(100), nullable=True)        # e.g. "Senior Teacher", "HOD"
     department = db.Column(db.String(100), nullable=True)         # e.g. "Mathematics", "Science"
     qualification = db.Column(db.String(200), nullable=True)      # e.g. "M.Ed", "Ph.D"

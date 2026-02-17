@@ -192,13 +192,14 @@ def create_session(user: User, request: Request = None) -> Session:
     # Generate tokens
     refresh_token = generate_refresh_token(user)
     
-    # Create session
+    # Create session (tenant-scoped)
     session = Session(
         user_id=user.id,
+        tenant_id=user.tenant_id,
         refresh_token=refresh_token,
         refresh_token_expires_at=datetime.utcnow() + timedelta(days=JWT_REFRESH_DAYS)
     )
-    
+
     # Add device metadata if request provided
     if request:
         session.ip_address = request.remote_addr
@@ -270,18 +271,23 @@ def cleanup_expired_sessions():
 
 # ==================== Authentication ====================
 
-def authenticate_user(email: str, password: str) -> Optional[User]:
+def authenticate_user(
+    email: str,
+    password: str,
+    tenant_id: Optional[str] = None,
+) -> Optional[User]:
     """
-    Authenticate a user by email and password.
+    Authenticate a user by email and password within a tenant.
     
     Args:
         email: User email
         password: Plain text password
+        tenant_id: Tenant ID (required in multi-tenant; from g.tenant_id)
         
     Returns:
         User object if authentication successful, None otherwise
     """
-    user = User.get_user_by_email(email)
+    user = User.get_user_by_email(email, tenant_id=tenant_id)
     
     if not user:
         return None
@@ -292,7 +298,12 @@ def authenticate_user(email: str, password: str) -> Optional[User]:
     return user
 
 
-def login_user(email: str, password: str, request: Request = None) -> Optional[Tuple[User, Dict[str, str]]]:
+def login_user(
+    email: str,
+    password: str,
+    request: Request = None,
+    tenant_id: Optional[str] = None,
+) -> Optional[Tuple[User, Dict[str, str]]]:
     """
     Complete login flow: authenticate user and create session.
     
@@ -300,20 +311,21 @@ def login_user(email: str, password: str, request: Request = None) -> Optional[T
         email: User email
         password: Plain text password
         request: Flask request object
+        tenant_id: Tenant ID (from g.tenant_id in multi-tenant)
         
     Returns:
         Tuple of (User, tokens_dict) if successful, None otherwise
         tokens_dict contains 'access_token' and 'refresh_token'
     """
-    # Authenticate user
-    user = authenticate_user(email, password)
+    # Authenticate user (tenant-scoped)
+    user = authenticate_user(email, password, tenant_id=tenant_id)
     if not user:
         return None
-    
+
     # Update last login
     user.last_login_at = datetime.utcnow()
     user.save()
-    
+
     # Create session and generate tokens
     access_token = generate_access_token(user)
     session = create_session(user, request)

@@ -30,7 +30,7 @@ Routes:
 from flask import request, jsonify
 
 from . import rbac_bp
-from backend.core.decorators import auth_required, require_permission
+from backend.core.decorators import auth_required, require_permission, tenant_required
 from backend.shared.helpers import success_response, error_response
 from .services import (
     # Permission CRUD
@@ -55,6 +55,7 @@ from .services import (
 # ==================== PERMISSION ROUTES ====================
 
 @rbac_bp.route('/permissions', methods=['POST'])
+@tenant_required
 @auth_required
 @require_permission('permission.manage')
 def create_permission_route():
@@ -75,6 +76,7 @@ def create_permission_route():
 
 
 @rbac_bp.route('/permissions', methods=['GET'])
+@tenant_required
 @auth_required
 @require_permission('permission.read')
 def list_permissions_route():
@@ -92,6 +94,7 @@ def list_permissions_route():
 
 
 @rbac_bp.route('/permissions/<permission_id>', methods=['GET'])
+@tenant_required
 @auth_required
 @require_permission('permission.read')
 def get_permission_route(permission_id):
@@ -105,6 +108,7 @@ def get_permission_route(permission_id):
 
 
 @rbac_bp.route('/permissions/<permission_id>', methods=['PUT'])
+@tenant_required
 @auth_required
 @require_permission('permission.manage')
 def update_permission_route(permission_id):
@@ -122,6 +126,7 @@ def update_permission_route(permission_id):
 
 
 @rbac_bp.route('/permissions/<permission_id>', methods=['DELETE'])
+@tenant_required
 @auth_required
 @require_permission('permission.manage')
 def delete_permission_route(permission_id):
@@ -137,6 +142,7 @@ def delete_permission_route(permission_id):
 # ==================== ROLE ROUTES ====================
 
 @rbac_bp.route('/roles', methods=['POST'])
+@tenant_required
 @auth_required
 @require_permission('role.manage')
 def create_role_route():
@@ -157,6 +163,7 @@ def create_role_route():
 
 
 @rbac_bp.route('/roles', methods=['GET'])
+@tenant_required
 @auth_required
 @require_permission('role.read')
 def list_roles_route():
@@ -174,6 +181,7 @@ def list_roles_route():
 
 
 @rbac_bp.route('/roles/<role_id>', methods=['GET'])
+@tenant_required
 @auth_required
 @require_permission('role.read')
 def get_role_route(role_id):
@@ -187,6 +195,7 @@ def get_role_route(role_id):
 
 
 @rbac_bp.route('/roles/<role_id>', methods=['PUT'])
+@tenant_required
 @auth_required
 @require_permission('role.manage')
 def update_role_route(role_id):
@@ -204,6 +213,7 @@ def update_role_route(role_id):
 
 
 @rbac_bp.route('/roles/<role_id>', methods=['DELETE'])
+@tenant_required
 @auth_required
 @require_permission('role.manage')
 def delete_role_route(role_id):
@@ -219,6 +229,7 @@ def delete_role_route(role_id):
 # ==================== ROLE-PERMISSION ASSIGNMENT ROUTES ====================
 
 @rbac_bp.route('/roles/<role_id>/permissions', methods=['POST'])
+@tenant_required
 @auth_required
 @require_permission('role.manage')
 def assign_permission_to_role_route(role_id):
@@ -238,6 +249,7 @@ def assign_permission_to_role_route(role_id):
 
 
 @rbac_bp.route('/roles/<role_id>/permissions/bulk', methods=['POST'])
+@tenant_required
 @auth_required
 @require_permission('role.manage')
 def bulk_assign_permissions_route(role_id):
@@ -254,6 +266,7 @@ def bulk_assign_permissions_route(role_id):
 
 
 @rbac_bp.route('/roles/<role_id>/permissions/<permission_id>', methods=['DELETE'])
+@tenant_required
 @auth_required
 @require_permission('role.manage')
 def remove_permission_from_role_route(role_id, permission_id):
@@ -267,6 +280,7 @@ def remove_permission_from_role_route(role_id, permission_id):
 
 
 @rbac_bp.route('/roles/<role_id>/permissions', methods=['GET'])
+@tenant_required
 @auth_required
 @require_permission('role.read')
 def get_role_permissions_route(role_id):
@@ -282,6 +296,7 @@ def get_role_permissions_route(role_id):
 # ==================== USER-ROLE ASSIGNMENT ROUTES ====================
 
 @rbac_bp.route('/users/<user_id>/roles', methods=['POST'])
+@tenant_required
 @auth_required
 @require_permission('user.manage')
 def assign_role_to_user_route(user_id):
@@ -301,6 +316,7 @@ def assign_role_to_user_route(user_id):
 
 
 @rbac_bp.route('/users/<user_id>/roles/bulk', methods=['POST'])
+@tenant_required
 @auth_required
 @require_permission('user.manage')
 def bulk_assign_roles_route(user_id):
@@ -317,6 +333,7 @@ def bulk_assign_roles_route(user_id):
 
 
 @rbac_bp.route('/users/<user_id>/roles/<role_id>', methods=['DELETE'])
+@tenant_required
 @auth_required
 @require_permission('user.manage')
 def remove_role_from_user_route(user_id, role_id):
@@ -330,6 +347,7 @@ def remove_role_from_user_route(user_id, role_id):
 
 
 @rbac_bp.route('/users/<user_id>/roles', methods=['GET'])
+@tenant_required
 @auth_required
 @require_permission('user.read')
 def get_user_roles_route(user_id):
@@ -343,6 +361,7 @@ def get_user_roles_route(user_id):
 
 
 @rbac_bp.route('/users/<user_id>/permissions', methods=['GET'])
+@tenant_required
 @auth_required
 @require_permission('user.read')
 def get_user_permissions_route(user_id):
@@ -358,6 +377,7 @@ def get_user_permissions_route(user_id):
 # ==================== CONVENIENCE ROUTES ====================
 
 @rbac_bp.route('/roles/by-name/<role_name>/permissions', methods=['POST'])
+@tenant_required
 @auth_required
 @require_permission('role.manage')
 def assign_permission_by_name_route(role_name):
@@ -377,6 +397,7 @@ def assign_permission_by_name_route(role_name):
 
 
 @rbac_bp.route('/users/by-email/<email>/roles', methods=['POST'])
+@tenant_required
 @auth_required
 @require_permission('user.manage')
 def assign_role_by_email_route(email):

@@ -12,7 +12,7 @@ Usage:
     >>> app.run()
 """
 
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 from flask_cors import CORS
 
 from backend.config import get_config
@@ -50,7 +50,10 @@ def create_app(config_name=None):
     
     # Register blueprints
     register_blueprints(app)
-    
+
+    # Tenant resolution: resolve by subdomain or X-Tenant-ID for /api/* (except health)
+    register_tenant_middleware(app)
+
     # Register error handlers
     register_error_handlers(app)
     
@@ -62,6 +65,23 @@ def create_app(config_name=None):
         config_class.init_app(app)
     
     return app
+
+
+def register_tenant_middleware(app: Flask):
+    """
+    Register before_request to resolve tenant for API routes.
+    Skips /api/health and /api so monitoring and discovery work without a tenant.
+    """
+    from backend.core.tenant import resolve_tenant
+
+    @app.before_request
+    def _ensure_tenant():
+        path = request.path.rstrip("/") if request.path else ""
+        if path in ("/api/health", "/api"):
+            return None
+        if request.path.startswith("/api/"):
+            return resolve_tenant()
+        return None
 
 
 def register_blueprints(app: Flask):

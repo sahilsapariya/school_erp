@@ -16,6 +16,7 @@ from flask import request, jsonify, redirect, g
 from urllib.parse import quote
 import os
 
+from backend.core.tenant import get_tenant_id
 from . import auth_bp
 from .models import User, Session
 from .services import (
@@ -24,7 +25,7 @@ from .services import (
     create_session,
     logout_user as logout_user_service
 )
-from backend.core.decorators import auth_required
+from backend.core.decorators import auth_required, tenant_required
 from backend.core.database import db
 from backend.shared.helpers import success_response, error_response
 
@@ -32,6 +33,7 @@ from backend.shared.helpers import success_response, error_response
 # ==================== REGISTRATION ====================
 
 @auth_bp.route('/register', methods=['POST'])
+@tenant_required
 def register():
     """
     Register a new user.
@@ -58,16 +60,25 @@ def register():
             status_code=400
         )
     
-    # Check if user already exists
-    if User.get_user_by_email(email):
+    tenant_id = get_tenant_id()
+    if not tenant_id:
+        return error_response(
+            error='TenantRequired',
+            message='Tenant context is required',
+            status_code=400
+        )
+
+    # Check if user already exists (tenant-scoped)
+    if User.get_user_by_email(email, tenant_id=tenant_id):
         return error_response(
             error='UserExists',
             message='User already exists',
             status_code=400
         )
 
-    # Create user
+    # Create user (tenant-scoped)
     user = User()
+    user.tenant_id = tenant_id
     user.email = email
     user.set_password(password)
     if name:
@@ -107,6 +118,7 @@ def register():
 # ==================== LOGIN ====================
 
 @auth_bp.route('/login', methods=['POST'])
+@tenant_required
 def login():
     """
     Login user with email and password.
@@ -133,8 +145,8 @@ def login():
             status_code=400
         )
 
-    # Authenticate user
-    user = authenticate_user(email, password)
+    # Authenticate user (tenant-scoped)
+    user = authenticate_user(email, password, tenant_id=get_tenant_id())
     if not user:
         return error_response(
             error='InvalidCredentials',
@@ -191,6 +203,7 @@ def login():
 # ==================== LOGOUT ====================
 
 @auth_bp.route('/logout', methods=['POST'])
+@tenant_required
 def logout():
     """
     Logout user by revoking the session.
@@ -223,6 +236,7 @@ def logout():
 # ==================== EMAIL VERIFICATION ====================
 
 @auth_bp.route('/email/validate', methods=['GET'])
+@tenant_required
 def validate_email():
     """
     Validate email verification token and auto-login user.
@@ -247,8 +261,8 @@ def validate_email():
     if not email:
         return redirect(get_app_verification_error_url(quote('Email is required')))
 
-    # Get user
-    user = User.get_user_by_email(email)
+    # Get user (tenant-scoped)
+    user = User.get_user_by_email(email, tenant_id=get_tenant_id())
     if not user:
         return redirect(get_app_verification_error_url(quote('User not found')))
     
@@ -304,6 +318,7 @@ def validate_email():
 # ==================== PASSWORD RESET ====================
 
 @auth_bp.route('/password/forgot', methods=['POST'])
+@tenant_required
 def forgot_password():
     """
     Request password reset email.
@@ -327,8 +342,8 @@ def forgot_password():
             status_code=400
         )
 
-    # Get user (but don't reveal if exists or not)
-    user = User.get_user_by_email(email)
+    # Get user in current tenant (but don't reveal if exists or not)
+    user = User.get_user_by_email(email, tenant_id=get_tenant_id())
 
     if user:
         # Generate reset token
@@ -354,6 +369,7 @@ def forgot_password():
 
 
 @auth_bp.route('/password/reset', methods=['POST'])
+@tenant_required
 def reset_password():
     """
     Reset password using reset token.
@@ -381,8 +397,8 @@ def reset_password():
             status_code=400
         )
 
-    # Get user and validate token
-    user = User.get_user_by_email(email)
+    # Get user in current tenant and validate token
+    user = User.get_user_by_email(email, tenant_id=get_tenant_id())
     if not user or not user.is_reset_token_valid(token):
         return error_response(
             error='InvalidToken',
@@ -410,6 +426,7 @@ def reset_password():
 # ==================== PROFILE ====================
 
 @auth_bp.route('/profile', methods=['GET'])
+@tenant_required
 @auth_required
 def get_profile():
     """
@@ -447,6 +464,7 @@ def get_profile():
 
 
 @auth_bp.route('/profile', methods=['PUT'])
+@tenant_required
 @auth_required
 def update_profile():
     """

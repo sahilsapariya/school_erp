@@ -1,6 +1,6 @@
 from flask import request, g
 from backend.modules.teachers import teachers_bp
-from backend.core.decorators import require_permission, auth_required
+from backend.core.decorators import require_permission, auth_required, tenant_required
 from backend.shared.helpers import (
     success_response,
     error_response,
@@ -17,6 +17,7 @@ PERM_DELETE = 'teacher.delete'
 
 
 @teachers_bp.route('/', methods=['GET'], strict_slashes=False)
+@tenant_required
 @auth_required
 @require_permission(PERM_READ)
 def list_teachers():
@@ -28,6 +29,7 @@ def list_teachers():
 
 
 @teachers_bp.route('/', methods=['POST'], strict_slashes=False)
+@tenant_required
 @auth_required
 @require_permission(PERM_CREATE)
 def create_teacher():
@@ -66,6 +68,7 @@ def create_teacher():
 
 
 @teachers_bp.route('/<teacher_id>', methods=['GET'])
+@tenant_required
 @auth_required
 @require_permission(PERM_READ)
 def get_teacher(teacher_id):
@@ -77,6 +80,7 @@ def get_teacher(teacher_id):
 
 
 @teachers_bp.route('/me', methods=['GET'])
+@tenant_required
 @auth_required
 def get_my_teacher_profile():
     """Get current user's teacher profile."""
@@ -88,6 +92,7 @@ def get_my_teacher_profile():
 
 
 @teachers_bp.route('/<teacher_id>', methods=['PUT'])
+@tenant_required
 @auth_required
 @require_permission(PERM_UPDATE)
 def update_teacher(teacher_id):
@@ -114,6 +119,7 @@ def update_teacher(teacher_id):
 
 
 @teachers_bp.route('/<teacher_id>', methods=['DELETE'])
+@tenant_required
 @auth_required
 @require_permission(PERM_DELETE)
 def delete_teacher(teacher_id):

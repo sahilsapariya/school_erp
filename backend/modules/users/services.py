@@ -8,6 +8,7 @@ from typing import List, Dict, Optional
 from sqlalchemy import or_
 
 from backend.core.database import db
+from backend.core.tenant import get_tenant_id
 from backend.modules.auth.models import User
 from backend.shared.utils import paginate_query
 
@@ -16,25 +17,27 @@ def list_users(
     search: Optional[str] = None,
     page: int = 1,
     per_page: int = 20,
-    email_verified: Optional[bool] = None
+    email_verified: Optional[bool] = None,
+    tenant_id: Optional[str] = None,
 ) -> Dict:
     """
-    List all users with optional search and filters.
+    List all users with optional search and filters (tenant-scoped).
     
     Args:
         search: Search string for email or name
         page: Page number (1-indexed)
         per_page: Items per page
         email_verified: Filter by email verification status
+        tenant_id: Tenant ID (defaults to g.tenant_id when in request context)
         
     Returns:
         Dictionary with paginated user data
-        
-    Example:
-        >>> result = list_users(search='john', page=1, per_page=20)
-        >>> print(result['items'])
     """
+    if tenant_id is None:
+        tenant_id = get_tenant_id()
     query = User.query
+    if tenant_id is not None:
+        query = query.filter(User.tenant_id == tenant_id)
     
     # Apply search filter
     if search:
@@ -79,20 +82,25 @@ def get_user_by_id(user_id: str) -> Optional[Dict]:
     return serialize_user(user, include_metadata=True)
 
 
-def get_user_by_email(email: str) -> Optional[Dict]:
+def get_user_by_email(email: str, tenant_id: Optional[str] = None) -> Optional[Dict]:
     """
-    Get a single user by email.
+    Get a single user by email (tenant-scoped).
     
     Args:
         email: User email
+        tenant_id: Tenant ID (defaults to g.tenant_id when in request context)
         
     Returns:
         User dictionary or None if not found
     """
-    user = User.query.filter_by(email=email).first()
+    if tenant_id is None:
+        tenant_id = get_tenant_id()
+    q = User.query.filter_by(email=email)
+    if tenant_id is not None:
+        q = q.filter_by(tenant_id=tenant_id)
+    user = q.first()
     if not user:
         return None
-    
     return serialize_user(user, include_metadata=True)
 
 

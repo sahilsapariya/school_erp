@@ -1,6 +1,6 @@
 from flask import request, g
 from backend.modules.students import students_bp
-from backend.core.decorators import require_permission, auth_required
+from backend.core.decorators import require_permission, auth_required, tenant_required
 from backend.shared.helpers import (
     success_response,
     error_response,
@@ -19,6 +19,7 @@ PERM_UPDATE = 'student.update'
 PERM_DELETE = 'student.delete'
 
 @students_bp.route('/', methods=['GET'], strict_slashes=False)
+@tenant_required
 @auth_required
 def list_students():
     """
@@ -46,6 +47,7 @@ def list_students():
     return unauthorized_response()
 
 @students_bp.route('/', methods=['POST'], strict_slashes=False)
+@tenant_required
 @auth_required
 @require_permission(PERM_CREATE)
 def create_student():
@@ -130,6 +132,7 @@ def create_student():
     return error_response('CreationError', result['error'], 400)
 
 @students_bp.route('/<student_id>', methods=['GET'])
+@tenant_required
 @auth_required
 def get_student(student_id):
     """Get student details"""
@@ -161,6 +164,7 @@ def get_student(student_id):
     return unauthorized_response()
 
 @students_bp.route('/me', methods=['GET'])
+@tenant_required
 @auth_required
 def get_my_student_profile():
     """Get current user's student profile"""
@@ -172,6 +176,7 @@ def get_my_student_profile():
     return not_found_response('Student profile')
 
 @students_bp.route('/<student_id>', methods=['PUT'])
+@tenant_required
 @auth_required
 @require_permission(PERM_UPDATE)
 def update_student(student_id):
@@ -216,6 +221,7 @@ def update_student(student_id):
     return error_response('UpdateError', result['error'], 400)
 
 @students_bp.route('/<student_id>', methods=['DELETE'])
+@tenant_required
 @auth_required
 @require_permission(PERM_DELETE)
 def delete_student(student_id):

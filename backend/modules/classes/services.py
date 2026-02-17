@@ -3,14 +3,20 @@ from sqlalchemy.exc import IntegrityError
 from datetime import datetime
 
 from backend.core.database import db
+from backend.core.tenant import get_tenant_id
 from .models import Class, ClassTeacher
 
 
 def create_class(name: str, section: str, academic_year: str, teacher_id: str = None,
                  start_date: str = None, end_date: str = None) -> Dict:
-    """Create a new class"""
+    """Create a new class (tenant-scoped)."""
     try:
+        tenant_id = get_tenant_id()
+        if not tenant_id:
+            return {'success': False, 'error': 'Tenant context is required'}
+
         new_class = Class(
+            tenant_id=tenant_id,
             name=name,
             section=section,
             academic_year=academic_year,
@@ -201,6 +207,7 @@ def assign_teacher_to_class(class_id: str, teacher_id: str, subject: str = None,
             return {'success': False, 'error': 'Teacher already assigned to this class'}
 
         ct = ClassTeacher(
+            tenant_id=cls.tenant_id,
             class_id=class_id,
             teacher_id=teacher_id,
             subject=subject,

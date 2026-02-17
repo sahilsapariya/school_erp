@@ -1,6 +1,6 @@
 from flask import request, g
 from backend.modules.attendance import attendance_bp
-from backend.core.decorators import require_permission, auth_required
+from backend.core.decorators import require_permission, auth_required, tenant_required
 from backend.core.decorators.rbac import require_any_permission
 from backend.shared.helpers import (
     success_response,
@@ -18,6 +18,7 @@ PERM_READ_ALL = 'attendance.read.all'
 
 
 @attendance_bp.route('/my-classes', methods=['GET'])
+@tenant_required
 @auth_required
 @require_permission(PERM_MARK)
 def get_my_classes():
@@ -28,6 +29,7 @@ def get_my_classes():
 
 
 @attendance_bp.route('/mark', methods=['POST'])
+@tenant_required
 @auth_required
 @require_permission(PERM_MARK)
 def mark_attendance():
@@ -72,6 +74,7 @@ def mark_attendance():
 
 
 @attendance_bp.route('/class/<class_id>', methods=['GET'])
+@tenant_required
 @auth_required
 @require_any_permission(PERM_READ_CLASS, PERM_READ_ALL, PERM_MARK)
 def get_class_attendance(class_id):
@@ -91,6 +94,7 @@ def get_class_attendance(class_id):
 
 
 @attendance_bp.route('/student/<student_id>', methods=['GET'])
+@tenant_required
 @auth_required
 @require_any_permission(PERM_READ_SELF, PERM_READ_CLASS, PERM_READ_ALL)
 def get_student_attendance(student_id):
@@ -118,6 +122,7 @@ def get_student_attendance(student_id):
 
 
 @attendance_bp.route('/me', methods=['GET'])
+@tenant_required
 @auth_required
 @require_permission(PERM_READ_SELF)
 def get_my_attendance():

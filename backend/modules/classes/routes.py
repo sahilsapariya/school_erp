@@ -1,6 +1,6 @@
 from flask import request
 from backend.modules.classes import classes_bp
-from backend.core.decorators import require_permission, auth_required
+from backend.core.decorators import require_permission, auth_required, tenant_required
 from backend.shared.helpers import (
     success_response,
     error_response,
@@ -17,6 +17,7 @@ PERM_DELETE = 'class.delete'
 
 
 @classes_bp.route('/', methods=['GET'])
+@tenant_required
 @auth_required
 @require_permission(PERM_READ)
 def get_classes():
@@ -27,6 +28,7 @@ def get_classes():
 
 
 @classes_bp.route('/', methods=['POST'])
+@tenant_required
 @auth_required
 @require_permission(PERM_CREATE)
 def create_class():
@@ -51,6 +53,7 @@ def create_class():
 
 
 @classes_bp.route('/<class_id>', methods=['GET'])
+@tenant_required
 @auth_required
 @require_permission(PERM_READ)
 def get_class(class_id):
@@ -62,6 +65,7 @@ def get_class(class_id):
 
 
 @classes_bp.route('/<class_id>', methods=['PUT'])
+@tenant_required
 @auth_required
 @require_permission(PERM_UPDATE)
 def update_class(class_id):
@@ -83,6 +87,7 @@ def update_class(class_id):
 
 
 @classes_bp.route('/<class_id>', methods=['DELETE'])
+@tenant_required
 @auth_required
 @require_permission(PERM_DELETE)
 def delete_class(class_id):
@@ -96,6 +101,7 @@ def delete_class(class_id):
 # ── Assignment Endpoints ──────────────────────────────────────
 
 @classes_bp.route('/<class_id>/students', methods=['POST'])
+@tenant_required
 @auth_required
 @require_permission(PERM_UPDATE)
 def assign_student(class_id):
@@ -112,6 +118,7 @@ def assign_student(class_id):
 
 
 @classes_bp.route('/<class_id>/students/<student_id>', methods=['DELETE'])
+@tenant_required
 @auth_required
 @require_permission(PERM_UPDATE)
 def remove_student(class_id, student_id):
@@ -123,6 +130,7 @@ def remove_student(class_id, student_id):
 
 
 @classes_bp.route('/<class_id>/teachers', methods=['POST'])
+@tenant_required
 @auth_required
 @require_permission(PERM_UPDATE)
 def assign_teacher(class_id):
@@ -144,6 +152,7 @@ def assign_teacher(class_id):
 
 
 @classes_bp.route('/<class_id>/teachers/<teacher_id>', methods=['DELETE'])
+@tenant_required
 @auth_required
 @require_permission(PERM_UPDATE)
 def remove_teacher(class_id, teacher_id):
@@ -155,6 +164,7 @@ def remove_teacher(class_id, teacher_id):
 
 
 @classes_bp.route('/<class_id>/unassigned-students', methods=['GET'])
+@tenant_required
 @auth_required
 @require_permission(PERM_READ)
 def get_unassigned_students(class_id):
@@ -164,6 +174,7 @@ def get_unassigned_students(class_id):
 
 
 @classes_bp.route('/<class_id>/unassigned-teachers', methods=['GET'])
+@tenant_required
 @auth_required
 @require_permission(PERM_READ)
 def get_unassigned_teachers(class_id):
