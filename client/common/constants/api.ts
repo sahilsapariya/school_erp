@@ -1,37 +1,36 @@
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 
-// Configure your API URL here
-// For physical devices: Use your computer's local IP (find with: ifconfig | grep "inet " | grep -v 127.0.0.1)
-// For production: Update with your production API URL
-const API_CONFIG = {
-  // Development URLs
-  // use localhost LOCAL IP for physical devices
-  DEV_IP: process.env.EXPO_PUBLIC_LOCAL_IP, // Replace with your local IP
-  DEV_PORT: '5001',
-  
-  // Production URL
-  PROD_URL: 'https://api.yourapp.com',
-};
+const isDev = __DEV__;
 
-const getBaseUrl = (): string => {
-  if (!__DEV__) {
-    return API_CONFIG.PROD_URL;
-    }
-    
+/** Production backend URL (used when not in __DEV__) */
+const PROD_URL = process.env.EXPO_PUBLIC_BACKEND_URL ?? '';
+
+/** Development backend URL - from env or built from IP+port */
+const getDevUrl = (): string => {
+  const devUrl = process.env.EXPO_PUBLIC_BACKEND_URL_DEV;
+  if (devUrl) return devUrl;
+
+  const devIp = process.env.EXPO_PUBLIC_LOCAL_IP;
+  const devPort = process.env.EXPO_PUBLIC_DEV_PORT ?? '5001';
   const isPhysicalDevice = Constants.isDevice;
-  const { DEV_IP, DEV_PORT } = API_CONFIG;
 
   // iOS Simulator can use localhost
   if (Platform.OS === 'ios' && !isPhysicalDevice) {
-    return `http://0.0.0.0:${DEV_PORT}`;
+    return `http://localhost:${devPort}`;
   }
 
-  // Physical devices and Android emulator need the actual IP
-  return `http://${DEV_IP}:${DEV_PORT}`;
+  // Physical devices and Android emulator need the machine's IP
+  if (devIp) return `http://${devIp}:${devPort}`;
+
+  // Fallback to prod URL if no dev config (e.g. testing prod from dev build)
+  return PROD_URL;
 };
 
-export const API_BASE_URL = getBaseUrl();
+export const API_BASE_URL = isDev ? getDevUrl() : PROD_URL;
+
+/** Current environment: 'development' | 'production' */
+export const API_ENV = isDev ? 'development' : 'production';
 
 export const API_ENDPOINTS = {
   REGISTER: '/api/auth/register',
