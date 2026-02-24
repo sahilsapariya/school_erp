@@ -3,6 +3,10 @@
 # dependencies
 node_modules/
 
+# Gunicorn runtime socket (cannot be copied by EAS)
+gunicorn.ctl
+*.ctl
+
 # Python
 __pycache__/
 *.pyc
