@@ -240,8 +240,11 @@ if __name__ == '__main__':
     """
     Development server entry point.
     
-    For production, use a WSGI server like Gunicorn:
-        gunicorn -w 4 -b 0.0.0.0:5001 backend.app:app
+    For production, use Gunicorn (run from app/ directory):
+        ./run_gunicorn.sh
+    Or manually:
+        cd app && gunicorn -c gunicorn_conf.py "backend.app:app"
+    On macOS with Conda, set: export OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES
     """
     import os
     
