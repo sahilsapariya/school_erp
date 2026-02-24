@@ -30,8 +30,17 @@ Usage:
 """
 
 from .auth import auth_required
-from .rbac import require_permission
+from .rbac import require_permission, require_any_permission, require_all_permissions
 from .platform import platform_admin_required
 from backend.core.tenant import tenant_required
+from backend.core.plan_features import require_plan_feature
 
-__all__ = ['auth_required', 'require_permission', 'tenant_required', 'platform_admin_required']
+__all__ = [
+    'auth_required',
+    'require_permission',
+    'require_any_permission',
+    'require_all_permissions',
+    'tenant_required',
+    'platform_admin_required',
+    'require_plan_feature',
+]

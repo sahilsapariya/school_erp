@@ -2,6 +2,7 @@ import { getApiUrl } from "@/common/constants/api";
 import {
   getAccessToken,
   getRefreshToken,
+  getTenantId,
   setAccessToken,
 } from "@/common/utils/storage";
 
@@ -22,8 +23,11 @@ const apiRequest = async (
   options: RequestInit = {},
 ): Promise<Response> => {
   const url = getApiUrl(endpoint);
-  const accessToken = await getAccessToken();
-  const refreshToken = await getRefreshToken();
+  const [accessToken, refreshToken, tenantId] = await Promise.all([
+    getAccessToken(),
+    getRefreshToken(),
+    getTenantId(),
+  ]);
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -35,6 +39,9 @@ const apiRequest = async (
   }
   if (refreshToken) {
     headers["X-Refresh-Token"] = refreshToken;
+  }
+  if (tenantId) {
+    headers["X-Tenant-ID"] = tenantId;
   }
 
   try {

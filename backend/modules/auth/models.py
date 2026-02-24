@@ -47,6 +47,10 @@ class User(TenantBaseModel):
     # Platform Admin (Super Admin panel access)
     is_platform_admin = db.Column(db.Boolean, nullable=False, default=False)
 
+    # Login lockout (tenant logins only; platform admin is not locked)
+    failed_login_count = db.Column(db.Integer, nullable=False, default=0)
+    login_locked_until = db.Column(db.DateTime, nullable=True)
+
     # Metadata
     last_login_at = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)

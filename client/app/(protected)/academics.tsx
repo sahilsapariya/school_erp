@@ -11,11 +11,13 @@ import { Spacing, Layout } from "@/common/constants/spacing";
 import { Ionicons } from "@expo/vector-icons";
 import { Protected } from "@/modules/permissions/components/Protected";
 import { usePermissions } from "@/modules/permissions/hooks/usePermissions";
+import { useAuth } from "@/modules/auth/hooks/useAuth";
 import { useRouter } from "expo-router";
 import * as PERMS from "@/modules/permissions/constants/permissions";
 
 export default function AcademicsScreen() {
   const { hasAnyPermission } = usePermissions();
+  const { isFeatureEnabled } = useAuth();
   const router = useRouter();
 
   const isAdmin = hasAnyPermission([PERMS.SYSTEM_MANAGE, PERMS.USER_MANAGE]);
@@ -102,17 +104,18 @@ export default function AcademicsScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Attendance Section */}
-        <Protected
-          anyPermissions={[
-            PERMS.ATTENDANCE_MARK,
-            PERMS.ATTENDANCE_READ_SELF,
-            PERMS.ATTENDANCE_READ_CLASS,
-            PERMS.ATTENDANCE_READ_ALL,
-          ]}
-        >
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Attendance</Text>
+        {/* Attendance Section - only when plan has attendance feature enabled */}
+        {isFeatureEnabled("attendance") && (
+          <Protected
+            anyPermissions={[
+              PERMS.ATTENDANCE_MARK,
+              PERMS.ATTENDANCE_READ_SELF,
+              PERMS.ATTENDANCE_READ_CLASS,
+              PERMS.ATTENDANCE_READ_ALL,
+            ]}
+          >
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Attendance</Text>
 
             {/* Teacher: Mark Attendance (not admin) */}
             <Protected permission={PERMS.ATTENDANCE_MARK}>
@@ -208,6 +211,7 @@ export default function AcademicsScreen() {
             </Protected>
           </View>
         </Protected>
+        )}
 
         {/* Grades Section */}
         <Protected

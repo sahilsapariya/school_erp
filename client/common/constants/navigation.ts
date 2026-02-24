@@ -14,6 +14,8 @@ export interface TabConfig {
   iconOutline: keyof typeof Ionicons.glyphMap;
   requiredPermissions?: string[];  // If any of these permissions exist, show tab
   hideForRoles?: string[];  // Explicitly hide for certain roles
+  /** Plan feature key (e.g. student_management). Tab hidden when this feature is disabled for the tenant's plan. */
+  requiredPlanFeature?: string;
 }
 
 export const ALL_TABS: TabConfig[] = [
@@ -34,6 +36,7 @@ export const ALL_TABS: TabConfig[] = [
       PERMS.STUDENT_READ_CLASS,
       PERMS.STUDENT_MANAGE,
     ],
+    requiredPlanFeature: 'student_management',
   },
   {
     name: 'teachers',
@@ -44,6 +47,7 @@ export const ALL_TABS: TabConfig[] = [
       PERMS.TEACHER_READ,
       PERMS.TEACHER_MANAGE,
     ],
+    requiredPlanFeature: 'teacher_management',
   },
   {
     name: 'classes',
@@ -54,6 +58,7 @@ export const ALL_TABS: TabConfig[] = [
       PERMS.CLASS_READ,
       PERMS.CLASS_MANAGE,
     ],
+    requiredPlanFeature: 'class_management',
   },
   {
     name: 'academics',
@@ -98,12 +103,21 @@ export const ALL_TABS: TabConfig[] = [
 ];
 
 /**
- * Get visible tabs for current user based on their permissions
+ * Get visible tabs for current user based on permissions and plan-enabled features.
+ * Hides tabs when the tenant's plan has that feature disabled.
  */
 export const getVisibleTabs = (
-  permissions: string[]
+  permissions: string[],
+  enabledFeatures: string[] = []
 ): TabConfig[] => {
   return ALL_TABS.filter(tab => {
+    // Plan feature: hide tab if this feature is disabled for the tenant's plan
+    if (tab.requiredPlanFeature) {
+      if (enabledFeatures.length > 0 && !enabledFeatures.includes(tab.requiredPlanFeature)) {
+        return false;
+      }
+    }
+
     // If no permissions required, show to everyone
     if (!tab.requiredPermissions || tab.requiredPermissions.length === 0) {
       return true;

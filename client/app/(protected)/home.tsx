@@ -17,7 +17,7 @@ import * as PERMS from "@/modules/permissions/constants/permissions";
 import { isAdmin } from "@/common/constants/navigation";
 
 export default function ProtectedHomeScreen() {
-  const { user, logout } = useAuth();
+  const { user, logout, isFeatureEnabled } = useAuth();
   const { permissions } = usePermissions();
   const router = useRouter();
 
@@ -96,90 +96,101 @@ export default function ProtectedHomeScreen() {
             <Text style={styles.cardTitle}>Quick Actions</Text>
           </View>
           <View style={styles.actionsGrid}>
-            {/* Show Create Student button */}
-            <Protected permission={PERMS.STUDENT_CREATE}>
-              <TouchableOpacity
-                style={styles.actionButton}
-                onPress={() =>
-                  router.push({
-                    pathname: "/(protected)/students",
-                    params: { action: "create" },
-                  })
-                }
-              >
-                <Ionicons name="person-add" size={24} color={Colors.primary} />
-                <Text style={styles.actionText}>Create Student</Text>
-              </TouchableOpacity>
-            </Protected>
-
-            {/* Show Mark Attendance button (Teacher only, not admin) */}
-            <Protected permission={PERMS.ATTENDANCE_MARK}>
-              {!isAdmin(permissions) && (
+            {/* Show Create Student button - only when plan has student_management */}
+            {isFeatureEnabled("student_management") && (
+              <Protected permission={PERMS.STUDENT_CREATE}>
                 <TouchableOpacity
                   style={styles.actionButton}
-                  onPress={() => router.push("/(protected)/attendance/my-classes" as any)}
+                  onPress={() =>
+                    router.push({
+                      pathname: "/(protected)/students",
+                      params: { action: "create" },
+                    })
+                  }
                 >
-                  <Ionicons
-                    name="checkbox-outline"
-                    size={24}
-                    color={Colors.primary}
-                  />
-                  <Text style={styles.actionText}>Mark Attendance</Text>
+                  <Ionicons name="person-add" size={24} color={Colors.primary} />
+                  <Text style={styles.actionText}>Create Student</Text>
                 </TouchableOpacity>
-              )}
-            </Protected>
+              </Protected>
+            )}
+
+            {/* Show Mark Attendance button (Teacher only, not admin) - when plan has attendance */}
+            {isFeatureEnabled("attendance") && (
+              <Protected permission={PERMS.ATTENDANCE_MARK}>
+                {!isAdmin(permissions) && (
+                  <TouchableOpacity
+                    style={styles.actionButton}
+                    onPress={() => router.push("/(protected)/attendance/my-classes" as any)}
+                  >
+                    <Ionicons
+                      name="checkbox-outline"
+                      size={24}
+                      color={Colors.primary}
+                    />
+                    <Text style={styles.actionText}>Mark Attendance</Text>
+                  </TouchableOpacity>
+                )}
+              </Protected>
+            )}
 
             {/* Show My Attendance button (Student only, not admin) */}
-            <Protected permission={PERMS.ATTENDANCE_READ_SELF}>
-              {!isAdmin(permissions) && (
+            {isFeatureEnabled("attendance") && (
+              <Protected permission={PERMS.ATTENDANCE_READ_SELF}>
+                {!isAdmin(permissions) && (
+                  <TouchableOpacity
+                    style={styles.actionButton}
+                    onPress={() => router.push("/(protected)/attendance/my-attendance" as any)}
+                  >
+                    <Ionicons
+                      name="calendar-outline"
+                      size={24}
+                      color={Colors.primary}
+                    />
+                    <Text style={styles.actionText}>My Attendance</Text>
+                  </TouchableOpacity>
+                )}
+              </Protected>
+            )}
+
+            {/* Show Attendance Overview (Admin) */}
+            {isFeatureEnabled("attendance") && (
+              <Protected permission={PERMS.ATTENDANCE_READ_ALL}>
                 <TouchableOpacity
                   style={styles.actionButton}
-                  onPress={() => router.push("/(protected)/attendance/my-attendance" as any)}
+                  onPress={() => router.push("/(protected)/attendance/overview" as any)}
                 >
                   <Ionicons
-                    name="calendar-outline"
+                    name="stats-chart-outline"
                     size={24}
                     color={Colors.primary}
                   />
-                  <Text style={styles.actionText}>My Attendance</Text>
+                  <Text style={styles.actionText}>Attendance Overview</Text>
                 </TouchableOpacity>
-              )}
-            </Protected>
+              </Protected>
+            )}
 
-            {/* Show Attendance Overview (Admin) */}
-            <Protected permission={PERMS.ATTENDANCE_READ_ALL}>
-              <TouchableOpacity
-                style={styles.actionButton}
-                onPress={() => router.push("/(protected)/attendance/overview" as any)}
-              >
-                <Ionicons
-                  name="stats-chart-outline"
-                  size={24}
-                  color={Colors.primary}
-                />
-                <Text style={styles.actionText}>Attendance Overview</Text>
-              </TouchableOpacity>
-            </Protected>
+            {/* Show Teachers - only when plan has teacher_management */}
+            {isFeatureEnabled("teacher_management") && (
+              <Protected anyPermissions={[PERMS.TEACHER_READ, PERMS.TEACHER_MANAGE]}>
+                <TouchableOpacity
+                  style={styles.actionButton}
+                  onPress={() => router.push("/(protected)/teachers" as any)}
+                >
+                  <Ionicons
+                    name="school-outline"
+                    size={24}
+                    color={Colors.primary}
+                  />
+                  <Text style={styles.actionText}>Teachers</Text>
+                </TouchableOpacity>
+              </Protected>
+            )}
 
-            {/* Show Teachers (Admin) */}
-            <Protected anyPermissions={[PERMS.TEACHER_READ, PERMS.TEACHER_MANAGE]}>
-              <TouchableOpacity
-                style={styles.actionButton}
-                onPress={() => router.push("/(protected)/teachers" as any)}
-              >
-                <Ionicons
-                  name="school-outline"
-                  size={24}
-                  color={Colors.primary}
-                />
-                <Text style={styles.actionText}>Teachers</Text>
-              </TouchableOpacity>
-            </Protected>
-
-            {/* Show Classes */}
-            <Protected anyPermissions={[PERMS.CLASS_READ, PERMS.CLASS_MANAGE]}>
-              <TouchableOpacity
-                style={styles.actionButton}
+            {/* Show Classes - only when plan has class_management */}
+            {isFeatureEnabled("class_management") && (
+              <Protected anyPermissions={[PERMS.CLASS_READ, PERMS.CLASS_MANAGE]}>
+                <TouchableOpacity
+                  style={styles.actionButton}
                 onPress={() => router.push("/(protected)/classes" as any)}
               >
                 <Ionicons
@@ -189,7 +200,8 @@ export default function ProtectedHomeScreen() {
                 />
                 <Text style={styles.actionText}>Classes</Text>
               </TouchableOpacity>
-            </Protected>
+              </Protected>
+            )}
 
             {/* Show Admin Panel only for admins */}
             <Protected

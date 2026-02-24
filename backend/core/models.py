@@ -16,6 +16,17 @@ TENANT_STATUS_ACTIVE = "active"
 TENANT_STATUS_SUSPENDED = "suspended"
 TENANT_STATUS_DELETED = "deleted"  # Soft delete; login and API access blocked
 
+# Default keys for platform settings (stored in platform_settings table)
+PLATFORM_SETTING_KEYS = [
+    "platform_name",
+    "default_plan_id",
+    "maintenance_mode",
+    "session_timeout_minutes",
+    "max_login_attempts",
+    "email_from_name",
+    "support_email",
+]
+
 
 class Plan(db.Model):
     """
@@ -112,6 +123,19 @@ class AuditLog(db.Model):
 
     def __repr__(self):
         return f"<AuditLog {self.action} {self.created_at}>"
+
+
+class PlatformSetting(db.Model):
+    """
+    Key-value store for platform (super admin) settings.
+    Not tenant-scoped.
+    """
+    __tablename__ = "platform_settings"
+    __tenant_scoped__ = False
+
+    key = db.Column(db.String(100), primary_key=True)
+    value = db.Column(db.Text, nullable=True)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
 class TenantBaseModel(db.Model):

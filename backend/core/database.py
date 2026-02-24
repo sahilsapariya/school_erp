@@ -23,6 +23,7 @@ def _tenant_scope_query(query):
     """
     Apply tenant_id filter to queries for models with __tenant_scoped__.
     Ensures no cross-tenant data leakage when g.tenant_id is set.
+    Uses column_descriptions (public API) for SQLAlchemy 1.4/2.0 compatibility.
     """
     from flask import has_request_context, g
     if not has_request_context():
@@ -30,13 +31,18 @@ def _tenant_scope_query(query):
     tenant_id = getattr(g, "tenant_id", None)
     if tenant_id is None:
         return query
-    for ent in query._entities:
-        if getattr(ent, "entity_zero", None) is not None:
-            mapper = ent.entity_zero
-            cls = getattr(mapper, "class_", None)
-            if cls and getattr(cls, "__tenant_scoped__", False):
+    try:
+        for desc in query.column_descriptions:
+            entity = desc.get("entity")
+            if entity is None:
+                continue
+            # entity is often the mapped class; support both class and mapper-like
+            cls = getattr(entity, "class_", entity) if not isinstance(entity, type) else entity
+            if isinstance(cls, type) and getattr(cls, "__tenant_scoped__", False):
                 query = query.filter(cls.tenant_id == tenant_id)
             break
+    except Exception:
+        pass
     return query
 
 
@@ -55,7 +61,7 @@ def init_db(app):
     event.listen(Query, "before_compile", _tenant_scope_query, retval=True)
 
     with app.app_context():
-        from backend.core.models import Tenant, Plan, AuditLog
+        from backend.core.models import Tenant, Plan, AuditLog, PlatformSetting
         from backend.modules.auth.models import User, Session
         from backend.modules.rbac.models import Role, Permission, RolePermission, UserRole
         from backend.modules.students.models import Student

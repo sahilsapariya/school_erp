@@ -7,11 +7,14 @@ Business logic for authentication, JWT token management, and sessions.
 import jwt
 from datetime import datetime, timedelta
 import os
-from typing import Optional, Tuple, Dict
+from typing import Optional, Tuple, Dict, List
+
 from flask import Request
 
 from .models import User, Session
 from backend.core.database import db
+from backend.core.models import Tenant
+from backend.core.models import TENANT_STATUS_ACTIVE
 
 
 # JWT Configuration
@@ -23,31 +26,25 @@ JWT_REFRESH_DAYS = int(os.getenv("JWT_REFRESH_TOKEN_EXPIRES_DAYS", 7))
 
 # ==================== JWT Token Generation ====================
 
-def generate_access_token(user: User) -> str:
+def generate_access_token(user: User, access_minutes: Optional[int] = None) -> str:
     """
     Generate a short-lived access token for API authentication.
-    
+
     Args:
         user: User object
-        
+        access_minutes: Optional override for token expiry (e.g. from platform settings).
+                        If None, uses JWT_ACCESS_MINUTES from env.
     Returns:
         JWT access token string
-        
-    Token Payload:
-        - sub: User ID
-        - email: User email
-        - type: 'access'
-        - iat: Issued at timestamp
-        - exp: Expiration timestamp
     """
+    minutes = access_minutes if access_minutes is not None else JWT_ACCESS_MINUTES
     payload = {
         "sub": str(user.id),
         "email": user.email,
         "type": "access",
         "iat": datetime.utcnow(),
-        "exp": datetime.utcnow() + timedelta(minutes=JWT_ACCESS_MINUTES),
+        "exp": datetime.utcnow() + timedelta(minutes=minutes),
     }
-
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 
@@ -278,24 +275,48 @@ def authenticate_user(
 ) -> Optional[User]:
     """
     Authenticate a user by email and password within a tenant.
-    
+
     Args:
         email: User email
         password: Plain text password
         tenant_id: Tenant ID (required in multi-tenant; from g.tenant_id)
-        
+
     Returns:
         User object if authentication successful, None otherwise
     """
     user = User.get_user_by_email(email, tenant_id=tenant_id)
-    
+
     if not user:
         return None
-    
+
     if not user.check_password(password):
         return None
-    
+
     return user
+
+
+def find_users_by_email_password(
+    email: str,
+    password: str,
+) -> List[Tuple[User, Tenant]]:
+    """
+    Find all (user, tenant) pairs where the user has this email and password matches.
+    Used when the app sends only email+password (no tenant) so we can identify
+    which tenant(s) the user belongs to. Call only when g.tenant_id is None so
+    User query is not tenant-scoped.
+
+    Returns:
+        List of (user, tenant) for active tenants only. Empty if no match.
+    """
+    users = User.query.filter_by(email=email).all()
+    matches: List[Tuple[User, Tenant]] = []
+    for u in users:
+        if not u.check_password(password):
+            continue
+        tenant = Tenant.query.get(u.tenant_id)
+        if tenant and tenant.status == TENANT_STATUS_ACTIVE:
+            matches.append((u, tenant))
+    return matches
 
 
 def login_user(

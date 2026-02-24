@@ -5,6 +5,8 @@ const KEYS = {
   REFRESH_TOKEN: 'refresh_token',
   USER_DATA: 'user_data',
   PERMISSIONS: 'permissions',
+  ENABLED_FEATURES: 'enabled_features',
+  TENANT_ID: 'tenant_id',
 } as const;
 
 export const setAccessToken = async (token: string) => {
@@ -41,11 +43,30 @@ export const getPermissions = async (): Promise<string[] | null> => {
   return data ? JSON.parse(data) : null;
 };
 
+export const setEnabledFeatures = async (features: string[]) => {
+  await SecureStore.setItemAsync(KEYS.ENABLED_FEATURES, JSON.stringify(features));
+};
+
+export const getEnabledFeatures = async (): Promise<string[] | null> => {
+  const data = await SecureStore.getItemAsync(KEYS.ENABLED_FEATURES);
+  return data ? JSON.parse(data) : null;
+};
+
+export const setTenantId = async (tenantId: string) => {
+  await SecureStore.setItemAsync(KEYS.TENANT_ID, tenantId);
+};
+
+export const getTenantId = async (): Promise<string | null> => {
+  return SecureStore.getItemAsync(KEYS.TENANT_ID);
+};
+
 export const clearAuth = async () => {
-    await Promise.all([
+  await Promise.all([
     SecureStore.deleteItemAsync(KEYS.ACCESS_TOKEN),
     SecureStore.deleteItemAsync(KEYS.REFRESH_TOKEN),
     SecureStore.deleteItemAsync(KEYS.USER_DATA),
     SecureStore.deleteItemAsync(KEYS.PERMISSIONS),
-    ]);
+    SecureStore.deleteItemAsync(KEYS.ENABLED_FEATURES),
+    SecureStore.deleteItemAsync(KEYS.TENANT_ID),
+  ]);
 };

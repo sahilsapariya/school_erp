@@ -48,7 +48,10 @@ class Config:
     
     # RBAC
     DEFAULT_USER_ROLE = os.getenv('DEFAULT_USER_ROLE', 'Student')
-    
+
+    # Tenant: when no subdomain/header/body tenant is provided, use this subdomain for auth (e.g. login on single domain or localhost)
+    DEFAULT_TENANT_SUBDOMAIN = os.getenv('DEFAULT_TENANT_SUBDOMAIN', 'default')
+
     # CORS (development permissive; production must set CORS_ORIGINS)
     CORS_ORIGINS = ['*']
     CORS_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']

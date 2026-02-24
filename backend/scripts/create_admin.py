@@ -94,6 +94,10 @@ def main():
         return
     
     name = input("Enter admin name (optional): ").strip()
+    tenant_id = input("Enter tenant ID (required): ").strip()
+    if not tenant_id:
+        print("✗ Tenant ID is required")
+        return
     
     # Create app and user (set tenant context so RBAC and queries are tenant-scoped)
     app = create_app()
@@ -106,7 +110,7 @@ def main():
             return
         with app.test_request_context():
             g.tenant_id = default_tenant.id
-            success = create_admin_user(email, password, name if name else None)
+            success = create_admin_user(email, password, name if name else None, tenant_id if tenant_id else None)
         
         if success:
             print("\n" + "="*60)

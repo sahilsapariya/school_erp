@@ -135,6 +135,21 @@ def send_email(
         server.send_message(msg)
 
 
+def _platform_email_context() -> Dict:
+    """Get email_from_name and support_email from platform settings for templates."""
+    try:
+        from backend.modules.platform.services import get_platform_settings
+        s = get_platform_settings()
+        out = {}
+        if s.get("email_from_name"):
+            out["email_from_name"] = s["email_from_name"]
+        if s.get("support_email"):
+            out["support_email"] = s["support_email"]
+        return out
+    except Exception:
+        return {}
+
+
 def send_template_email(
     to_email: str,
     template_name: str,
@@ -145,31 +160,16 @@ def send_template_email(
 ) -> None:
     """
     Send an email using a Jinja2 template.
-    
-    Args:
-        to_email: Recipient email address
-        template_name: Name of the template file (e.g., 'welcome.html')
-        context: Dictionary of variables to pass to template
-        subject: Email subject
-        from_name: Sender name (optional)
-        from_email: Sender email (optional)
-        
-    Raises:
-        smtplib.SMTPException: If email sending fails
-        jinja2.exceptions.TemplateNotFound: If template doesn't exist
-        
-    Example:
-        >>> send_template_email(
-        ...     to_email='user@example.com',
-        ...     template_name='email_verification.html',
-        ...     context={'verify_url': 'https://...'},
-        ...     subject='Verify your email'
-        ... )
+
+    If from_name is not provided, uses platform setting email_from_name when set.
+    Merges support_email and email_from_name from platform settings into context for templates.
     """
-    # Render template
-    body = render_email_template(template_name, context)
-    
-    # Send email
+    ctx = {**context, **_platform_email_context()}
+    if from_name is None and ctx.get("email_from_name"):
+        from_name = ctx["email_from_name"]
+
+    body = render_email_template(template_name, ctx)
+
     send_email(
         to_email=to_email,
         subject=subject,

@@ -12,20 +12,21 @@ Routes:
 - POST /password/reset - Reset password with token
 """
 
-from flask import request, jsonify, redirect, g
+from flask import request, jsonify, redirect, g, current_app
 from urllib.parse import quote
 import os
 
-from backend.core.tenant import get_tenant_id
+from backend.core.tenant import get_tenant_id, resolve_tenant_for_auth
 from . import auth_bp
 from .models import User, Session
 from .services import (
     authenticate_user,
+    find_users_by_email_password,
     generate_access_token,
     create_session,
     logout_user as logout_user_service
 )
-from backend.core.decorators import auth_required, tenant_required
+from backend.core.decorators import auth_required, tenant_required  # tenant_required still used for routes that run after middleware
 from backend.core.database import db
 from backend.core.extensions import limiter
 from backend.shared.helpers import success_response, error_response
@@ -34,7 +35,6 @@ from backend.shared.helpers import success_response, error_response
 # ==================== REGISTRATION ====================
 
 @auth_bp.route('/register', methods=['POST'])
-@tenant_required
 def register():
     """
     Register a new user.
@@ -48,6 +48,10 @@ def register():
         201: User created successfully
         400: Validation error or user already exists
     """
+    err = resolve_tenant_for_auth(request.get_json(silent=True) or {})
+    if err:
+        return err[1], err[0]
+
     data = request.get_json()
     email = data.get('email')
     password = data.get('password')
@@ -60,7 +64,7 @@ def register():
             message='Email and password are required',
             status_code=400
         )
-    
+
     tenant_id = get_tenant_id()
     if not tenant_id:
         return error_response(
@@ -118,28 +122,31 @@ def register():
 
 # ==================== LOGIN ====================
 
+# Lockout duration when max_login_attempts exceeded (tenant logins only)
+LOGIN_LOCKOUT_MINUTES = 15
+
+
 @auth_bp.route('/login', methods=['POST'])
 @limiter.limit("5 per minute")
-@tenant_required
 def login():
     """
-    Login user with email and password.
-    
-    Request Body:
-        - email: User email (required)
-        - password: User password (required)
-        
-    Returns:
-        200: Login successful with tokens and user data
-        400: Missing credentials
-        401: Invalid credentials or email not verified
-        403: User has no permissions
-    """
-    data = request.get_json()
-    email = data.get('email')
-    password = data.get('password')
+    Login with email and password.
 
-    # Validation
+    Single app for all schools: if the request has no tenant (no tenant_id/subdomain in body,
+    no X-Tenant-ID, no subdomain in host), we search across all tenants for a user with that
+    email and password. If exactly one match -> login success. If multiple matches -> return
+    list of schools so the app can show "Which school?" and send tenant_id on second attempt.
+
+    If tenant is provided (body, header, or host), we authenticate only in that tenant (current behavior).
+    """
+    from datetime import datetime, timedelta
+
+    data = request.get_json() or {}
+    email = (data.get('email') or '').strip()
+    password = data.get('password')
+    tenant_id_in_body = data.get('tenant_id') or data.get('tenantId')
+    subdomain_in_body = (data.get('subdomain') or '').strip()
+
     if not email or not password:
         return error_response(
             error='ValidationError',
@@ -147,16 +154,90 @@ def login():
             status_code=400
         )
 
-    # Authenticate user (tenant-scoped)
-    user = authenticate_user(email, password, tenant_id=get_tenant_id())
-    if not user:
-        return error_response(
-            error='InvalidCredentials',
-            message='Invalid email or password',
-            status_code=401
-        )
+    user = None
+    tenant = None
 
-    # Check if email is verified
+    if tenant_id_in_body or subdomain_in_body:
+        # Tenant specified: resolve tenant then authenticate in that tenant only
+        err = resolve_tenant_for_auth(data)
+        if err:
+            return err[1], err[0]
+        tenant_id = get_tenant_id()
+        user_by_email = User.get_user_by_email(email, tenant_id=tenant_id)
+        if user_by_email and not getattr(user_by_email, 'is_platform_admin', False):
+            from backend.modules.platform.services import get_platform_settings
+            settings = get_platform_settings()
+            if settings.get('maintenance_mode') == 'true':
+                return error_response(
+                    error='MaintenanceMode',
+                    message='Logins are temporarily disabled. Please try again later.',
+                    status_code=503
+                )
+            if user_by_email.login_locked_until and user_by_email.login_locked_until > datetime.utcnow():
+                return error_response(
+                    error='TooManyAttempts',
+                    message='Account temporarily locked due to too many failed attempts. Try again later.',
+                    status_code=429
+                )
+        user = authenticate_user(email, password, tenant_id=tenant_id)
+        if not user:
+            if user_by_email and not getattr(user_by_email, 'is_platform_admin', False):
+                from backend.modules.platform.services import get_platform_setting
+                max_attempts_str = get_platform_setting('max_login_attempts')
+                max_attempts = int(max_attempts_str) if max_attempts_str and str(max_attempts_str).isdigit() else 5
+                user_by_email.failed_login_count = (user_by_email.failed_login_count or 0) + 1
+                if user_by_email.failed_login_count >= max_attempts:
+                    user_by_email.login_locked_until = datetime.utcnow() + timedelta(minutes=LOGIN_LOCKOUT_MINUTES)
+                    user_by_email.failed_login_count = 0
+                user_by_email.save()
+            return error_response(
+                error='InvalidCredentials',
+                message='Invalid email or password',
+                status_code=401
+            )
+        tenant = getattr(g, "tenant", None)
+    else:
+        # No tenant: search across all tenants (single app for all schools)
+        matches = find_users_by_email_password(email, password)
+        if len(matches) == 0:
+            return error_response(
+                error='InvalidCredentials',
+                message='Invalid email or password',
+                status_code=401
+            )
+        if len(matches) > 1:
+            return success_response(
+                data={
+                    'requires_tenant_choice': True,
+                    'tenants': [
+                        {'id': t.id, 'name': t.name, 'subdomain': t.subdomain}
+                        for _, t in matches
+                    ]
+                },
+                message='Choose your school',
+                status_code=200
+            )
+        user, tenant = matches[0]
+        g.tenant_id = tenant.id
+        g.tenant = tenant
+        # Apply maintenance and lockout for this tenant user
+        if not getattr(user, 'is_platform_admin', False):
+            from backend.modules.platform.services import get_platform_settings
+            settings = get_platform_settings()
+            if settings.get('maintenance_mode') == 'true':
+                return error_response(
+                    error='MaintenanceMode',
+                    message='Logins are temporarily disabled. Please try again later.',
+                    status_code=503
+                )
+            if user.login_locked_until and user.login_locked_until > datetime.utcnow():
+                return error_response(
+                    error='TooManyAttempts',
+                    message='Account temporarily locked due to too many failed attempts. Try again later.',
+                    status_code=429
+                )
+
+    # Common success path (user and tenant are set)
     if not user.email_verified:
         return error_response(
             error='EmailNotVerified',
@@ -164,10 +245,8 @@ def login():
             status_code=401
         )
 
-    # Check if user has any permissions (RBAC requirement)
     from backend.modules.rbac.services import get_user_permissions
     permissions = get_user_permissions(user.id)
-    
     if not permissions or len(permissions) == 0:
         return error_response(
             error='NoPermissions',
@@ -175,19 +254,35 @@ def login():
             status_code=403
         )
 
-    # Update last login
-    from datetime import datetime
+    if not getattr(user, 'is_platform_admin', False):
+        user.failed_login_count = 0
+        user.login_locked_until = None
+
     user.last_login_at = datetime.utcnow()
     user.save()
 
-    # Create session and generate tokens
-    access_token = generate_access_token(user)
+    access_minutes = None
+    if not getattr(user, 'is_platform_admin', False):
+        try:
+            from backend.modules.platform.services import get_platform_setting
+            mins = get_platform_setting('session_timeout_minutes')
+            if mins and str(mins).isdigit():
+                access_minutes = max(5, min(10080, int(mins)))
+        except Exception:
+            pass
+
+    access_token = generate_access_token(user, access_minutes=access_minutes)
     session = create_session(user, request)
 
-    return success_response(
+    from backend.core.plan_features import get_tenant_enabled_features
+    enabled_features = get_tenant_enabled_features(tenant.id) if tenant else []
+
+    response, status_code = success_response(
         data={
             'access_token': access_token,
             'refresh_token': session.refresh_token,
+            'tenant_id': str(user.tenant_id),
+            'subdomain': tenant.subdomain if tenant else None,
             'user': {
                 'id': user.id,
                 'email': user.email,
@@ -195,50 +290,78 @@ def login():
                 'email_verified': user.email_verified,
                 'profile_picture_url': user.profile_picture_url
             },
-            'permissions': permissions
+            'permissions': permissions,
+            'enabled_features': enabled_features,
         },
         message='Login successful',
         status_code=200
     )
 
+    jwt_expires = current_app.config.get('JWT_ACCESS_TOKEN_EXPIRES')
+    cookie_minutes = access_minutes if access_minutes is not None else (
+        int(jwt_expires.total_seconds() / 60) if jwt_expires else 15
+    )
+    response.set_cookie(
+        key='auth-token',
+        value=access_token,
+        max_age=cookie_minutes * 60,
+        httponly=True,
+        samesite='Lax',
+        secure=current_app.config.get('SESSION_COOKIE_SECURE', not current_app.debug),
+    )
+    return response, status_code
+
 
 # ==================== LOGOUT ====================
 
 @auth_bp.route('/logout', methods=['POST'])
-@tenant_required
 def logout():
     """
     Logout user by revoking the session.
+    Tenant from X-Tenant-ID header or default.
     
     Headers:
-        - X-Refresh-Token: Refresh token (required)
+        - X-Refresh-Token: Refresh token (optional; required for mobile/client)
+    Cookies:
+        - auth-token: Access token (optional; used by panel when no header)
         
     Returns:
         200: Logout successful
-        400: Missing refresh token
+        400: Missing both refresh token and auth-token cookie
     """
-    refresh_token = request.headers.get("X-Refresh-Token")
+    err = resolve_tenant_for_auth()
+    if err:
+        return err[1], err[0]
 
-    if not refresh_token:
+    refresh_token = request.headers.get("X-Refresh-Token")
+    access_token_cookie = request.cookies.get("auth-token")
+
+    if refresh_token:
+        logout_user_service(refresh_token)
+    elif access_token_cookie:
+        from backend.modules.auth.services import validate_jwt_token
+        payload = validate_jwt_token(access_token_cookie, token_type="access")
+        if payload:
+            from backend.modules.auth.services import revoke_all_user_sessions
+            revoke_all_user_sessions(str(payload["sub"]))
+    else:
         return error_response(
             error='ValidationError',
-            message='Refresh token is required',
+            message='Refresh token or auth cookie is required',
             status_code=400
         )
 
-    # Revoke session
-    logout_user_service(refresh_token)
-
-    return success_response(
+    response, status_code = success_response(
         message='User logged out successfully',
         status_code=200
     )
+    response.delete_cookie('auth-token')
+    return response, status_code
 
 
 # ==================== EMAIL VERIFICATION ====================
 
 @auth_bp.route('/email/validate', methods=['GET'])
-@tenant_required
 def validate_email():
     """
     Validate email verification token and auto-login user.
@@ -246,13 +369,16 @@ def validate_email():
     Query Parameters:
         - token: Verification token (required)
         - email: User email (required)
-        
-    Returns:
-        Redirect to app with success/error status
+    Tenant from X-Tenant-ID header, Host subdomain, or default.
     """
+    err = resolve_tenant_for_auth()
+    if err:
+        from backend.config.settings import get_app_verification_error_url
+        return redirect(get_app_verification_error_url(quote("Tenant is required")))
+
     from backend.config.settings import get_app_verification_success_url, get_app_verification_error_url
     from backend.modules.rbac.services import get_user_permissions
-    
+
     token = request.args.get('token')
     email = request.args.get('email')
 
@@ -320,20 +446,18 @@ def validate_email():
 # ==================== PASSWORD RESET ====================
 
 @auth_bp.route('/password/forgot', methods=['POST'])
-@tenant_required
 def forgot_password():
     """
     Request password reset email.
-    
-    Request Body:
-        - email: User email (required)
-        
-    Returns:
-        200: Always returns success (security best practice)
+    Tenant from body (subdomain/tenant_id), X-Tenant-ID header, or default.
     """
+    err = resolve_tenant_for_auth(request.get_json(silent=True) or {})
+    if err:
+        return err[1], err[0]
+
     from backend.config.settings import get_reset_password_url
     from backend.modules.mailer.service import send_template_email
-    
+
     data = request.get_json()
     email = data.get('email')
 
@@ -371,10 +495,10 @@ def forgot_password():
 
 
 @auth_bp.route('/password/reset', methods=['POST'])
-@tenant_required
 def reset_password():
     """
     Reset password using reset token.
+    Tenant from body (subdomain/tenant_id), X-Tenant-ID header, or default.
     
     Request Body:
         - email: User email (required)
@@ -385,8 +509,11 @@ def reset_password():
         200: Password reset successful
         400: Invalid or expired token
     """
-    data = request.get_json()
+    err = resolve_tenant_for_auth(request.get_json(silent=True) or {})
+    if err:
+        return err[1], err[0]
 
+    data = request.get_json()
     email = data.get('email')
     token = data.get('token')
     new_password = data.get('new_password')
@@ -425,28 +552,46 @@ def reset_password():
     )
 
 
+# ==================== ENABLED FEATURES (lightweight, for app-focus refresh) ====================
+
+@auth_bp.route('/enabled-features', methods=['GET'])
+@auth_required
+def get_enabled_features():
+    """
+    Lightweight endpoint returning only plan-enabled features for the current tenant.
+    Used by the client when app returns to foreground to reflect plan changes without full re-login.
+    """
+    err = resolve_tenant_for_auth()
+    if err:
+        return err[1], err[0]
+
+    user = g.current_user
+    if not user or not user.tenant_id:
+        return success_response(data={'enabled_features': []}, status_code=200)
+
+    from backend.core.plan_features import get_tenant_enabled_features
+    enabled_features = get_tenant_enabled_features(user.tenant_id)
+    return success_response(data={'enabled_features': enabled_features}, status_code=200)
+
+
 # ==================== PROFILE ====================
 
 @auth_bp.route('/profile', methods=['GET'])
-@tenant_required
 @auth_required
 def get_profile():
-    """
-    Get current user profile.
-    
-    Headers:
-        - Authorization: Bearer <access_token>
-        
-    Returns:
-        200: User profile data
-    """
+    """Get current user profile. Tenant from X-Tenant-ID header or default."""
+    err = resolve_tenant_for_auth()
+    if err:
+        return err[1], err[0]
+
     user = g.current_user
-    
-    # Get user permissions
+
+    from backend.core.plan_features import get_tenant_enabled_features
     from backend.modules.rbac.services import get_user_permissions, get_user_roles
     permissions = get_user_permissions(user.id)
     roles = get_user_roles(user.id)
-    
+    enabled_features = get_tenant_enabled_features(user.tenant_id) if user.tenant_id else []
+
     return success_response(
         data={
             'user': {
@@ -459,31 +604,23 @@ def get_profile():
                 'created_at': user.created_at.isoformat(),
             },
             'roles': roles,
-            'permissions': permissions
+            'permissions': permissions,
+            'enabled_features': enabled_features,
         },
         status_code=200
     )
 
 
 @auth_bp.route('/profile', methods=['PUT'])
-@tenant_required
 @auth_required
 def update_profile():
-    """
-    Update current user profile.
-    
-    Headers:
-        - Authorization: Bearer <access_token>
-        
-    Request Body:
-        - name: User name (optional)
-        - profile_picture_url: Profile picture URL (optional)
-        
-    Returns:
-        200: Profile updated successfully
-    """
+    """Update current user profile. Tenant from X-Tenant-ID header or default."""
+    err = resolve_tenant_for_auth(request.get_json(silent=True) or {})
+    if err:
+        return err[1], err[0]
+
     user = g.current_user
-    data = request.get_json()
+    data = request.get_json() or {}
 
     # Update allowed fields
     if 'name' in data:

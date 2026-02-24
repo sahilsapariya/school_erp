@@ -43,12 +43,14 @@ def auth_required(fn):
         from backend.modules.auth.models import User, Session
         from backend.modules.auth.services import validate_jwt_token, refresh_access_token
         
-        # Check for Authorization header
+        # Check for Authorization header or auth-token cookie (for panel / Super Admin)
         auth_header = request.headers.get("Authorization")
-        if not auth_header or not auth_header.startswith("Bearer "):
+        if auth_header and auth_header.startswith("Bearer "):
+            access_token = auth_header.split(" ", 1)[1]
+        else:
+            access_token = request.cookies.get("auth-token")
+        if not access_token:
             return jsonify({"error": "Missing access token"}), 401
-
-        access_token = auth_header.split(" ", 1)[1]
 
         # Try to validate the access token
         payload = validate_jwt_token(access_token, token_type="access")

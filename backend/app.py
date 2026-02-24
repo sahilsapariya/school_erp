@@ -70,7 +70,9 @@ def create_app(config_name=None):
 def register_tenant_middleware(app: Flask):
     """
     Register before_request to resolve tenant for API routes.
-    Skips /api/health and /api so monitoring and discovery work without a tenant.
+    Skips: /api/health, /api, /api/platform/*, and /api/auth/*.
+    Auth routes resolve tenant themselves via resolve_tenant_for_auth() (body, header, subdomain, default)
+    so login works on single domain / localhost without a tenant in the URL.
     """
     from backend.core.tenant import resolve_tenant
 
@@ -79,8 +81,10 @@ def register_tenant_middleware(app: Flask):
         path = request.path.rstrip("/") if request.path else ""
         if path in ("/api/health", "/api"):
             return None
-        # Platform routes bypass tenant resolution (platform admin operates across tenants)
         if request.path.startswith("/api/platform/"):
+            return None
+        # Auth routes resolve tenant in the route (supports body subdomain/tenant_id, header, host, default)
+        if request.path.startswith("/api/auth/"):
             return None
         if request.path.startswith("/api/"):
             return resolve_tenant()
@@ -113,7 +117,7 @@ def register_blueprints(app: Flask):
 
     # Register blueprints with URL prefixes
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
-    app.register_blueprint(platform_bp, url_prefix='/api')
+    app.register_blueprint(platform_bp, url_prefix='/api/platform')
     app.register_blueprint(rbac_bp, url_prefix='/api/rbac')
     app.register_blueprint(users_bp, url_prefix='/api/users')
     app.register_blueprint(classes_bp, url_prefix='/api/classes')

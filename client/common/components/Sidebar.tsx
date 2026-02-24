@@ -36,10 +36,13 @@ export default function Sidebar({
   onClose,
   currentRoute,
 }: SidebarProps) {
-  const { logout, permissions, user } = useAuth();
+  const { logout, permissions, enabledFeatures, user } = useAuth();
 
-  // Get visible tabs based on user permissions
-  const visibleTabs = useMemo(() => getVisibleTabs(permissions), [permissions]);
+  // Get visible tabs based on user permissions and plan-enabled features
+  const visibleTabs = useMemo(
+    () => getVisibleTabs(permissions, enabledFeatures),
+    [permissions, enabledFeatures]
+  );
 
   // Get user role for display
   const userRole = useMemo(() => getUserRole(permissions), [permissions]);

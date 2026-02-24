@@ -41,6 +41,8 @@ export const API_ENDPOINTS = {
   RESET_PASSWORD: '/api/auth/password/reset',
   EMAIL_VALIDATE: '/api/auth/email/validate',
   PROTECTED: '/api/protected',
+  /** Lightweight: returns only { enabled_features }. Use on app focus to reflect plan changes. */
+  ENABLED_FEATURES: '/api/auth/enabled-features',
 } as const;
 
 export const getApiUrl = (endpoint: string): string => {

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -6,12 +6,14 @@ import {
   ScrollView,
   Image,
   TouchableOpacity,
+  ActivityIndicator,
 } from "react-native";
 import { Link, router } from "expo-router";
 import SafeScreenWrapper from "@/common/components/SafeScreenWrapper";
 import AuthInput from "@/common/components/AuthInput";
 import AuthButton from "@/common/components/AuthButton";
 import { useLogin } from "@/modules/auth/hooks/useLogin";
+import { useAuth } from "@/modules/auth/hooks/useAuth";
 import { Colors } from "@/common/constants/colors";
 
 const loginIcon = require("@/assets/images/auth/login.jpg");
@@ -21,8 +23,16 @@ export default function LoginScreen() {
   const [password, setPassword] = useState("");
   const [emailError, setEmailError] = useState("");
   const [passwordError, setPasswordError] = useState("");
+  const [choosingTenant, setChoosingTenant] = useState(false);
 
   const { login, loading, error } = useLogin();
+  const { isAuthenticated, pendingTenantChoice, loginWithTenant, clearPendingTenantChoice } = useAuth();
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      router.replace("/(protected)/home");
+    }
+  }, [isAuthenticated]);
 
   const handleLogin = async () => {
     setEmailError("");
@@ -30,7 +40,6 @@ export default function LoginScreen() {
 
     try {
       await login(email, password);
-      router.replace("/(protected)/home");
     } catch (err: any) {
       const message = err?.message || "";
       if (message.includes("email")) {
@@ -40,6 +49,65 @@ export default function LoginScreen() {
       }
     }
   };
+
+  const handleChooseSchool = async (tenantId: string) => {
+    setChoosingTenant(true);
+    try {
+      await loginWithTenant(tenantId);
+      router.replace("/(protected)/home");
+    } catch (_) {
+      // Error surfaced by auth
+    } finally {
+      setChoosingTenant(false);
+    }
+  };
+
+  if (pendingTenantChoice?.tenants?.length) {
+    return (
+      <SafeScreenWrapper backgroundColor={Colors.background}>
+        <ScrollView
+          style={styles.container}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.content}>
+            <View style={styles.header}>
+              <Text style={styles.title}>Which school?</Text>
+              <Text style={styles.subtitle}>
+                Your account is linked to more than one school. Choose one to continue.
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={styles.backLink}
+              onPress={clearPendingTenantChoice}
+              disabled={choosingTenant}
+            >
+              <Text style={styles.forgotPasswordText}>← Back to login</Text>
+            </TouchableOpacity>
+            {choosingTenant ? (
+              <ActivityIndicator size="large" style={styles.tenantLoader} color={Colors.primary} />
+            ) : (
+              <View style={styles.tenantList}>
+                {pendingTenantChoice.tenants.map((t) => (
+                  <TouchableOpacity
+                    key={t.id}
+                    style={styles.tenantItem}
+                    onPress={() => handleChooseSchool(t.id)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.tenantName}>{t.name}</Text>
+                    {t.subdomain ? (
+                      <Text style={styles.tenantSubdomain}>{t.subdomain}</Text>
+                    ) : null}
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+          </View>
+        </ScrollView>
+      </SafeScreenWrapper>
+    );
+  }
 
   return (
     <SafeScreenWrapper backgroundColor={Colors.background}>
@@ -196,5 +264,32 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.primary,
     fontWeight: "600",
+  },
+  backLink: {
+    marginBottom: 24,
+  },
+  tenantList: {
+    gap: 12,
+  },
+  tenantItem: {
+    backgroundColor: Colors.backgroundSecondary,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  tenantName: {
+    fontSize: 17,
+    fontWeight: "600",
+    color: Colors.text,
+  },
+  tenantSubdomain: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+    marginTop: 4,
+  },
+  tenantLoader: {
+    marginTop: 24,
   },
 });

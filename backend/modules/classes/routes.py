@@ -1,6 +1,6 @@
 from flask import request
 from backend.modules.classes import classes_bp
-from backend.core.decorators import require_permission, auth_required, tenant_required
+from backend.core.decorators import require_permission, auth_required, tenant_required, require_plan_feature
 from backend.shared.helpers import (
     success_response,
     error_response,
@@ -19,6 +19,7 @@ PERM_DELETE = 'class.delete'
 @classes_bp.route('/', methods=['GET'])
 @tenant_required
 @auth_required
+@require_plan_feature('class_management')
 @require_permission(PERM_READ)
 def get_classes():
     """List all classes"""
@@ -30,6 +31,7 @@ def get_classes():
 @classes_bp.route('/', methods=['POST'])
 @tenant_required
 @auth_required
+@require_plan_feature('class_management')
 @require_permission(PERM_CREATE)
 def create_class():
     """Create a new class"""
@@ -55,6 +57,7 @@ def create_class():
 @classes_bp.route('/<class_id>', methods=['GET'])
 @tenant_required
 @auth_required
+@require_plan_feature('class_management')
 @require_permission(PERM_READ)
 def get_class(class_id):
     """Get class details with students and teachers."""
@@ -67,6 +70,7 @@ def get_class(class_id):
 @classes_bp.route('/<class_id>', methods=['PUT'])
 @tenant_required
 @auth_required
+@require_plan_feature('class_management')
 @require_permission(PERM_UPDATE)
 def update_class(class_id):
     """Update class details"""
@@ -89,6 +93,7 @@ def update_class(class_id):
 @classes_bp.route('/<class_id>', methods=['DELETE'])
 @tenant_required
 @auth_required
+@require_plan_feature('class_management')
 @require_permission(PERM_DELETE)
 def delete_class(class_id):
     """Delete a class"""
@@ -103,6 +108,7 @@ def delete_class(class_id):
 @classes_bp.route('/<class_id>/students', methods=['POST'])
 @tenant_required
 @auth_required
+@require_plan_feature('class_management')
 @require_permission(PERM_UPDATE)
 def assign_student(class_id):
     """Assign a student to a class."""
@@ -120,6 +126,7 @@ def assign_student(class_id):
 @classes_bp.route('/<class_id>/students/<student_id>', methods=['DELETE'])
 @tenant_required
 @auth_required
+@require_plan_feature('class_management')
 @require_permission(PERM_UPDATE)
 def remove_student(class_id, student_id):
     """Remove a student from a class."""
@@ -132,6 +139,7 @@ def remove_student(class_id, student_id):
 @classes_bp.route('/<class_id>/teachers', methods=['POST'])
 @tenant_required
 @auth_required
+@require_plan_feature('class_management')
 @require_permission(PERM_UPDATE)
 def assign_teacher(class_id):
     """Assign a teacher to a class."""
@@ -154,6 +162,7 @@ def assign_teacher(class_id):
 @classes_bp.route('/<class_id>/teachers/<teacher_id>', methods=['DELETE'])
 @tenant_required
 @auth_required
+@require_plan_feature('class_management')
 @require_permission(PERM_UPDATE)
 def remove_teacher(class_id, teacher_id):
     """Remove a teacher from a class."""
@@ -166,6 +175,7 @@ def remove_teacher(class_id, teacher_id):
 @classes_bp.route('/<class_id>/unassigned-students', methods=['GET'])
 @tenant_required
 @auth_required
+@require_plan_feature('class_management')
 @require_permission(PERM_READ)
 def get_unassigned_students(class_id):
     """Get students not assigned to any class."""
@@ -176,6 +186,7 @@ def get_unassigned_students(class_id):
 @classes_bp.route('/<class_id>/unassigned-teachers', methods=['GET'])
 @tenant_required
 @auth_required
+@require_plan_feature('class_management')
 @require_permission(PERM_READ)
 def get_unassigned_teachers(class_id):
     """Get teachers not yet assigned to this class."""

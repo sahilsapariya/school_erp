@@ -7,6 +7,7 @@ Create Date: 2025-02-18
 """
 from alembic import op
 import sqlalchemy as sa
+import uuid
 
 # revision identifiers, used by Alembic.
 revision = "002_multi_tenant"
@@ -15,7 +16,7 @@ branch_labels = None
 depends_on = None
 
 # Default tenant UUID for backfilling existing rows (single-tenant becomes this tenant)
-DEFAULT_TENANT_ID = "00000000-0000-0000-0000-000000000001"
+DEFAULT_TENANT_ID = str(uuid.uuid4())
 
 
 def upgrade():

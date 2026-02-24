@@ -8,6 +8,7 @@ Create Date: 2025-02-18
 from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import JSONB
+import uuid
 
 # revision identifiers, used by Alembic.
 revision = "003_platform_admin"
@@ -45,7 +46,7 @@ def upgrade():
             INSERT INTO plans (id, name, price_monthly, max_students, max_teachers, features_json, created_at, updated_at)
             VALUES (:id, 'Starter', 0, 100, 20, '{}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
             """
-        ).bindparams(id="00000000-0000-0000-0000-000000000001")
+        ).bindparams(id=str(uuid.uuid4()))
     )
 
     # 3. Add FK from tenants.plan_id to plans

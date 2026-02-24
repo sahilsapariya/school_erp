@@ -1,6 +1,6 @@
 from flask import request, g
 from backend.modules.students import students_bp
-from backend.core.decorators import require_permission, auth_required, tenant_required
+from backend.core.decorators import require_permission, auth_required, tenant_required, require_plan_feature
 from backend.shared.helpers import (
     success_response,
     error_response,
@@ -22,6 +22,7 @@ PERM_DELETE = 'student.delete'
 @students_bp.route('/', methods=['GET'], strict_slashes=False)
 @tenant_required
 @auth_required
+@require_plan_feature('student_management')
 def list_students():
     """
     List students based on permissions.
@@ -50,6 +51,7 @@ def list_students():
 @students_bp.route('/', methods=['POST'], strict_slashes=False)
 @tenant_required
 @auth_required
+@require_plan_feature('student_management')
 @require_permission(PERM_CREATE)
 def create_student():
     """
@@ -138,6 +140,7 @@ def create_student():
 @students_bp.route('/<student_id>', methods=['GET'])
 @tenant_required
 @auth_required
+@require_plan_feature('student_management')
 def get_student(student_id):
     """Get student details"""
     user_id = g.current_user.id
@@ -170,6 +173,7 @@ def get_student(student_id):
 @students_bp.route('/me', methods=['GET'])
 @tenant_required
 @auth_required
+@require_plan_feature('student_management')
 def get_my_student_profile():
     """Get current user's student profile"""
     user_id = g.current_user.id
@@ -182,6 +186,7 @@ def get_my_student_profile():
 @students_bp.route('/<student_id>', methods=['PUT'])
 @tenant_required
 @auth_required
+@require_plan_feature('student_management')
 @require_permission(PERM_UPDATE)
 def update_student(student_id):
     """
@@ -227,6 +232,7 @@ def update_student(student_id):
 @students_bp.route('/<student_id>', methods=['DELETE'])
 @tenant_required
 @auth_required
+@require_plan_feature('student_management')
 @require_permission(PERM_DELETE)
 def delete_student(student_id):
     """Delete student"""
