@@ -306,7 +306,7 @@ def login():
         value=access_token,
         max_age=cookie_minutes * 60,
         httponly=True,
-        samesite='Lax',
+        samesite=current_app.config.get('SESSION_COOKIE_SAMESITE', 'Lax'),
         secure=current_app.config.get('SESSION_COOKIE_SECURE', not current_app.debug),
     )
     return response, status_code

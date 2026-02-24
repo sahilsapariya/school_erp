@@ -52,6 +52,9 @@ class Config:
     # Tenant: when no subdomain/header/body tenant is provided, use this subdomain for auth (e.g. login on single domain or localhost)
     DEFAULT_TENANT_SUBDOMAIN = os.getenv('DEFAULT_TENANT_SUBDOMAIN', 'default')
 
+    # Cookie (Lax for same-origin; production overrides to None for cross-domain panel)
+    SESSION_COOKIE_SAMESITE = 'Lax'
+
     # CORS (development permissive; production must set CORS_ORIGINS)
     CORS_ORIGINS = ['*']
     CORS_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']
@@ -94,7 +97,8 @@ class ProductionConfig(Config):
     # Enforce secure settings
     SESSION_COOKIE_SECURE = True
     SESSION_COOKIE_HTTPONLY = True
-    SESSION_COOKIE_SAMESITE = 'Lax'
+    # Use 'None' when panel and API are on different domains (cross-site); 'Lax' when same domain
+    SESSION_COOKIE_SAMESITE = os.getenv('SESSION_COOKIE_SAMESITE', 'None')
     
     @classmethod
     def init_app(cls, app):
