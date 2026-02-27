@@ -55,8 +55,10 @@ class Config:
     # Cookie (Lax for same-origin; production overrides to None for cross-domain panel)
     SESSION_COOKIE_SAMESITE = 'Lax'
 
-    # CORS (development permissive; production must set CORS_ORIGINS)
-    CORS_ORIGINS = ['*']
+    # CORS: when CORS_ORIGINS env is set, use it (required for credentialed cross-origin requests).
+    # When unset (local dev), use '*' — but '*' fails with credentials; set CORS_ORIGINS for cross-origin panel.
+    _cors_env = os.getenv('CORS_ORIGINS', '').strip()
+    CORS_ORIGINS = [o.strip() for o in _cors_env.split(',') if o.strip()] if _cors_env else ['*']
     CORS_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']
     CORS_ALLOW_HEADERS = ['Content-Type', 'Authorization', 'X-Refresh-Token', 'X-Tenant-ID']
     CORS_EXPOSE_HEADERS = ['X-New-Access-Token']
@@ -92,8 +94,10 @@ class ProductionConfig(Config):
     BACKEND_URL = os.getenv('BACKEND_URL')  # Must be set in production
     FRONTEND_URL = os.getenv('FRONTEND_URL', 'schoolerp://')
     
-    CORS_ORIGINS = [o.strip() for o in os.getenv('CORS_ORIGINS', '').split(',') if o.strip()]
-    
+    # Production inherits CORS_ORIGINS from Config (which reads env); override only if env empty
+    if not (os.getenv('CORS_ORIGINS', '').strip()):
+        CORS_ORIGINS = []  # Force explicit config; empty will fail — must set CORS_ORIGINS in prod
+
     # Enforce secure settings
     SESSION_COOKIE_SECURE = True
     SESSION_COOKIE_HTTPONLY = True
