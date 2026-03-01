@@ -87,6 +87,12 @@ PERMISSIONS = [
     ('course.update', 'Update course information'),
     ('course.delete', 'Delete courses'),
     ('course.manage', 'Full course management access'),
+
+    # Finance permissions
+    ('finance.read', 'View finance and fee information'),
+    ('finance.collect', 'Collect fee payments'),
+    ('finance.refund', 'Refund payments'),
+    ('finance.manage', 'Full finance management access'),
 ]
 
 
@@ -105,6 +111,7 @@ ROLES = {
             'grades.manage',
             'course.manage',
             'class.manage',
+            'finance.manage',
         ]
     },
     'Teacher': {

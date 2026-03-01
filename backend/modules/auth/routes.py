@@ -102,15 +102,20 @@ def register():
         # Log warning but don't fail registration
         print(f"Warning: Could not assign default role to {email}: {assign_result.get('error')}")
 
-    # Send verification email
-    from backend.modules.mailer.service import send_template_email
+    # Send verification email via notification dispatcher
     from backend.config.settings import get_email_verification_url
-    
+    from backend.modules.notifications.services import notification_dispatcher
+    from backend.modules.notifications.enums import NotificationChannel
+
     verify_url = get_email_verification_url(email_verification_token, email)
-    send_template_email(
-        to_email=email,
-        template_name="email_verification.html",
-        context={"verify_url": verify_url}
+    notification_dispatcher.dispatch(
+        user_id=user.id,
+        tenant_id=tenant_id,
+        notification_type="EMAIL_VERIFICATION",
+        channels=[NotificationChannel.EMAIL.value],
+        title="Verify your email",
+        body=None,
+        extra_data={"verify_url": verify_url, "email": email},
     )
 
     return success_response(
@@ -407,20 +412,23 @@ def validate_email():
     user.email_verified = True
     user.save()
 
-    # Send welcome email
-    from backend.modules.mailer.service import send_template_email
+    # Send welcome email via notification dispatcher
+    from backend.modules.notifications.services import notification_dispatcher
+    from backend.modules.notifications.enums import NotificationChannel
+
     features = [
         "Access to exclusive content",
         "Personalized recommendations",
         "Priority customer support",
     ]
-    send_template_email(
-        to_email=email,
-        template_name="register.html",
-        context={
-            "email": email,
-            "features": features
-        }
+    notification_dispatcher.dispatch(
+        user_id=user.id,
+        tenant_id=get_tenant_id(),
+        notification_type="WELCOME",
+        channels=[NotificationChannel.EMAIL.value],
+        title="Welcome!",
+        body=None,
+        extra_data={"email": email, "features": features},
     )
 
     # Check user permissions before auto-login
@@ -456,7 +464,8 @@ def forgot_password():
         return err[1], err[0]
 
     from backend.config.settings import get_reset_password_url
-    from backend.modules.mailer.service import send_template_email
+    from backend.modules.notifications.services import notification_dispatcher
+    from backend.modules.notifications.enums import NotificationChannel
 
     data = request.get_json()
     email = data.get('email')
@@ -476,15 +485,19 @@ def forgot_password():
         token = user.generate_reset_password_token()
         user.save()
 
-        # Send reset email
+        # Send reset email via notification dispatcher
         reset_url = get_reset_password_url(token, email)
-        send_template_email(
-            to_email=email,
-            template_name="forgot_password.html",
-            context={
+        notification_dispatcher.dispatch(
+            user_id=user.id,
+            tenant_id=get_tenant_id(),
+            notification_type="PASSWORD_RESET",
+            channels=[NotificationChannel.EMAIL.value],
+            title="Reset your password",
+            body=None,
+            extra_data={
                 "reset_url": reset_url,
                 "expires_in": os.getenv("RESET_TOKEN_EXP_MINUTES", 30),
-            }
+            },
         )
 
     # Always return success (security best practice - don't reveal if email exists)

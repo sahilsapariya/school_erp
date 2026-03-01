@@ -17,7 +17,13 @@ class Class(TenantBaseModel):
     id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     name = db.Column(db.String(50), nullable=False)  # e.g. "Grade 10"
     section = db.Column(db.String(10), nullable=False)  # e.g. "A"
-    academic_year = db.Column(db.String(20), nullable=False)  # e.g. "2025-2026"
+    academic_year = db.Column(db.String(20), nullable=True)  # Deprecated; use academic_year_id
+    academic_year_id = db.Column(
+        db.String(36),
+        db.ForeignKey("academic_years.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
 
     # Academic year date bounds
     start_date = db.Column(db.Date, nullable=True)  # e.g. 2025-06-01
@@ -31,13 +37,18 @@ class Class(TenantBaseModel):
 
     __table_args__ = (
         db.UniqueConstraint(
-            "name", "section", "academic_year", "tenant_id",
-            name="uq_class_section_year_tenant",
+            "name", "section", "academic_year_id", "tenant_id",
+            name="uq_class_section_academic_year_id_tenant",
         ),
     )
 
     # Relationships
     teacher = db.relationship('User', foreign_keys=[teacher_id], backref=db.backref('assigned_classes', lazy=True))
+    academic_year_ref = db.relationship(
+        "AcademicYear",
+        foreign_keys=[academic_year_id],
+        lazy=True,
+    )
 
     def save(self):
         db.session.add(self)
@@ -48,7 +59,8 @@ class Class(TenantBaseModel):
             "id": self.id,
             "name": self.name,
             "section": self.section,
-            "academic_year": self.academic_year,
+            "academic_year": self.academic_year_ref.name if self.academic_year_ref else self.academic_year,
+            "academic_year_id": self.academic_year_id,
             "start_date": self.start_date.isoformat() if self.start_date else None,
             "end_date": self.end_date.isoformat() if self.end_date else None,
             "teacher_id": self.teacher_id,

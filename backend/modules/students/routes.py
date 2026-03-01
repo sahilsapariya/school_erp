@@ -81,18 +81,19 @@ def create_student():
     """
     data = request.get_json()
     
-    # Validate required fields (admission_number is now optional)
-    required = ['name', 'academic_year', 'guardian_name', 
-                'guardian_relationship', 'guardian_phone']
+    # Validate required fields (academic_year or academic_year_id or class_id)
+    required = ['name', 'guardian_name', 'guardian_relationship', 'guardian_phone']
     missing = [field for field in required if not data.get(field)]
     if missing:
         return validation_error_response(f"Missing required fields: {', '.join(missing)}")
-    
-    
+    if not data.get('academic_year') and not data.get('academic_year_id') and not data.get('class_id'):
+        return validation_error_response("academic_year, academic_year_id, or class_id is required")
+
     # Call service
     result = services.create_student(
         name=data['name'],
-        academic_year=data['academic_year'],
+        academic_year=data.get('academic_year'),
+        academic_year_id=data.get('academic_year_id'),
         guardian_name=data['guardian_name'],
         guardian_relationship=data['guardian_relationship'],
         guardian_phone=data['guardian_phone'],
@@ -113,18 +114,25 @@ def create_student():
         }
 
         response_data['credentials'] = result.get('credentials', {})
-        # send mail to the student email address with the credentials
-        from backend.modules.mailer.service import send_template_email
-        send_template_email(
-            to_email=result.get('student', {}).get('email', ''),
-            template_name='student_creation.html',
-            subject='Welcome to the school',
-            context={
-                'username': result.get('credentials', {}).get('username', ''),
-                'password': result.get('credentials', {}).get('password', ''),
-                'admission_number': result.get('student', {}).get('admission_number', '')
-            }
-        )
+        # Send credentials email via notification dispatcher (only when email/credentials were created)
+        user_id = result.get('student', {}).get('user_id')
+        if user_id and result.get('credentials'):
+            from backend.modules.notifications.services import notification_dispatcher
+            from backend.modules.notifications.enums import NotificationChannel
+
+            notification_dispatcher.dispatch(
+                user_id=user_id,
+                tenant_id=g.tenant_id,
+                notification_type="STUDENT_CREDENTIALS",
+                channels=[NotificationChannel.EMAIL.value],
+                title="Welcome to the school",
+                body=None,
+                extra_data={
+                    "username": result.get('credentials', {}).get('username', ''),
+                    "password": result.get('credentials', {}).get('password', ''),
+                    "admission_number": result.get('student', {}).get('admission_number', ''),
+                },
+            )
         
         return success_response(
             data=response_data,
@@ -213,6 +221,7 @@ def update_student(student_id):
         student_id,
         name=data.get('name'),
         academic_year=data.get('academic_year'),
+        academic_year_id=data.get('academic_year_id'),
         class_id=data.get('class_id'),
         roll_number=data.get('roll_number'),
         date_of_birth=data.get('date_of_birth'),

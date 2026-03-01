@@ -159,8 +159,6 @@ def create_tenant(
     Create tenant, seed roles, create school admin user, assign Admin role,
     send credentials email, and log audit.
     """
-    from backend.modules.mailer.service import send_template_email
-
     subdomain = subdomain.strip().lower()
     if Tenant.query.filter_by(subdomain=subdomain).first():
         return {"success": False, "error": "Subdomain already exists"}
@@ -206,19 +204,25 @@ def create_tenant(
     db.session.commit()
 
     try:
-        send_template_email(
-            to_email=admin_email,
-            template_name="school_admin_credentials.html",
-            context={
+        from backend.modules.notifications.services import notification_dispatcher
+        from backend.modules.notifications.enums import NotificationChannel
+
+        notification_dispatcher.dispatch(
+            user_id=user.id,
+            tenant_id=tenant_id,
+            notification_type="ADMIN_CREDENTIALS",
+            channels=[NotificationChannel.EMAIL.value],
+            title="Your School Admin Account",
+            body=None,
+            extra_data={
                 "admin_name": admin_name or admin_email,
                 "tenant_name": name,
                 "admin_email": admin_email,
                 "password": password,
                 "login_url": login_url or "",
             },
-            subject="Your School Admin Account",
         )
-    except Exception as e:
+    except Exception:
         # Log but do not fail tenant creation
         pass
 
@@ -310,8 +314,6 @@ def reset_tenant_admin(tenant_id: str, platform_admin_id: str) -> Dict[str, Any]
     Generate new password for school admin, set force_password_reset=True,
     send email, log audit.
     """
-    from backend.modules.mailer.service import send_template_email
-
     tenant = Tenant.query.get(tenant_id)
     if not tenant:
         return {"success": False, "error": "Tenant not found"}
@@ -325,17 +327,23 @@ def reset_tenant_admin(tenant_id: str, platform_admin_id: str) -> Dict[str, Any]
     user.save()
 
     try:
-        send_template_email(
-            to_email=user.email,
-            template_name="school_admin_credentials.html",
-            context={
+        from backend.modules.notifications.services import notification_dispatcher
+        from backend.modules.notifications.enums import NotificationChannel
+
+        notification_dispatcher.dispatch(
+            user_id=user.id,
+            tenant_id=tenant_id,
+            notification_type="ADMIN_PASSWORD_RESET",
+            channels=[NotificationChannel.EMAIL.value],
+            title="Your School Admin Password Has Been Reset",
+            body=None,
+            extra_data={
                 "admin_name": user.name or user.email,
                 "tenant_name": tenant.name,
                 "admin_email": user.email,
                 "password": password,
                 "login_url": "",
             },
-            subject="Your School Admin Password Has Been Reset",
         )
     except Exception:
         pass
@@ -637,8 +645,6 @@ def add_tenant_admin(
     login_url: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Create an additional school admin user for the tenant and assign Admin role."""
-    from backend.modules.mailer.service import send_template_email
-
     tenant = Tenant.query.get(tenant_id)
     if not tenant:
         return {"success": False, "error": "Tenant not found"}
@@ -663,17 +669,23 @@ def add_tenant_admin(
     db.session.add(ur)
     db.session.commit()
     try:
-        send_template_email(
-            to_email=email,
-            template_name="school_admin_credentials.html",
-            context={
+        from backend.modules.notifications.services import notification_dispatcher
+        from backend.modules.notifications.enums import NotificationChannel
+
+        notification_dispatcher.dispatch(
+            user_id=user.id,
+            tenant_id=tenant_id,
+            notification_type="ADMIN_CREDENTIALS",
+            channels=[NotificationChannel.EMAIL.value],
+            title="Your School Admin Account",
+            body=None,
+            extra_data={
                 "admin_name": name or email,
                 "tenant_name": tenant.name,
                 "admin_email": email,
                 "password": password,
                 "login_url": login_url or "",
             },
-            subject="Your School Admin Account",
         )
     except Exception:
         pass
@@ -703,6 +715,259 @@ def get_platform_setting(key: str) -> Optional[str]:
     if row is None or row.value is None:
         return None
     return str(row.value)
+
+
+# --- Notification templates and tenant notification settings ---
+
+def get_tenant_notification_settings(tenant_id: str) -> Dict[str, Any]:
+    """Get tenant's notification template overrides (tenant_id = tenant)."""
+    from backend.modules.notifications.models import NotificationTemplate
+
+    tenant = Tenant.query.get(tenant_id)
+    if not tenant:
+        return {"success": False, "error": "Tenant not found"}
+
+    templates = NotificationTemplate.query.filter_by(tenant_id=tenant_id).all()
+    return {
+        "success": True,
+        "tenant_id": tenant_id,
+        "templates": [t.to_dict() for t in templates],
+    }
+
+
+def patch_tenant_notification_settings(
+    tenant_id: str,
+    templates: List[Dict[str, Any]],
+    platform_admin_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Create or update tenant override templates."""
+    from backend.modules.notifications.models import NotificationTemplate
+    from backend.modules.notifications.template_service import NOTIFICATION_CATEGORIES
+
+    tenant = Tenant.query.get(tenant_id)
+    if not tenant:
+        return {"success": False, "error": "Tenant not found"}
+
+    if not isinstance(templates, list):
+        return {"success": False, "error": "templates must be a list"}
+
+    for item in templates:
+        t_id = item.get("id")
+        t_type = item.get("type")
+        channel = item.get("channel")
+        category = item.get("category")
+        subject_template = item.get("subject_template")
+        body_template = item.get("body_template")
+
+        if not t_type or not channel or not category:
+            return {"success": False, "error": "type, channel, category required"}
+        if category not in NOTIFICATION_CATEGORIES:
+            return {"success": False, "error": f"Invalid category: {category}"}
+        if not subject_template or not body_template:
+            return {"success": False, "error": "subject_template and body_template required"}
+
+        if t_id:
+            tpl = NotificationTemplate.query.filter_by(id=t_id, tenant_id=tenant_id).first()
+            if not tpl:
+                return {"success": False, "error": "Template not found"}
+            tpl.type = t_type
+            tpl.channel = channel
+            tpl.category = category
+            tpl.subject_template = subject_template
+            tpl.body_template = body_template
+        else:
+            existing = NotificationTemplate.query.filter_by(
+                tenant_id=tenant_id, type=t_type, channel=channel
+            ).first()
+            if existing:
+                existing.subject_template = subject_template
+                existing.body_template = body_template
+                existing.category = category
+            else:
+                tpl = NotificationTemplate(
+                    tenant_id=tenant_id,
+                    type=t_type,
+                    channel=channel,
+                    category=category,
+                    is_system=False,
+                    subject_template=subject_template,
+                    body_template=body_template,
+                )
+                db.session.add(tpl)
+
+    db.session.commit()
+    if platform_admin_id:
+        log_platform_action(
+            platform_admin_id=platform_admin_id,
+            action="tenant.notification_settings.updated",
+            tenant_id=tenant_id,
+            metadata={},
+        )
+    return {"success": True, "tenant_id": tenant_id}
+
+
+def list_notification_templates(
+    tenant_id: Optional[str] = None,
+    category: Optional[str] = None,
+    template_type: Optional[str] = None,
+    channel: Optional[str] = None,
+    page: int = 1,
+    per_page: int = 50,
+) -> Dict[str, Any]:
+    """List notification templates with optional filters."""
+    from backend.modules.notifications.models import NotificationTemplate
+
+    query = NotificationTemplate.query
+    if tenant_id is not None:
+        if tenant_id == "" or tenant_id.lower() == "null":
+            query = query.filter(NotificationTemplate.tenant_id.is_(None))
+        else:
+            query = query.filter(NotificationTemplate.tenant_id == tenant_id)
+    if category:
+        query = query.filter(NotificationTemplate.category == category)
+    if template_type:
+        query = query.filter(NotificationTemplate.type == template_type)
+    if channel:
+        query = query.filter(NotificationTemplate.channel == channel)
+
+    query = query.order_by(NotificationTemplate.category, NotificationTemplate.type, NotificationTemplate.channel)
+    per_page = min(max(per_page, 1), 100)
+    pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+    items = [t.to_dict() for t in pagination.items]
+    return {
+        "success": True,
+        "items": items,
+        "pagination": {
+            "page": pagination.page,
+            "per_page": pagination.per_page,
+            "total": pagination.total,
+            "pages": pagination.pages,
+        },
+    }
+
+
+def create_notification_template(
+    template_type: str,
+    channel: str,
+    category: str,
+    subject_template: str,
+    body_template: str,
+    tenant_id: Optional[str] = None,
+    is_system: bool = False,
+    platform_admin_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Create a notification template (global if tenant_id None)."""
+    from backend.modules.notifications.models import NotificationTemplate
+    from backend.modules.notifications.template_service import NOTIFICATION_CATEGORIES
+    import uuid
+
+    if category not in NOTIFICATION_CATEGORIES:
+        return {"success": False, "error": f"Invalid category: {category}"}
+
+    # Default template content for new types when not provided
+    DEFAULT_SUBJECT_TEMPLATE = "{{ school_name }} Notification"
+    DEFAULT_BODY_TEMPLATE = "<p>Hello {{ user_name }},</p><p>{{ message }}</p>"
+    if not subject_template or not subject_template.strip():
+        subject_template = DEFAULT_SUBJECT_TEMPLATE
+    if not body_template or not body_template.strip():
+        body_template = DEFAULT_BODY_TEMPLATE
+
+    q = NotificationTemplate.query.filter(
+        NotificationTemplate.type == template_type,
+        NotificationTemplate.channel == channel,
+    )
+    if tenant_id:
+        q = q.filter(NotificationTemplate.tenant_id == tenant_id)
+    else:
+        q = q.filter(NotificationTemplate.tenant_id.is_(None))
+    existing = q.first()
+    if existing:
+        return {"success": False, "error": "Template already exists for this tenant/type/channel"}
+
+    tpl = NotificationTemplate(
+        id=str(uuid.uuid4()),
+        tenant_id=tenant_id,
+        type=template_type,
+        channel=channel,
+        category=category,
+        is_system=is_system,
+        subject_template=subject_template,
+        body_template=body_template,
+    )
+    db.session.add(tpl)
+    db.session.commit()
+    if platform_admin_id:
+        log_platform_action(
+            platform_admin_id=platform_admin_id,
+            action="notification_template.created",
+            tenant_id=tenant_id,
+            metadata={"template_id": tpl.id, "type": template_type, "channel": channel},
+        )
+    return {"success": True, "template": tpl.to_dict()}
+
+
+def update_notification_template(
+    template_id: str,
+    platform_admin_id: Optional[str],
+    type: Optional[str] = None,
+    channel: Optional[str] = None,
+    category: Optional[str] = None,
+    subject_template: Optional[str] = None,
+    body_template: Optional[str] = None,
+    is_system: Optional[bool] = None,
+) -> Dict[str, Any]:
+    """Update a notification template."""
+    from backend.modules.notifications.models import NotificationTemplate
+    from backend.modules.notifications.template_service import NOTIFICATION_CATEGORIES
+
+    tpl = NotificationTemplate.query.get(template_id)
+    if not tpl:
+        return {"success": False, "error": "Template not found"}
+    if category is not None and category not in NOTIFICATION_CATEGORIES:
+        return {"success": False, "error": f"Invalid category: {category}"}
+
+    if type is not None:
+        tpl.type = type
+    if channel is not None:
+        tpl.channel = channel
+    if category is not None:
+        tpl.category = category
+    if subject_template is not None:
+        tpl.subject_template = subject_template
+    if body_template is not None:
+        tpl.body_template = body_template
+    if is_system is not None:
+        tpl.is_system = is_system
+
+    db.session.commit()
+    if platform_admin_id:
+        log_platform_action(
+            platform_admin_id=platform_admin_id,
+            action="notification_template.updated",
+            tenant_id=tpl.tenant_id,
+            metadata={"template_id": template_id},
+        )
+    return {"success": True, "template": tpl.to_dict()}
+
+
+def delete_notification_template(template_id: str, platform_admin_id: Optional[str] = None) -> Dict[str, Any]:
+    """Delete a notification template."""
+    from backend.modules.notifications.models import NotificationTemplate
+
+    tpl = NotificationTemplate.query.get(template_id)
+    if not tpl:
+        return {"success": False, "error": "Template not found"}
+    tenant_id = tpl.tenant_id
+    db.session.delete(tpl)
+    db.session.commit()
+    if platform_admin_id:
+        log_platform_action(
+            platform_admin_id=platform_admin_id,
+            action="notification_template.deleted",
+            tenant_id=tenant_id,
+            metadata={"template_id": template_id},
+        )
+    return {"success": True}
 
 
 def update_platform_settings(updates: Dict[str, Any], platform_admin_id: Optional[str] = None) -> Dict[str, Any]:

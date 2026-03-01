@@ -1,86 +1,99 @@
 """
-Email Service
+Email Service (DEPRECATED).
 
-Handles sending emails using SMTP with Jinja2 templates.
+DEPRECATED: Use NotificationDispatcher from backend.modules.notifications instead.
+This module is retained for backward compatibility only.
+All functions internally redirect to NotificationDispatcher.
 """
 
-import os
-import smtplib
-from email.message import EmailMessage
-from jinja2 import Environment, FileSystemLoader
+import logging
+import warnings
 from typing import Dict, Optional
 
+logger = logging.getLogger(__name__)
 
-# Email Configuration
-EMAIL_CONFIG = {
-    "SMTP_SERVER": os.getenv("SMTP_SERVER", "smtp.gmail.com"),
-    "SMTP_PORT": int(os.getenv("SMTP_PORT", 587)),
-    "EMAIL_ADDRESS": os.getenv("EMAIL_ADDRESS"),
-    "EMAIL_PASSWORD": os.getenv("EMAIL_PASSWORD"),
-    "DEFAULT_SENDER_NAME": os.getenv("DEFAULT_SENDER_NAME", "School ERP"),
+# Template name -> notification type mapping for redirect
+_TEMPLATE_TO_TYPE = {
+    "email_verification.html": "EMAIL_VERIFICATION",
+    "forgot_password.html": "PASSWORD_RESET",
+    "register.html": "WELCOME",
+    "student_creation.html": "STUDENT_CREDENTIALS",
+    "school_admin_credentials.html": "ADMIN_CREDENTIALS",
 }
 
-# Template directory
-BASE_DIR = os.path.dirname(__file__)
-TEMPLATE_DIR = os.path.join(BASE_DIR, "templates")
+
+def _deprecation_warning():
+    """Emit deprecation warning."""
+    warnings.warn(
+        "Mailer module deprecated — use NotificationDispatcher from backend.modules.notifications",
+        DeprecationWarning,
+        stacklevel=3,
+    )
+    logger.warning("Mailer module deprecated — use NotificationDispatcher")
+
+
+def _send_via_dispatcher(
+    to_email: str,
+    notification_type: str,
+    context: Dict,
+    subject: str = "",
+) -> None:
+    """
+    Redirect to NotificationDispatcher.
+    Resolves user_id from to_email (requires tenant context).
+    """
+    from flask import has_request_context, g
+    from backend.modules.notifications.services import notification_dispatcher
+    from backend.modules.notifications.enums import NotificationChannel
+
+    _deprecation_warning()
+
+    tenant_id = None
+    if has_request_context():
+        tenant_id = getattr(g, "tenant_id", None)
+
+    if not tenant_id:
+        logger.warning("Mailer redirect: no tenant_id in context, cannot dispatch")
+        return
+
+    from backend.modules.auth.models import User
+    user = User.get_user_by_email(to_email, tenant_id=tenant_id)
+    if not user:
+        logger.warning("Mailer redirect: user not found for email=%s tenant=%s", to_email, tenant_id)
+        return
+
+    extra_data = dict(context) if context else {}
+    if subject:
+        extra_data.setdefault("subject", subject)
+
+    notification_dispatcher.dispatch(
+        user_id=user.id,
+        tenant_id=tenant_id,
+        notification_type=notification_type,
+        channels=[NotificationChannel.EMAIL.value],
+        title=subject or "Notification",
+        body=None,
+        extra_data=extra_data,
+    )
 
 
 def render_email_template(template_name: str, context: Dict) -> str:
     """
-    Render an email template with context data.
-    
-    Args:
-        template_name: Name of the template file
-        context: Dictionary of variables to pass to template
-        
-    Returns:
-        Rendered HTML string
+    DEPRECATED: Render an email template from filesystem.
+    Use notification template service for new code.
     """
-    env = Environment(loader=FileSystemLoader(TEMPLATE_DIR))
+    _deprecation_warning()
+    import os
+    from jinja2 import Environment, FileSystemLoader, select_autoescape
+
+    BASE_DIR = os.path.dirname(__file__)
+    TEMPLATE_DIR = os.path.join(BASE_DIR, "templates")
+    env = Environment(
+        loader=FileSystemLoader(TEMPLATE_DIR),
+        autoescape=select_autoescape(["html", "xml"]),
+    )
     template = env.get_template(template_name)
     return template.render(**context)
-
-
-def create_email_message(
-    to_email: str,
-    subject: str,
-    body: str,
-    is_html: bool = True,
-    from_name: Optional[str] = None,
-    from_email: Optional[str] = None
-) -> EmailMessage:
-    """
-    Create an email message object.
-    
-    Args:
-        to_email: Recipient email address
-        subject: Email subject
-        body: Email body (HTML or plain text)
-        is_html: Whether body is HTML (default True)
-        from_name: Sender name (optional)
-        from_email: Sender email (optional)
-        
-    Returns:
-        EmailMessage object
-    """
-    msg = EmailMessage()
-
-    # Set sender
-    sender_name = from_name or EMAIL_CONFIG["DEFAULT_SENDER_NAME"]
-    sender_email = from_email or EMAIL_CONFIG["EMAIL_ADDRESS"]
-    msg["From"] = f"{sender_name} <{sender_email}>"
-    
-    # Set recipient and subject
-    msg["To"] = to_email
-    msg["Subject"] = subject
-
-    # Set body
-    if is_html:
-        msg.add_alternative(body, subtype="html")
-    else:
-        msg.set_content(body)
-
-    return msg
 
 
 def send_email(
@@ -89,65 +102,30 @@ def send_email(
     body: str,
     is_html: bool = True,
     from_name: Optional[str] = None,
-    from_email: Optional[str] = None
+    from_email: Optional[str] = None,
 ) -> None:
     """
-    Send an email.
-    
-    Args:
-        to_email: Recipient email address
-        subject: Email subject
-        body: Email body (HTML or plain text)
-        is_html: Whether body is HTML (default True)
-        from_name: Sender name (optional)
-        from_email: Sender email (optional)
-        
-    Raises:
-        smtplib.SMTPException: If email sending fails
-        
-    Example:
-        >>> send_email(
-        ...     to_email='user@example.com',
-        ...     subject='Welcome!',
-        ...     body='<h1>Welcome to our platform</h1>',
-        ...     is_html=True
-        ... )
+    DEPRECATED: Send a plain email.
+    Use NotificationDispatcher with a generic template type.
+    For raw body without template, we cannot fully redirect — logs warning and skips.
     """
-    msg = create_email_message(
-        to_email=to_email,
-        subject=subject,
-        body=body,
-        is_html=is_html,
-        from_name=from_name,
-        from_email=from_email
+    _deprecation_warning()
+    logger.warning(
+        "send_email(raw body) deprecated: cannot redirect to template system. "
+        "Use NotificationDispatcher with appropriate template type."
     )
-
-    # Send email via SMTP
-    with smtplib.SMTP(
-        EMAIL_CONFIG["SMTP_SERVER"],
-        EMAIL_CONFIG["SMTP_PORT"]
-    ) as server:
-        server.starttls()
-        server.login(
-            EMAIL_CONFIG["EMAIL_ADDRESS"],
-            EMAIL_CONFIG["EMAIL_PASSWORD"]
-        )
-        server.send_message(msg)
-
-
-def _platform_email_context() -> Dict:
-    """Get email_from_name and support_email from platform settings for templates."""
+    # Attempt to send via Flask-Mail as last-resort fallback for any legacy callers
     try:
-        from backend.modules.platform.services import get_platform_settings
-        s = get_platform_settings()
-        out = {}
-        if s.get("email_from_name"):
-            out["email_from_name"] = s["email_from_name"]
-        if s.get("support_email"):
-            out["support_email"] = s["support_email"]
-        return out
-    except Exception:
-        return {}
+        from flask import current_app
+        mail = getattr(current_app, "mail", None)
+        if mail:
+            from flask_mail import Message
+            msg = Message(subject=subject, body=body or "", recipients=[to_email])
+            if is_html and body:
+                msg.html = body
+            mail.send(msg)
+    except Exception as e:
+        logger.exception("send_email fallback failed: %s", e)
 
 
 def send_template_email(
@@ -156,31 +134,19 @@ def send_template_email(
     context: Dict,
     subject: str = "",
     from_name: Optional[str] = None,
-    from_email: Optional[str] = None
+    from_email: Optional[str] = None,
 ) -> None:
     """
-    Send an email using a Jinja2 template.
-
-    If from_name is not provided, uses platform setting email_from_name when set.
-    Merges support_email and email_from_name from platform settings into context for templates.
+    DEPRECATED: Send email using a template.
+    Internally redirects to NotificationDispatcher.
     """
-    ctx = {**context, **_platform_email_context()}
-    if from_name is None and ctx.get("email_from_name"):
-        from_name = ctx["email_from_name"]
-
-    body = render_email_template(template_name, ctx)
-
-    send_email(
-        to_email=to_email,
-        subject=subject,
-        body=body,
-        is_html=True,
-        from_name=from_name,
-        from_email=from_email
-    )
+    notification_type = _TEMPLATE_TO_TYPE.get(template_name)
+    if not notification_type:
+        logger.warning("Mailer: unknown template %s, cannot redirect", template_name)
+        return
+    _send_via_dispatcher(to_email=to_email, notification_type=notification_type, context=context, subject=subject)
 
 
-# Alias for backward compatibility with old code
 def send_email_old_signature(
     to_email: str,
     context: Dict,
@@ -190,22 +156,11 @@ def send_email_old_signature(
     is_html: bool = True,
 ) -> None:
     """
-    Legacy function signature for backward compatibility.
-    Use send_template_email() for new code.
+    DEPRECATED: Legacy function signature.
+    Redirects to send_template_email or send_email.
     """
+    _deprecation_warning()
     if template_name:
-        # Template-based email
-        send_template_email(
-            to_email=to_email,
-            template_name=template_name,
-            context=context,
-            subject=subject
-        )
+        send_template_email(to_email=to_email, template_name=template_name, context=context, subject=subject)
     else:
-        # Plain email
-        send_email(
-            to_email=to_email,
-            subject=subject,
-            body=body,
-            is_html=is_html
-        )
+        send_email(to_email=to_email, subject=subject, body=body, is_html=is_html)

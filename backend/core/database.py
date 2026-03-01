@@ -68,6 +68,15 @@ def init_db(app):
         from backend.modules.classes.models import Class, ClassTeacher
         from backend.modules.teachers.models import Teacher
         from backend.modules.attendance.models import Attendance
+        from backend.modules.academics.academic_year.models import AcademicYear
+        from backend.modules.finance.models import (
+            FeeStructure,
+            FeeComponent,
+            StudentFee,
+            StudentFeeItem,
+            Payment,
+        )
+        from backend.modules.notifications.models import Notification, NotificationTemplate
 
 
 def reset_db(app):

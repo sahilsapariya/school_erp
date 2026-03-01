@@ -7,6 +7,16 @@ node_modules/
 gunicorn.ctl
 *.ctl
 
+# Database backups and db files
+backup_pre_*.dump
+*.db
+
+# Celery beat schedule file
+celerybeat-schedule.*
+
+# Celery worker state file
+celerybeat.pid
+
 # Python
 __pycache__/
 *.pyc

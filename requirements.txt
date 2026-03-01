@@ -16,3 +16,5 @@ SQLAlchemy==2.0.45
 typing_extensions==4.15.0
 Werkzeug==3.1.4
 gunicorn==25.1.0
+celery[redis]==5.4.0
+redis==5.2.1

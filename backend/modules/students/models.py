@@ -26,8 +26,14 @@ class Student(TenantBaseModel):
     # Academic Info
     admission_number = db.Column(db.String(20), nullable=False, index=True)
     roll_number = db.Column(db.Integer, nullable=True)
-    academic_year = db.Column(db.String(20), nullable=True)  # e.g. "2025-2026"
-    
+    academic_year = db.Column(db.String(20), nullable=True)  # Deprecated; use academic_year_id
+    academic_year_id = db.Column(
+        db.String(36),
+        db.ForeignKey("academic_years.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
     # Current Class Assignment
     class_id = db.Column(db.String(36), db.ForeignKey('classes.id'), nullable=True)
     
@@ -52,6 +58,11 @@ class Student(TenantBaseModel):
     
     # Access class info via student.current_class.name
     current_class = db.relationship('Class', backref=db.backref('students', lazy=True))
+    academic_year_ref = db.relationship(
+        "AcademicYear",
+        foreign_keys=[academic_year_id],
+        lazy=True,
+    )
 
     def save(self):
         db.session.add(self)
@@ -70,7 +81,8 @@ class Student(TenantBaseModel):
             "profile_picture": self.user.profile_picture_url if self.user else None,
             "admission_number": self.admission_number,
             "roll_number": self.roll_number,
-            "academic_year": self.academic_year,
+            "academic_year": self.academic_year_ref.name if self.academic_year_ref else self.academic_year,
+            "academic_year_id": self.academic_year_id,
             "class_id": self.class_id,
             "class_name": f"{self.current_class.name}-{self.current_class.section}" if self.current_class else None,
             "date_of_birth": self.date_of_birth.isoformat() if self.date_of_birth else None,

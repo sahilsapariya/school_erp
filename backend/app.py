@@ -47,7 +47,11 @@ def create_app(config_name=None):
     
     # Initialize database
     init_db(app)
-    
+
+    # Initialize Celery (ContextTask for db access in tasks) - deferred import to avoid circular
+    from backend.celery_app import init_celery
+    init_celery(app)
+
     # Register blueprints
     register_blueprints(app)
 
@@ -114,6 +118,9 @@ def register_blueprints(app: Flask):
     from backend.modules.teachers import teachers_bp
     from backend.modules.attendance import attendance_bp
     from backend.modules.platform import platform_bp
+    from backend.modules.finance import finance_bp
+    from backend.modules.academics import academics_bp
+    from backend.modules.notifications import notifications_bp
 
     # Register blueprints with URL prefixes
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
@@ -124,6 +131,9 @@ def register_blueprints(app: Flask):
     app.register_blueprint(students_bp, url_prefix='/api/students')
     app.register_blueprint(teachers_bp, url_prefix='/api/teachers')
     app.register_blueprint(attendance_bp, url_prefix='/api/attendance')
+    app.register_blueprint(finance_bp, url_prefix='/api/finance')
+    app.register_blueprint(academics_bp, url_prefix='/api/academics')
+    app.register_blueprint(notifications_bp, url_prefix='/api')
 
 
 def register_error_handlers(app: Flask):
@@ -226,6 +236,9 @@ def register_health_check(app: Flask):
                 'students': '/api/students',
                 'teachers': '/api/teachers',
                 'attendance': '/api/attendance',
+                'finance': '/api/finance',
+                'academics': '/api/academics',
+                'notifications': '/api/notifications',
                 'platform': '/api/platform',
                 'health': '/api/health'
             }

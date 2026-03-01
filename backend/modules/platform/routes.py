@@ -306,6 +306,126 @@ def delete_plan(plan_id):
     return success_response(message="Plan deleted")
 
 
+# --- Tenant notification settings ---
+@platform_bp.route("/tenants/<tenant_id>/notification-settings", methods=["GET"])
+@limiter.limit(PLATFORM_LIMIT)
+@auth_required
+@platform_admin_required
+def get_tenant_notification_settings(tenant_id):
+    """GET /platform/tenants/<id>/notification-settings"""
+    result = services.get_tenant_notification_settings(tenant_id)
+    if not result["success"]:
+        return not_found_response("Tenant")
+    return success_response(data={
+        "tenant_id": result["tenant_id"],
+        "templates": result["templates"],
+    })
+
+
+@platform_bp.route("/tenants/<tenant_id>/notification-settings", methods=["PATCH"])
+@limiter.limit(PLATFORM_LIMIT)
+@auth_required
+@platform_admin_required
+def patch_tenant_notification_settings(tenant_id):
+    """PATCH /platform/tenants/<id>/notification-settings  Body: { templates: [...] }"""
+    data = request.get_json() or {}
+    templates = data.get("templates", [])
+    result = services.patch_tenant_notification_settings(
+        tenant_id=tenant_id,
+        templates=templates,
+        platform_admin_id=g.current_user.id,
+    )
+    if not result["success"]:
+        if result["error"] == "Tenant not found":
+            return not_found_response("Tenant")
+        return error_response("BadRequest", result["error"], 400)
+    return success_response(data={"tenant_id": result["tenant_id"]}, message="Notification settings updated")
+
+
+# --- Notification templates ---
+@platform_bp.route("/notification-templates", methods=["GET"])
+@limiter.limit(PLATFORM_LIMIT)
+@auth_required
+@platform_admin_required
+def list_notification_templates():
+    """GET /platform/notification-templates?tenant_id=&category=&type=&channel=&page=&per_page="""
+    page = request.args.get("page", 1, type=int)
+    per_page = request.args.get("per_page", 50, type=int)
+    result = services.list_notification_templates(
+        tenant_id=request.args.get("tenant_id"),
+        category=request.args.get("category"),
+        template_type=request.args.get("type"),
+        channel=request.args.get("channel"),
+        page=page,
+        per_page=per_page,
+    )
+    return success_response(
+        data={"items": result["items"], "pagination": result["pagination"]},
+    )
+
+
+@platform_bp.route("/notification-templates", methods=["POST"])
+@limiter.limit(PLATFORM_LIMIT)
+@auth_required
+@platform_admin_required
+def create_notification_template():
+    """POST /platform/notification-templates  Body: type, channel, category, subject_template?, body_template?, tenant_id?, is_system?"""
+    data = request.get_json() or {}
+    required = ["type", "channel", "category"]
+    missing = [k for k in required if not data.get(k)]
+    if missing:
+        return validation_error_response({k: "Required" for k in missing})
+    result = services.create_notification_template(
+        template_type=data["type"],
+        channel=data["channel"],
+        category=data["category"],
+        subject_template=data.get("subject_template") or "",
+        body_template=data.get("body_template") or "",
+        tenant_id=data.get("tenant_id"),
+        is_system=bool(data.get("is_system", False)),
+        platform_admin_id=g.current_user.id,
+    )
+    if not result["success"]:
+        return error_response("BadRequest", result["error"], 400)
+    return success_response(data=result["template"], message="Template created", status_code=201)
+
+
+@platform_bp.route("/notification-templates/<template_id>", methods=["PATCH"])
+@limiter.limit(PLATFORM_LIMIT)
+@auth_required
+@platform_admin_required
+def update_notification_template(template_id):
+    """PATCH /platform/notification-templates/<id>  Body: type?, channel?, category?, subject_template?, body_template?, is_system?"""
+    data = request.get_json() or {}
+    result = services.update_notification_template(
+        template_id=template_id,
+        platform_admin_id=g.current_user.id,
+        type=data.get("type"),
+        channel=data.get("channel"),
+        category=data.get("category"),
+        subject_template=data.get("subject_template"),
+        body_template=data.get("body_template"),
+        is_system=data.get("is_system"),
+    )
+    if not result["success"]:
+        if result["error"] == "Template not found":
+            return not_found_response("Template")
+        return error_response("BadRequest", result["error"], 400)
+    return success_response(data=result["template"], message="Template updated")
+
+
+@platform_bp.route("/notification-templates/<template_id>", methods=["DELETE"])
+@limiter.limit(PLATFORM_LIMIT)
+@auth_required
+@platform_admin_required
+def delete_notification_template(template_id):
+    """DELETE /platform/notification-templates/<id>"""
+    result = services.delete_notification_template(template_id, platform_admin_id=g.current_user.id)
+    if not result["success"]:
+        return not_found_response("Template")
+    return success_response(message="Template deleted")
+
+
 # --- Audit logs ---
 @platform_bp.route("/audit-logs", methods=["GET"])
 @limiter.limit(PLATFORM_LIMIT)

@@ -7,19 +7,62 @@ from backend.core.tenant import get_tenant_id
 from .models import Class, ClassTeacher
 
 
-def create_class(name: str, section: str, academic_year: str, teacher_id: str = None,
-                 start_date: str = None, end_date: str = None) -> Dict:
-    """Create a new class (tenant-scoped)."""
+def _resolve_academic_year_id(academic_year: Optional[str] = None, academic_year_id: Optional[str] = None) -> Optional[str]:
+    """Resolve academic_year string or id to academic_year_id. Creates AcademicYear if needed."""
+    if academic_year_id:
+        return academic_year_id
+    if not academic_year or not academic_year.strip():
+        return None
+    from backend.modules.academics.academic_year.models import AcademicYear
+    tenant_id = get_tenant_id()
+    if not tenant_id:
+        return None
+    ay = AcademicYear.query.filter_by(name=academic_year.strip(), tenant_id=tenant_id).first()
+    if ay:
+        return ay.id
+    try:
+        parts = academic_year.strip().split("-")
+        y1 = int(parts[0])
+        y2 = int(parts[1]) if len(parts) > 1 else y1 + 1
+    except (ValueError, IndexError):
+        y1, y2 = 2025, 2026
+    from datetime import date
+    ay = AcademicYear(
+        tenant_id=tenant_id,
+        name=academic_year.strip(),
+        start_date=date(y1, 6, 1),
+        end_date=date(y2, 5, 31),
+    )
+    db.session.add(ay)
+    db.session.commit()
+    return ay.id
+
+
+def create_class(
+    name: str,
+    section: str,
+    academic_year: Optional[str] = None,
+    academic_year_id: Optional[str] = None,
+    teacher_id: str = None,
+    start_date: str = None,
+    end_date: str = None,
+) -> Dict:
+    """Create a new class (tenant-scoped). Accepts academic_year (string) or academic_year_id."""
     try:
         tenant_id = get_tenant_id()
         if not tenant_id:
             return {'success': False, 'error': 'Tenant context is required'}
+
+        ay_id = _resolve_academic_year_id(academic_year, academic_year_id)
+        if not ay_id:
+            return {'success': False, 'error': 'Academic year or academic_year_id is required'}
 
         new_class = Class(
             tenant_id=tenant_id,
             name=name,
             section=section,
             academic_year=academic_year,
+            academic_year_id=ay_id,
             teacher_id=teacher_id,
             start_date=datetime.strptime(start_date, '%Y-%m-%d').date() if start_date else None,
             end_date=datetime.strptime(end_date, '%Y-%m-%d').date() if end_date else None,
@@ -44,11 +87,15 @@ def create_class(name: str, section: str, academic_year: str, teacher_id: str = 
         }
 
 
-def get_all_classes(academic_year: str = None) -> List[Dict]:
-    """Get all classes, optionally filtered by academic year"""
+def get_all_classes(
+    academic_year: Optional[str] = None,
+    academic_year_id: Optional[str] = None,
+) -> List[Dict]:
+    """Get all classes, optionally filtered by academic year."""
     query = Class.query
-    if academic_year:
-        query = query.filter_by(academic_year=academic_year)
+    ay_id = _resolve_academic_year_id(academic_year, academic_year_id)
+    if ay_id:
+        query = query.filter_by(academic_year_id=ay_id)
 
     classes = query.order_by(Class.name, Class.section).all()
 
@@ -101,11 +148,12 @@ def update_class(
     name: str = None,
     section: str = None,
     academic_year: str = None,
+    academic_year_id: str = None,
     teacher_id: str = None,
     start_date: str = None,
-    end_date: str = None
+    end_date: str = None,
 ) -> Dict:
-    """Update class details"""
+    """Update class details."""
     try:
         cls = Class.query.get(class_id)
         if not cls:
@@ -115,8 +163,11 @@ def update_class(
             cls.name = name
         if section:
             cls.section = section
-        if academic_year:
-            cls.academic_year = academic_year
+        ay_id = _resolve_academic_year_id(academic_year, academic_year_id)
+        if ay_id:
+            cls.academic_year_id = ay_id
+            if academic_year:
+                cls.academic_year = academic_year
         if teacher_id is not None:
             cls.teacher_id = teacher_id
         if start_date is not None:

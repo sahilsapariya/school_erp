@@ -10,7 +10,29 @@ from backend.core.models import Tenant
 from backend.modules.auth.models import User
 from backend.modules.rbac.services import assign_role_to_user_by_email
 from backend.modules.classes.models import Class
+from backend.modules.academics.academic_year.models import AcademicYear
 from .models import Student
+
+
+def _resolve_student_academic_year_id(
+    academic_year: Optional[str] = None,
+    academic_year_id: Optional[str] = None,
+    class_id: Optional[str] = None,
+) -> Optional[str]:
+    """Resolve academic_year_id for student. Priority: explicit id, class relationship, string fallback."""
+    if academic_year_id:
+        return academic_year_id
+    if class_id:
+        cls = Class.query.get(class_id)
+        if cls and cls.academic_year_id:
+            return cls.academic_year_id
+    if academic_year and academic_year.strip():
+        tenant_id = get_tenant_id()
+        if tenant_id:
+            ay = AcademicYear.query.filter_by(name=academic_year.strip(), tenant_id=tenant_id).first()
+            if ay:
+                return ay.id
+    return None
 
 
 def _check_student_plan_limit(tenant_id: str) -> tuple:
@@ -99,10 +121,11 @@ def generate_student_password(name: str, date_of_birth: Optional[str]) -> str:
 
 def create_student(
     name: str,
-    academic_year: str,
-    guardian_name: str,
-    guardian_relationship: str,
-    guardian_phone: str,
+    academic_year: Optional[str] = None,
+    academic_year_id: Optional[str] = None,
+    guardian_name: str = None,
+    guardian_relationship: str = None,
+    guardian_phone: str = None,
     admission_number: Optional[str] = None,
     email: Optional[str] = None,
     phone: Optional[str] = None,
@@ -125,7 +148,7 @@ def create_student(
     
     Args:
         name: Student's full name (required)
-        academic_year: Academic year (required, e.g., "2025-2026")
+        academic_year: Academic year string (e.g., "2025-2026") - required if academic_year_id not provided
         guardian_name: Guardian's full name (required)
         guardian_relationship: Relationship to student (required)
         guardian_phone: Guardian's phone number (required)
@@ -177,6 +200,13 @@ def create_student(
             if not class_obj:
                 return {'success': False, 'error': 'Class not found'}
 
+        # Resolve academic_year_id (class first, then explicit, then string)
+        ay_id = _resolve_student_academic_year_id(academic_year, academic_year_id, class_id)
+        if not ay_id and not academic_year:
+            return {'success': False, 'error': 'Academic year or academic_year_id is required (or provide class_id)'}
+        if not guardian_name or not guardian_relationship or not guardian_phone:
+            return {'success': False, 'error': 'guardian_name, guardian_relationship, guardian_phone are required'}
+
         user = None
         temp_password = None
 
@@ -227,6 +257,7 @@ def create_student(
             user_id=user.id,
             admission_number=admission_number,
             academic_year=academic_year,
+            academic_year_id=ay_id,
             roll_number=roll_number,
             class_id=class_id,
             date_of_birth=datetime.strptime(date_of_birth, '%Y-%m-%d').date() if date_of_birth else None,
@@ -330,6 +361,7 @@ def update_student(
     student_id: str,
     name: Optional[str] = None,
     academic_year: Optional[str] = None,
+    academic_year_id: Optional[str] = None,
     class_id: Optional[str] = None,
     roll_number: Optional[int] = None,
     date_of_birth: Optional[str] = None,
@@ -367,6 +399,9 @@ def update_student(
             student.user.save()
             
         # Update Student fields (only if provided)
+        ay_id = _resolve_student_academic_year_id(academic_year, academic_year_id, class_id if class_id else student.class_id)
+        if ay_id is not None:
+            student.academic_year_id = ay_id
         if academic_year is not None:
             student.academic_year = academic_year
         if class_id is not None:
