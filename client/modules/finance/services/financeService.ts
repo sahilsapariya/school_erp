@@ -83,6 +83,48 @@ export const financeService = {
     return res;
   },
 
+  getAssignData: async (structureId: string, params?: { class_ids?: string[]; search?: string }) => {
+    let url = `/api/finance/structures/${structureId}/assign-data`;
+    if (params && (params.class_ids?.length || params.search)) {
+      const q = new URLSearchParams();
+      if (params.class_ids?.length) q.append("class_ids", params.class_ids.join(","));
+      if (params.search) q.append("search", params.search);
+      url += `?${q.toString()}`;
+    }
+    return await apiGet<{
+      students: Array<{ id: string; name?: string; admission_number?: string }>;
+      assigned_student_ids: string[];
+      student_fee_ids_by_student: Record<string, string>;
+    }>(url);
+  },
+
+  // Summary (dashboard - single lightweight request)
+  // Pass include_recent_payments=N to get summary + recent payments in one call
+  getSummary: async (params?: {
+    academic_year_id?: string;
+    class_id?: string;
+    include_recent_payments?: number;
+  }) => {
+    let url = "/api/finance/summary";
+    if (params) {
+      const q = new URLSearchParams();
+      if (params.academic_year_id) q.append("academic_year_id", params.academic_year_id);
+      if (params.class_id) q.append("class_id", params.class_id);
+      if (params.include_recent_payments != null && params.include_recent_payments > 0) {
+        q.append("include_recent_payments", String(params.include_recent_payments));
+      }
+      const qs = q.toString();
+      if (qs) url += `?${qs}`;
+    }
+    return await apiGet<{
+      total_expected: number;
+      total_collected: number;
+      total_outstanding: number;
+      overdue_count: number;
+      recent_payments?: Array<{ id: string; amount: number; student_name?: string; created_at: string }>;
+    }>(url);
+  },
+
   // Student fees
   getStudentFees: async (params?: {
     student_id?: string;
@@ -91,6 +133,7 @@ export const financeService = {
     academic_year_id?: string;
     class_id?: string;
     search?: string;
+    include_items?: boolean;
   }) => {
     let url = "/api/finance/student-fees";
     if (params) {
@@ -101,6 +144,7 @@ export const financeService = {
       if (params.academic_year_id) q.append("academic_year_id", params.academic_year_id);
       if (params.class_id) q.append("class_id", params.class_id);
       if (params.search) q.append("search", params.search);
+      if (params.include_items === false) q.append("include_items", "false");
       const qs = q.toString();
       if (qs) url += `?${qs}`;
     }

@@ -240,7 +240,14 @@ def update_fee_structure(
         if name is not None:
             fs.name = name
         if due_date is not None:
-            fs.due_date = date.fromisoformat(due_date) if isinstance(due_date, str) else due_date
+            new_due = date.fromisoformat(due_date) if isinstance(due_date, str) else due_date
+            fs.due_date = new_due
+            # Propagate due_date to existing student fees so they stay in sync
+            for sf in StudentFee.query.filter_by(
+                fee_structure_id=structure_id, tenant_id=tenant_id
+            ).all():
+                sf.due_date = new_due
+                recalculate_student_fee_status(sf)
         if class_ids is not None:
             # Diff-based update: only delete removed classes, only add new ones.
             # This avoids unique constraint violations when removing then re-adding the same class.

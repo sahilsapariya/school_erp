@@ -224,6 +224,26 @@ def delete_structure(structure_id):
     return error_response("FinanceError", result["error"], 400)
 
 
+@finance_bp.route("/structures/<structure_id>/assign-data", methods=["GET"])
+@tenant_required
+@auth_required
+@require_plan_feature("fees_management")
+@require_any_permission(PERM_READ, PERM_MANAGE)
+def get_assign_data(structure_id):
+    """GET /api/finance/structures/<id>/assign-data - Students + assignment status in one call."""
+    class_ids_param = request.args.get("class_ids")
+    class_ids = [c.strip() for c in class_ids_param.split(",") if c.strip()] if class_ids_param else None
+    search = request.args.get("search")
+    data = services.student_fee_service.get_assign_data_for_structure(
+        fee_structure_id=structure_id,
+        class_ids=class_ids,
+        search=search,
+    )
+    if data is None:
+        return not_found_response("Fee structure")
+    return success_response(data=data)
+
+
 @finance_bp.route("/structures/<structure_id>/assign", methods=["POST"])
 @tenant_required
 @auth_required
@@ -242,6 +262,34 @@ def assign_structure(structure_id):
     return error_response("FinanceError", result["error"], 400)
 
 
+# ---------- Summary ----------
+
+@finance_bp.route("/summary", methods=["GET"])
+@tenant_required
+@auth_required
+@require_plan_feature("fees_management")
+@require_any_permission(PERM_READ, PERM_MANAGE, PERM_COLLECT)
+def get_finance_summary():
+    """GET /api/finance/summary - Aggregated stats. Add include_recent_payments=N to also get recent payments (dashboard)."""
+    academic_year_id = request.args.get("academic_year_id")
+    class_id = request.args.get("class_id")
+    include_recent = request.args.get("include_recent_payments")
+    limit = 0
+    if include_recent is not None and str(include_recent).strip():
+        try:
+            limit = min(int(include_recent), 50)
+        except ValueError:
+            limit = 10
+
+    data = services.student_fee_service.get_finance_summary(
+        academic_year_id=academic_year_id or None,
+        class_id=class_id or None,
+    )
+    if limit > 0:
+        data["recent_payments"] = list_recent_payments(limit=limit)
+    return success_response(data=data)
+
+
 # ---------- Student Fees ----------
 
 @finance_bp.route("/student-fees", methods=["GET"])
@@ -257,6 +305,7 @@ def list_student_fees():
     academic_year_id = request.args.get("academic_year_id")
     class_id = request.args.get("class_id")
     search = request.args.get("search")
+    include_items = request.args.get("include_items", "true").lower() not in ("false", "0", "no")
     data = services.student_fee_service.list_student_fees(
         student_id=student_id,
         fee_structure_id=fee_structure_id,
@@ -264,6 +313,7 @@ def list_student_fees():
         academic_year_id=academic_year_id,
         class_id=class_id,
         search=search,
+        include_items=include_items,
     )
     return success_response(data={"student_fees": data})
 

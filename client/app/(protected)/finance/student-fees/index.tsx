@@ -57,6 +57,24 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
+/** Derive unique statuses from fee items (paid/partial/unpaid per item). Falls back to fee-level status if no items. Includes overdue when fee is overdue. */
+function getStatusesToDisplay(
+  items: Array<{ amount?: number; paid_amount?: number }> | undefined,
+  feeStatus: string
+): string[] {
+  if (!items?.length) return [feeStatus];
+  const statuses = new Set<string>();
+  for (const it of items) {
+    const amt = it.amount ?? 0;
+    const paid = it.paid_amount ?? 0;
+    if (paid >= amt) statuses.add("paid");
+    else if (paid > 0) statuses.add("partial");
+    else statuses.add("unpaid");
+  }
+  if (feeStatus === "overdue") statuses.add("overdue");
+  return statuses.size > 0 ? Array.from(statuses) : [feeStatus];
+}
+
 export default function StudentFeesPage() {
   const router = useRouter();
   const { selectedAcademicYearId: contextYearId } = useAcademicYearContext();
@@ -77,6 +95,7 @@ export default function StudentFeesPage() {
     class_id: classId || undefined,
     status: status || undefined,
     search: search.trim() || undefined,
+    include_items: true,
   });
 
   const classOptions = useMemo(
@@ -117,7 +136,11 @@ export default function StudentFeesPage() {
         <View style={styles.metaRow}>
           <Text style={styles.amountText}>{formatCurrency(sf.total_amount)}</Text>
           <Text style={styles.paidText}>{formatCurrency(sf.paid_amount)} paid</Text>
-          <StatusBadge status={sf.status} />
+          <View style={styles.badgeRow}>
+            {getStatusesToDisplay(sf.items, sf.status).map((s) => (
+              <StatusBadge key={s} status={s} />
+            ))}
+          </View>
         </View>
       </View>
       <Ionicons name="chevron-forward" size={20} color={Colors.textSecondary} />
@@ -347,6 +370,7 @@ const styles = StyleSheet.create({
   metaRow: { flexDirection: "row", alignItems: "center", marginTop: Spacing.xs, gap: Spacing.sm },
   amountText: { fontSize: 14, fontWeight: "600", color: Colors.text },
   paidText: { fontSize: 12, color: Colors.success },
+  badgeRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 4 },
   badge: {
     paddingHorizontal: Spacing.sm,
     paddingVertical: 2,

@@ -18,6 +18,7 @@ import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import {
   useStructures,
+  useStructure,
   useAcademicYears,
   useClasses,
   useAvailableClassesForStructure,
@@ -583,23 +584,39 @@ function AssignStructureModal({
   isAssigning,
 }: AssignStructureModalProps) {
   const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set());
-  const [studentsInitialized, setStudentsInitialized] = useState(false);
+  const hasUserToggledRef = React.useRef(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const deleteFeeMut = useDeleteStudentFee();
+
+  // Fetch structure inside modal so we always use latest class_ids after edits.
+  // Wait for fetch to complete so we don't sync selection with stale class_ids.
+  const {
+    data: structure,
+    isFetching: structureFetching,
+    refetch: refetchStructure,
+  } = useStructure(structureId ?? undefined, visible && !!structureId);
+  const effectiveStructureClassIds = structure?.class_ids ?? structureClassIds;
+  const effectiveStructureName = structure?.name ?? structureName;
+  const structureReady = !structureId || !structureFetching;
+
+  // Force refetch when modal opens so we always have latest structure (e.g. after edit).
+  React.useEffect(() => {
+    if (visible && structureId) refetchStructure();
+  }, [visible, structureId]);
 
   React.useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(searchQuery.trim()), 300);
     return () => clearTimeout(t);
   }, [searchQuery]);
 
-  const isAllClassesStructure = structureClassIds.length === 0;
+  const isAllClassesStructure = effectiveStructureClassIds.length === 0;
   const allowedClasses = isAllClassesStructure
     ? classes
-    : classes.filter((c) => structureClassIds.includes(c.id));
+    : classes.filter((c) => effectiveStructureClassIds.includes(c.id));
   const effectiveClassIds = isAllClassesStructure
     ? allowedClasses.map((c) => c.id)
-    : structureClassIds;
+    : effectiveStructureClassIds;
 
   const { data: displayStudents = [], isLoading: studentsLoading } = useStudentsForAssign(
     visible
@@ -611,8 +628,11 @@ function AssignStructureModal({
     visible
   );
 
-  const { data: structureFees = [] } = useStudentFees(
-    structureId ? { fee_structure_id: structureId } : undefined
+  const {
+    data: structureFees = [],
+    isLoading: structureFeesLoading,
+  } = useStudentFees(
+    structureId ? { fee_structure_id: structureId, include_items: false } : undefined
   );
 
   const { assignedStudentIds, assignedFeeIdsByStudent } = React.useMemo(() => {
@@ -636,23 +656,26 @@ function AssignStructureModal({
   React.useEffect(() => {
     if (!visible) {
       setSelectedStudentIds(new Set());
-      setStudentsInitialized(false);
+      hasUserToggledRef.current = false;
       setSearchQuery("");
       setDebouncedSearch("");
     }
   }, [visible]);
 
+  // Sync selection from assignedStudentIds whenever data updates (e.g. after structure edit + refetch).
+  // Skip if user has manually toggled, to avoid overwriting their changes.
+  // Wait for structure to finish loading so we use latest class_ids (avoids stale selection after edit).
   React.useEffect(() => {
-    if (!visible || studentsInitialized) return;
+    if (!visible || structureFeesLoading || !structureReady || hasUserToggledRef.current) return;
     if (assignedStudentIds.size > 0) {
       setSelectedStudentIds(new Set(assignedStudentIds));
     } else {
       setSelectedStudentIds(new Set());
     }
-    setStudentsInitialized(true);
-  }, [visible, studentsInitialized, assignedStudentIds]);
+  }, [visible, assignedStudentIds, structureFeesLoading, structureReady]);
 
   const toggleStudent = (id: string) => {
+    hasUserToggledRef.current = true;
     setSelectedStudentIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);

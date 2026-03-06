@@ -37,6 +37,25 @@ function formatDate(s: string) {
   }
 }
 
+function getItemStatus(amount: number, paidAmount: number): "paid" | "partial" | "unpaid" {
+  if (paidAmount >= amount) return "paid";
+  if (paidAmount > 0) return "partial";
+  return "unpaid";
+}
+
+function ItemStatusBadge({ status }: { status: "paid" | "partial" | "unpaid" }) {
+  const colors: Record<string, string> = {
+    paid: Colors.success,
+    partial: Colors.warning,
+    unpaid: Colors.textSecondary,
+  };
+  return (
+    <View style={[styles.itemStatusBadge, { backgroundColor: colors[status] }]}>
+      <Text style={styles.itemStatusText}>{status}</Text>
+    </View>
+  );
+}
+
 // Allocation state: { item_id: amount_string }
 type AllocationState = Record<string, string>;
 
@@ -298,7 +317,9 @@ export default function StudentFeeDetailPage() {
                     ? Colors.success
                     : data.status === "overdue"
                       ? Colors.error
-                      : Colors.warning,
+                      : data.status === "partial"
+                        ? Colors.warning
+                        : Colors.textSecondary,
               },
             ]}
           >
@@ -320,19 +341,43 @@ export default function StudentFeeDetailPage() {
       {/* Fee items table */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Fee Items</Text>
-        {(data.items ?? []).map((item) => (
-          <View key={item.id} style={styles.itemRow}>
-            <View style={styles.itemMain}>
-              <Text style={styles.itemName}>{item.component_name ?? "—"}</Text>
-              <Text style={styles.itemMeta}>
-                {formatCurrency(item.amount)} • Paid {formatCurrency(item.paid_amount)}
-              </Text>
+        {(data.items ?? []).map((item) => {
+          const itemAmount = item.amount ?? 0;
+          const itemPaid = item.paid_amount ?? 0;
+          const itemRemaining = itemAmount - itemPaid;
+          const itemStatus: "paid" | "partial" | "unpaid" =
+            itemPaid >= itemAmount ? "paid" : itemPaid > 0 ? "partial" : "unpaid";
+          return (
+            <View key={item.id} style={styles.itemRow}>
+              <View style={styles.itemMain}>
+                <Text style={styles.itemName}>{item.component_name ?? "—"}</Text>
+                <Text style={styles.itemMeta}>
+                  {formatCurrency(item.amount)} • Paid {formatCurrency(item.paid_amount)}
+                </Text>
+              </View>
+              <View style={styles.itemRight}>
+                <Text style={styles.itemRemaining}>
+                  {formatCurrency(itemRemaining)} left
+                </Text>
+                <View
+                  style={[
+                    styles.itemStatusBadge,
+                    {
+                      backgroundColor:
+                        itemStatus === "paid"
+                          ? Colors.success
+                          : itemStatus === "partial"
+                            ? Colors.warning
+                            : Colors.textSecondary,
+                    },
+                  ]}
+                >
+                  <Text style={styles.itemStatusText}>{itemStatus}</Text>
+                </View>
+              </View>
             </View>
-            <Text style={styles.itemRemaining}>
-              {formatCurrency((item.amount ?? 0) - (item.paid_amount ?? 0))} left
-            </Text>
-          </View>
-        ))}
+          );
+        })}
         {(data.items ?? []).length === 0 && (
           <Text style={styles.emptyText}>No fee items</Text>
         )}

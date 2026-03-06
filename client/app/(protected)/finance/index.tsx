@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React from "react";
 import {
   View,
   Text,
@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { useStudentFees, useRecentPayments } from "@/modules/finance/hooks/useFinance";
+import { useFinanceDashboard } from "@/modules/finance/hooks/useFinance";
 import { Colors } from "@/common/constants/colors";
 import { Spacing, Layout } from "@/common/constants/spacing";
 
@@ -21,21 +21,15 @@ function formatCurrency(n: number) {
 
 export default function FinanceDashboardPage() {
   const router = useRouter();
-  const { data: studentFees = [], isLoading, error, refetch, isRefetching } = useStudentFees();
-  const { data: recentPayments = [] } = useRecentPayments(10);
+  const { data: dashboardData, isLoading, error, refetch, isRefetching } = useFinanceDashboard(10);
 
-  const stats = useMemo(() => {
-    let totalExpected = 0;
-    let totalCollected = 0;
-    let overdueCount = 0;
-    for (const sf of studentFees) {
-      totalExpected += sf.total_amount ?? 0;
-      totalCollected += sf.paid_amount ?? 0;
-      if (sf.status === "overdue") overdueCount++;
-    }
-    const totalOutstanding = totalExpected - totalCollected;
-    return { totalExpected, totalCollected, totalOutstanding, overdueCount };
-  }, [studentFees]);
+  const stats = {
+    totalExpected: dashboardData?.total_expected ?? 0,
+    totalCollected: dashboardData?.total_collected ?? 0,
+    totalOutstanding: dashboardData?.total_outstanding ?? 0,
+    overdueCount: dashboardData?.overdue_count ?? 0,
+  };
+  const recentPayments = dashboardData?.recent_payments ?? [];
 
   if (error) {
     return (
@@ -64,7 +58,7 @@ export default function FinanceDashboardPage() {
         <Text style={styles.subtitle}>Track fees and collect payments</Text>
       </View>
 
-      {isLoading && studentFees.length === 0 ? (
+      {isLoading && !dashboardData ? (
         <View style={styles.center}>
           <ActivityIndicator size="large" color={Colors.primary} />
           <Text style={styles.loadingText}>Loading your finance data…</Text>

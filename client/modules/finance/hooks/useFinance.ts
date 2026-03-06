@@ -16,6 +16,8 @@ import type {
 const KEYS = {
   structures: ["finance", "structures"] as const,
   structure: (id: string) => ["finance", "structure", id] as const,
+  summary: ["finance", "summary"] as const,
+  dashboard: (limit: number) => ["finance", "dashboard", limit] as const,
   studentFees: ["finance", "studentFees"] as const,
   studentFee: (id: string) => ["finance", "studentFee", id] as const,
   academicYears: ["academics", "academicYears"] as const,
@@ -68,6 +70,9 @@ export function useCreateStructure() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: KEYS.structures });
       qc.invalidateQueries({ queryKey: ["finance", "availableClasses"] });
+      qc.invalidateQueries({ queryKey: KEYS.summary });
+      qc.invalidateQueries({ queryKey: KEYS.studentFees });
+      qc.invalidateQueries({ queryKey: ["finance", "dashboard"] });
     },
   });
 }
@@ -82,6 +87,8 @@ export function useUpdateStructure() {
       qc.invalidateQueries({ queryKey: KEYS.structure(id) });
       qc.invalidateQueries({ queryKey: ["finance", "availableClasses"] });
       qc.invalidateQueries({ queryKey: KEYS.studentFees });
+      qc.invalidateQueries({ queryKey: KEYS.summary });
+      qc.invalidateQueries({ queryKey: ["finance", "dashboard"] });
     },
   });
 }
@@ -93,6 +100,9 @@ export function useDeleteStructure() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: KEYS.structures });
       qc.invalidateQueries({ queryKey: ["finance", "availableClasses"] });
+      qc.invalidateQueries({ queryKey: KEYS.studentFees });
+      qc.invalidateQueries({ queryKey: KEYS.summary });
+      qc.invalidateQueries({ queryKey: ["finance", "dashboard"] });
     },
   });
 }
@@ -114,12 +124,39 @@ export function useAssignStructure() {
           queryKey: KEYS.studentFees,
           refetchType: "all",
         }),
+        qc.invalidateQueries({ queryKey: KEYS.summary }),
+        qc.invalidateQueries({ queryKey: ["finance", "dashboard"] }),
         qc.invalidateQueries({
           queryKey: ["finance", "recentPayments"],
           refetchType: "all",
         }),
       ]);
     },
+  });
+}
+
+export function useFinanceSummary(params?: {
+  academic_year_id?: string;
+  class_id?: string;
+}) {
+  return useQuery({
+    queryKey: [
+      ...KEYS.summary,
+      params?.academic_year_id ?? "",
+      params?.class_id ?? "",
+    ],
+    queryFn: () => financeService.getSummary(params),
+  });
+}
+
+/** Dashboard: summary + recent payments in one API call. Use instead of useFinanceSummary + useRecentPayments. */
+export function useFinanceDashboard(recentPaymentsLimit = 10) {
+  return useQuery({
+    queryKey: KEYS.dashboard(recentPaymentsLimit),
+    queryFn: () =>
+      financeService.getSummary({
+        include_recent_payments: recentPaymentsLimit,
+      }),
   });
 }
 
@@ -130,6 +167,7 @@ export function useStudentFees(params?: {
   academic_year_id?: string;
   class_id?: string;
   search?: string;
+  include_items?: boolean;
 }) {
   return useQuery({
     queryKey: [
@@ -140,6 +178,7 @@ export function useStudentFees(params?: {
       params?.academic_year_id ?? "",
       params?.class_id ?? "",
       params?.search ?? "",
+      params?.include_items ?? true,
     ],
     queryFn: () => financeService.getStudentFees(params),
   });
@@ -164,6 +203,8 @@ export function useDeleteStudentFee() {
           refetchType: "all",
         }),
         qc.invalidateQueries({ queryKey: KEYS.studentFee(id) }),
+        qc.invalidateQueries({ queryKey: KEYS.summary }),
+        qc.invalidateQueries({ queryKey: ["finance", "dashboard"] }),
         qc.invalidateQueries({
           queryKey: ["finance", "recentPayments"],
           refetchType: "all",
@@ -187,6 +228,8 @@ export function useRecordPayment() {
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: KEYS.studentFees });
       qc.invalidateQueries({ queryKey: KEYS.studentFee(vars.student_fee_id) });
+      qc.invalidateQueries({ queryKey: KEYS.summary });
+      qc.invalidateQueries({ queryKey: ["finance", "dashboard"] });
       qc.invalidateQueries({ queryKey: ["finance", "recentPayments"] });
     },
   });
@@ -198,8 +241,10 @@ export function useRefundPayment(studentFeeId?: string) {
     mutationFn: ({ paymentId, notes }: { paymentId: string; notes?: string }) =>
       financeService.refundPayment(paymentId, notes),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["finance"] });
+      qc.invalidateQueries({ queryKey: KEYS.studentFees });
       qc.invalidateQueries({ queryKey: ["finance", "recentPayments"] });
+      qc.invalidateQueries({ queryKey: KEYS.summary });
+      qc.invalidateQueries({ queryKey: ["finance", "dashboard"] });
       if (studentFeeId) {
         qc.invalidateQueries({ queryKey: KEYS.studentFee(studentFeeId) });
       }
@@ -238,5 +283,28 @@ export function useStudentsForAssign(
         search: params?.search,
       }),
     enabled,
+  });
+}
+
+/** Assign modal: one API call for students + assignment status. Use instead of useStudentsForAssign + useStudentFees. */
+export function useAssignData(
+  structureId: string | null,
+  params?: { class_ids?: string[]; search?: string },
+  enabled = true
+) {
+  return useQuery({
+    queryKey: [
+      "finance",
+      "assignData",
+      structureId ?? "",
+      params?.class_ids?.join(",") ?? "all",
+      params?.search ?? "",
+    ],
+    queryFn: () =>
+      financeService.getAssignData(structureId!, {
+        class_ids: params?.class_ids?.length ? params.class_ids : undefined,
+        search: params?.search,
+      }),
+    enabled: !!structureId && enabled,
   });
 }

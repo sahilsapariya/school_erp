@@ -18,7 +18,77 @@ from backend.modules.finance.models import (
 )
 from backend.modules.finance.enums import PaymentStatus, StudentFeeStatus
 from backend.modules.students.models import Student
+from backend.modules.auth.models import User
+from backend.modules.classes.models import Class
 from backend.modules.audit.services import log_finance_action
+
+
+def get_finance_summary(
+    academic_year_id: Optional[str] = None,
+    class_id: Optional[str] = None,
+    include_recent_payments: Optional[int] = None,
+) -> Dict:
+    """
+    Return aggregated finance stats for dashboard without loading full student fee records.
+    When include_recent_payments is set (e.g. 10), also returns recent_payments in the response.
+    """
+    from sqlalchemy import func
+
+    from .payment_service import list_recent_payments
+
+    tenant_id = get_tenant_id()
+    if not tenant_id:
+        result = {
+            "total_expected": 0,
+            "total_collected": 0,
+            "total_outstanding": 0,
+            "overdue_count": 0,
+        }
+        if include_recent_payments:
+            result["recent_payments"] = []
+        return result
+
+    query = (
+        db.session.query(
+            func.coalesce(func.sum(StudentFee.total_amount), 0).label("total_expected"),
+            func.coalesce(func.sum(StudentFee.paid_amount), 0).label("total_collected"),
+            func.coalesce(
+                func.sum(
+                    case(
+                        (StudentFee.status == StudentFeeStatus.overdue.value, 1),
+                        else_=0,
+                    )
+                ),
+                0,
+            ).label("overdue_count"),
+        )
+        .filter(StudentFee.tenant_id == tenant_id)
+        .join(Student, StudentFee.student_id == Student.id)
+    )
+    if academic_year_id:
+        query = query.join(
+            FeeStructure, StudentFee.fee_structure_id == FeeStructure.id
+        ).filter(
+            FeeStructure.academic_year_id == academic_year_id,
+            FeeStructure.tenant_id == tenant_id,
+        )
+    if class_id:
+        query = query.filter(Student.class_id == class_id)
+
+    row = query.first()
+    total_expected = float(row.total_expected or 0)
+    total_collected = float(row.total_collected or 0)
+    overdue_count = int(row.overdue_count or 0)
+    result = {
+        "total_expected": total_expected,
+        "total_collected": total_collected,
+        "total_outstanding": total_expected - total_collected,
+        "overdue_count": overdue_count,
+    }
+    if include_recent_payments and include_recent_payments > 0:
+        limit = min(include_recent_payments, 50)
+        result["recent_payments"] = list_recent_payments(limit=limit)
+    return result
 
 
 def list_student_fees(
@@ -28,8 +98,9 @@ def list_student_fees(
     academic_year_id: Optional[str] = None,
     class_id: Optional[str] = None,
     search: Optional[str] = None,
+    include_items: bool = True,
 ) -> List[Dict]:
-    """List student fees with optional filters."""
+    """List student fees with optional filters. Set include_items=False for list views."""
     from backend.modules.auth.models import User
 
     tenant_id = get_tenant_id()
@@ -54,6 +125,17 @@ def list_student_fees(
                     db.and_(
                         StudentFee.status == StudentFeeStatus.overdue.value,
                         StudentFee.paid_amount > 0,
+                    ),
+                )
+            )
+        elif status == StudentFeeStatus.unpaid.value:
+            # Unpaid: include both status=unpaid and overdue with paid_amount=0 (unpaid but overdue)
+            query = query.filter(
+                db.or_(
+                    StudentFee.status == StudentFeeStatus.unpaid.value,
+                    db.and_(
+                        StudentFee.status == StudentFeeStatus.overdue.value,
+                        StudentFee.paid_amount == 0,
                     ),
                 )
             )
@@ -84,7 +166,8 @@ def list_student_fees(
     result = []
     for sf in fees:
         d = sf.to_dict()
-        d["items"] = [i.to_dict() for i in sf.items]
+        if include_items:
+            d["items"] = [i.to_dict() for i in sf.items]
         d["student_name"] = sf.student.user.name if sf.student and sf.student.user else None
         d["admission_number"] = sf.student.admission_number if sf.student else None
         d["fee_structure_name"] = sf.fee_structure.name if sf.fee_structure else None
@@ -92,6 +175,79 @@ def list_student_fees(
         d["academic_year_id"] = sf.fee_structure.academic_year_id if sf.fee_structure else None
         result.append(d)
     return result
+
+
+def get_assign_data_for_structure(
+    fee_structure_id: str,
+    class_ids: Optional[List[str]] = None,
+    search: Optional[str] = None,
+) -> Optional[Dict]:
+    """
+    Return students + assignment status for the assign modal in one call.
+    Reduces 2 API calls (students + student-fees) to 1.
+    """
+    from backend.modules.auth.models import User
+    from backend.modules.classes.models import Class
+
+    tenant_id = get_tenant_id()
+    if not tenant_id:
+        return None
+
+    fs = FeeStructure.query.filter_by(id=fee_structure_id, tenant_id=tenant_id).first()
+    if not fs:
+        return None
+
+    # Resolve class_ids: use provided, or from structure, or all classes in academic year
+    if class_ids is not None and len(class_ids) > 0:
+        effective_class_ids = class_ids
+    else:
+        fsc_list = FeeStructureClass.query.filter_by(
+            fee_structure_id=fee_structure_id, tenant_id=tenant_id
+        ).all()
+        effective_class_ids = [fsc.class_id for fsc in fsc_list]
+        if not effective_class_ids and fs.academic_year_id:
+            # All-classes structure: get all classes in academic year
+            effective_class_ids = [
+                c.id
+                for c in Class.query.filter_by(
+                    academic_year_id=fs.academic_year_id, tenant_id=tenant_id
+                ).all()
+            ]
+
+    # Query students in those classes
+    student_query = Student.query.filter_by(tenant_id=tenant_id).join(User)
+    if effective_class_ids:
+        student_query = student_query.filter(Student.class_id.in_(effective_class_ids))
+    if search and search.strip():
+        pattern = f"%{search.strip()}%"
+        student_query = student_query.filter(
+            db.or_(
+                User.name.ilike(pattern),
+                Student.admission_number.ilike(pattern),
+            )
+        )
+    student_query = student_query.order_by(Student.class_id, User.name)
+    students = student_query.all()
+    students_data = [s.to_dict() for s in students]
+
+    # Query student fees for this structure
+    fees = StudentFee.query.filter_by(
+        fee_structure_id=fee_structure_id, tenant_id=tenant_id
+    ).join(Student).all()
+
+    assigned_student_ids = []
+    student_fee_ids_by_student = {}
+    class_filter = set(effective_class_ids) if effective_class_ids else None
+    for sf in fees:
+        if class_filter is None or (sf.student and sf.student.class_id in class_filter):
+            assigned_student_ids.append(sf.student_id)
+            student_fee_ids_by_student[sf.student_id] = sf.id
+
+    return {
+        "students": students_data,
+        "assigned_student_ids": assigned_student_ids,
+        "student_fee_ids_by_student": student_fee_ids_by_student,
+    }
 
 
 def get_student_fee(fee_id: str) -> Optional[Dict]:
