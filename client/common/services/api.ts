@@ -133,7 +133,18 @@ export const apiPut = async <T>(endpoint: string, body?: any): Promise<T> => {
   return handleResponse<T>(response);
 };
 
-export const apiDelete = async <T>(endpoint: string): Promise<T> => {
-  const response = await apiRequest(endpoint, { method: "DELETE" });
+export const apiPatch = async <T>(endpoint: string, body?: any): Promise<T> => {
+  const response = await apiRequest(endpoint, {
+    method: "PATCH",
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  return handleResponse<T>(response);
+};
+
+export const apiDelete = async <T>(endpoint: string, body?: Record<string, unknown>): Promise<T> => {
+  const response = await apiRequest(endpoint, {
+    method: "DELETE",
+    body: body ? JSON.stringify(body) : undefined,
+  });
   return handleResponse<T>(response);
 };

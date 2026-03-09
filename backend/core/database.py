@@ -78,6 +78,9 @@ def init_db(app):
             Payment,
         )
         from backend.modules.notifications.models import Notification, NotificationTemplate
+        from backend.modules.subjects.models import Subject
+        from backend.modules.timetable.models import TimetableSlot, TimetableConfig
+        from backend.modules.schedule.models import ScheduleOverride
 
 
 def reset_db(app):

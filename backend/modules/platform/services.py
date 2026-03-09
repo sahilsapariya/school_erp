@@ -24,81 +24,16 @@ from backend.core.models import (
 )
 from backend.modules.auth.models import User
 from backend.modules.rbac.models import Role, Permission, RolePermission, UserRole
+from backend.modules.rbac.role_seeder import DEFAULT_ROLES, seed_roles_for_tenant  # noqa: F401 (re-exported)
 from backend.modules.students.models import Student
 from backend.modules.teachers.models import Teacher
 from backend.modules.platform.audit import log_platform_action
-
-
-# Role definitions for seeding new tenants (must match seed_rbac.py structure)
-_DEFAULT_ROLES = {
-    "Admin": {
-        "description": "System administrator with full access",
-        "permissions": [
-            "user.manage", "role.manage", "permission.manage",
-            "student.manage", "teacher.manage", "attendance.manage",
-            "grades.manage", "course.manage", "class.manage",
-            "finance.read", "finance.manage", "finance.collect", "finance.refund",
-        ],
-    },
-    "Teacher": {
-        "description": "School teacher with class management access",
-        "permissions": [
-            "student.read.class", "attendance.mark", "attendance.read.class",
-            "grades.create", "grades.update", "grades.read.class",
-            "course.read", "class.read",
-        ],
-    },
-    "Student": {
-        "description": "Student with limited access to own data",
-        "permissions": ["student.read.self", "attendance.read.self", "grades.read.self", "course.read"],
-    },
-    "Parent": {
-        "description": "Parent with access to their children's data",
-        "permissions": ["student.read.self", "attendance.read.self", "grades.read.self", "course.read"],
-    },
-}
 
 
 def _generate_strong_password(length: int = 16) -> str:
     """Generate a strong random password (letters + digits + symbols)."""
     alphabet = string.ascii_letters + string.digits + "!@#$%&*"
     return "".join(secrets.choice(alphabet) for _ in range(length))
-
-
-def seed_roles_for_tenant(tenant_id: str) -> Dict[str, str]:
-    """
-    Create default roles (Admin, Teacher, Student, Parent) and assign permissions
-    for the given tenant. Permissions are global; roles are tenant-scoped.
-    When role already exists, backfills any missing permissions (idempotent).
-    Returns dict of role_name -> role_id for use when assigning Admin to school admin.
-    """
-    role_ids = {}
-    for role_name, role_data in _DEFAULT_ROLES.items():
-        existing = Role.query.filter_by(name=role_name, tenant_id=tenant_id).first()
-        if existing:
-            role = existing
-            role_ids[role_name] = role.id
-            # Backfill missing permissions for existing roles
-            existing_perm_ids = {p.id for p in role.permissions}
-            for perm_name in role_data["permissions"]:
-                perm = Permission.query.filter_by(name=perm_name).first()
-                if not perm or perm.id in existing_perm_ids:
-                    continue
-                rp = RolePermission(tenant_id=tenant_id, role_id=role.id, permission_id=perm.id)
-                db.session.add(rp)
-            continue
-        role = Role(tenant_id=tenant_id, name=role_name, description=role_data["description"])
-        db.session.add(role)
-        db.session.flush()
-        role_ids[role_name] = role.id
-        for perm_name in role_data["permissions"]:
-            perm = Permission.query.filter_by(name=perm_name).first()
-            if not perm:
-                continue
-            rp = RolePermission(tenant_id=tenant_id, role_id=role.id, permission_id=perm.id)
-            db.session.add(rp)
-    db.session.commit()
-    return role_ids
 
 
 def get_dashboard_stats() -> Dict[str, Any]:

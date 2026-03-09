@@ -57,6 +57,8 @@ PERMISSIONS = [
     ('teacher.update', 'Update teacher information'),
     ('teacher.delete', 'Delete teachers'),
     ('teacher.manage', 'Full teacher management access'),
+    ('teacher.leave.apply', 'Apply for leave as a teacher'),
+    ('teacher.leave.manage', 'View and manage all teacher leave requests'),
     
     # Attendance permissions
     ('attendance.read.self', 'View own attendance'),
@@ -80,6 +82,20 @@ PERMISSIONS = [
     ('class.update', 'Update class information'),
     ('class.delete', 'Delete classes'),
     ('class.manage', 'Full class management access'),
+
+    # Subject permissions
+    ('subject.read', 'View subject information'),
+    ('subject.create', 'Create new subjects'),
+    ('subject.update', 'Update subject information'),
+    ('subject.delete', 'Delete subjects'),
+    ('subject.manage', 'Full subject management access'),
+
+    # Timetable permissions
+    ('timetable.read', 'View timetable information'),
+    ('timetable.create', 'Create timetable slots'),
+    ('timetable.update', 'Update timetable slots'),
+    ('timetable.delete', 'Delete timetable slots'),
+    ('timetable.manage', 'Full timetable management access'),
 
     # Course permissions
     ('course.read', 'View course information'),
@@ -111,10 +127,13 @@ ROLES = {
             'grades.manage',
             'course.manage',
             'class.manage',
+            'subject.manage',
+            'timetable.manage',
             'finance.read',
             'finance.manage',
             'finance.collect',
             'finance.refund',
+            'teacher.leave.manage',
         ]
     },
     'Teacher': {
@@ -128,6 +147,9 @@ ROLES = {
             'grades.read.class',
             'course.read',
             'class.read',
+            'subject.read',
+            'timetable.read',
+            'teacher.leave.apply',
         ]
     },
     'Student': {
@@ -137,6 +159,7 @@ ROLES = {
             'attendance.read.self',
             'grades.read.self',
             'course.read',
+            'timetable.read',
         ]
     },
     'Parent': {
@@ -146,6 +169,7 @@ ROLES = {
             'attendance.read.self',
             'grades.read.self',
             'course.read',
+            'timetable.read',
         ]
     },
 }

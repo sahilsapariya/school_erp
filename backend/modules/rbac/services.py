@@ -611,16 +611,27 @@ def assign_role_to_user(user_id: str, role_id: str) -> Dict:
         }
 
 
-def assign_role_to_user_by_email(email: str, role_name: str) -> Dict:
-    """Assign a role to a user by email and role name (convenience function)."""
-    user = User.query.filter_by(email=email).first()
+def assign_role_to_user_by_email(email: str, role_name: str, tenant_id: str = None) -> Dict:
+    """
+    Assign a role to a user by email and role name (convenience function).
+
+    When tenant_id is provided (recommended in multi-tenant context), looks up the user
+    and role within that tenant. When omitted, uses unscoped queries (legacy behavior).
+    """
+    user_query = User.query.filter_by(email=email)
+    if tenant_id is not None:
+        user_query = user_query.filter_by(tenant_id=tenant_id)
+    user = user_query.first()
     if not user:
         return {'success': False, 'error': f'User with email "{email}" not found'}
-    
-    role = Role.query.filter_by(name=role_name).first()
+
+    role_query = Role.query.filter_by(name=role_name)
+    if tenant_id is not None:
+        role_query = role_query.filter_by(tenant_id=tenant_id)
+    role = role_query.first()
     if not role:
         return {'success': False, 'error': f'Role "{role_name}" not found'}
-    
+
     return assign_role_to_user(user.id, role.id)
 
 

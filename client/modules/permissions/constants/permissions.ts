@@ -95,6 +95,8 @@ export const TEACHER_READ = 'teacher.read';
 export const TEACHER_UPDATE = 'teacher.update';
 export const TEACHER_DELETE = 'teacher.delete';
 export const TEACHER_MANAGE = 'teacher.manage';
+export const TEACHER_LEAVE_APPLY = 'teacher.leave.apply';
+export const TEACHER_LEAVE_MANAGE = 'teacher.leave.manage';
 
 // Class Management
 export const CLASS_CREATE = 'class.create';
@@ -102,6 +104,20 @@ export const CLASS_READ = 'class.read';
 export const CLASS_UPDATE = 'class.update';
 export const CLASS_DELETE = 'class.delete';
 export const CLASS_MANAGE = 'class.manage';
+
+// Subject Management
+export const SUBJECT_CREATE = 'subject.create';
+export const SUBJECT_READ = 'subject.read';
+export const SUBJECT_UPDATE = 'subject.update';
+export const SUBJECT_DELETE = 'subject.delete';
+export const SUBJECT_MANAGE = 'subject.manage';
+
+// Timetable Management
+export const TIMETABLE_READ = 'timetable.read';
+export const TIMETABLE_CREATE = 'timetable.create';
+export const TIMETABLE_UPDATE = 'timetable.update';
+export const TIMETABLE_DELETE = 'timetable.delete';
+export const TIMETABLE_MANAGE = 'timetable.manage';
 
 // Report Management
 export const REPORT_READ_SELF = 'report.read.self';

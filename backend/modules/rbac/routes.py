@@ -31,6 +31,7 @@ from flask import request, jsonify
 
 from . import rbac_bp
 from backend.core.decorators import auth_required, require_permission, tenant_required
+from backend.core.tenant import get_tenant_id
 from backend.shared.helpers import success_response, error_response
 from .services import (
     # Permission CRUD
@@ -407,8 +408,9 @@ def assign_role_by_email_route(email):
     
     if not role_name:
         return error_response('ValidationError', 'Role name is required', 400)
-    
-    result = assign_role_to_user_by_email(email, role_name)
+
+    tenant_id = get_tenant_id()
+    result = assign_role_to_user_by_email(email, role_name, tenant_id=tenant_id)
     
     if result['success']:
         return success_response(message=result['message'], status_code=201)

@@ -55,6 +55,21 @@ export const useClasses = () => {
     }
   }, []);
 
+  const updateClass = useCallback(async (classId: string, data: Partial<CreateClassDTO>): Promise<ClassItem> => {
+    setLoading(true);
+    setError(null);
+    try {
+      const updated = await classService.updateClass(classId, data);
+      setClasses(prev => prev.map(c => (c.id === classId ? updated : c)));
+      return updated;
+    } catch (err: any) {
+      setError(err.message || "Failed to update class");
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   const assignStudent = useCallback(async (classId: string, studentId: string) => {
     try {
       await classService.assignStudent(classId, studentId);
@@ -75,9 +90,9 @@ export const useClasses = () => {
     }
   }, [fetchClassDetail]);
 
-  const assignTeacher = useCallback(async (classId: string, teacherId: string, subject?: string) => {
+  const assignTeacher = useCallback(async (classId: string, teacherId: string, subjectId: string) => {
     try {
-      await classService.assignTeacher(classId, teacherId, subject);
+      await classService.assignTeacher(classId, teacherId, subjectId);
       await fetchClassDetail(classId);
     } catch (err: any) {
       setError(err.message || "Failed to assign teacher");
@@ -127,6 +142,7 @@ export const useClasses = () => {
     fetchClasses,
     fetchClassDetail,
     createClass,
+    updateClass,
     assignStudent,
     removeStudent,
     assignTeacher,

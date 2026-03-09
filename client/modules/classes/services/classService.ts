@@ -37,10 +37,11 @@ export const classService = {
     return await apiDelete<void>(`/api/classes/${classId}/students/${studentId}`);
   },
 
-  assignTeacher: async (classId: string, teacherId: string, subject?: string) => {
+  assignTeacher: async (classId: string, teacherId: string, subjectId: string) => {
     return await apiPost<void>(`/api/classes/${classId}/teachers`, {
       teacher_id: teacherId,
-      subject,
+      subject_id: subjectId,
+      is_class_teacher: false,
     });
   },
 
@@ -56,8 +57,9 @@ export const classService = {
     return await apiGet<Teacher[]>(`/api/classes/${classId}/unassigned-teachers`);
   },
 
-  /** Teachers who can be selected as class teacher (excludes those already class teacher elsewhere) */
-  getAvailableClassTeachers: async () => {
-    return await apiGet<Teacher[]>(`/api/classes/meta/available-class-teachers`);
+  /** Teachers who can be selected as class teacher. Pass classId when editing to include current class's teacher. */
+  getAvailableClassTeachers: async (classId?: string) => {
+    const params = classId ? `?class_id=${classId}` : "";
+    return await apiGet<Teacher[]>(`/api/classes/meta/available-class-teachers${params}`);
   },
 };

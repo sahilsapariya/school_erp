@@ -93,11 +93,16 @@ def register():
     email_verification_token = user.generate_email_verification_token()
     user.save()
 
-    # Auto-assign default role (handled by RBAC module)
+    # Auto-assign default role (handled by RBAC module).
+    # seed_roles_for_tenant ensures the role exists and has all its permissions
+    # before we try to assign it — guards against tenants seeded before global
+    # permissions were created.
     from backend.modules.rbac.services import assign_role_to_user_by_email
+    from backend.modules.rbac.role_seeder import seed_roles_for_tenant
     default_role = os.getenv("DEFAULT_USER_ROLE", "Student")
-    assign_result = assign_role_to_user_by_email(email, default_role)
-    
+    seed_roles_for_tenant(tenant_id)
+    assign_result = assign_role_to_user_by_email(email, default_role, tenant_id=tenant_id)
+
     if not assign_result['success']:
         # Log warning but don't fail registration
         print(f"Warning: Could not assign default role to {email}: {assign_result.get('error')}")

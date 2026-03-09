@@ -61,6 +61,17 @@ export const ALL_TABS: TabConfig[] = [
     requiredPlanFeature: 'class_management',
   },
   {
+    name: 'subjects',
+    title: 'Subjects',
+    icon: 'book-outline',
+    iconOutline: 'book-outline',
+    requiredPermissions: [
+      PERMS.SUBJECT_READ,
+      PERMS.SUBJECT_MANAGE,
+    ],
+    requiredPlanFeature: 'class_management',
+  },
+  {
     name: 'academics',
     title: 'Academics',
     icon: 'book',
@@ -89,6 +100,24 @@ export const ALL_TABS: TabConfig[] = [
     requiredPlanFeature: 'fees_management',
   },
   {
+    // Teachers see their own leaves here (requires teacher.leave.apply, NOT teacher.leave.manage)
+    name: 'my-leaves',
+    title: 'My Leaves',
+    icon: 'calendar',
+    iconOutline: 'calendar-outline',
+    requiredPermissions: [PERMS.TEACHER_LEAVE_APPLY],
+    requiredPlanFeature: 'teacher_management',
+  },
+  {
+    // Admins manage all teacher leaves (requires teacher.leave.manage)
+    name: 'teacher-leaves',
+    title: 'Leave Requests',
+    icon: 'document-text',
+    iconOutline: 'document-text-outline',
+    requiredPermissions: [PERMS.TEACHER_LEAVE_MANAGE],
+    requiredPlanFeature: 'teacher_management',
+  },
+  {
     name: 'profile',
     title: 'Profile',
     icon: 'person',
@@ -111,6 +140,14 @@ export const getVisibleTabs = (
       if (enabledFeatures.length > 0 && !enabledFeatures.includes(tab.requiredPlanFeature)) {
         return false;
       }
+    }
+
+    // "My Leaves" is exclusively for teachers — hide for users who can manage all leaves (admins)
+    if (tab.name === 'my-leaves') {
+      return permissions.includes(PERMS.TEACHER_LEAVE_APPLY) &&
+             !permissions.includes(PERMS.TEACHER_LEAVE_MANAGE) &&
+             !permissions.includes(PERMS.SYSTEM_MANAGE) &&
+             !permissions.includes(PERMS.USER_MANAGE);
     }
 
     // If no permissions required, show to everyone

@@ -1,5 +1,6 @@
 """Academic year API routes - /api/academics/academic-years."""
 
+import logging
 from flask import request, g
 
 from backend.modules.academics import academics_bp
@@ -17,8 +18,9 @@ from backend.shared.helpers import (
     validation_error_response,
 )
 
-PERM_READ = "finance.read"
-PERM_MANAGE = "finance.manage"
+# Academic years are used by classes, students, finance - allow class.manage (academics hub)
+PERM_READ = "class.read"
+PERM_MANAGE = "class.manage"
 
 from . import services
 
@@ -36,16 +38,23 @@ def list_academic_years():
 @academics_bp.route("/academic-years", methods=["POST"])
 @tenant_required
 @auth_required
-@require_plan_feature("fees_management")
+@require_plan_feature("class_management")
 @require_permission(PERM_MANAGE)
 def create_academic_year():
     """POST /api/academics/academic-years"""
-    data = request.get_json() or {}
+    data = request.get_json(silent=True) or {}
     name = data.get("name")
     start_date = data.get("start_date")
     end_date = data.get("end_date")
     if not name or not start_date or not end_date:
-        return validation_error_response({"name": "Required", "start_date": "Required", "end_date": "Required"})
+        missing = [k for k, v in [("name", name), ("start_date", start_date), ("end_date", end_date)] if not v]
+        logging.warning("Academic year create validation failed: missing %s, body keys=%s", missing, list(data.keys()))
+        return error_response(
+            "ValidationError",
+            f"Missing required fields: {', '.join(missing)}",
+            400,
+            details={"name": "Required", "start_date": "Required", "end_date": "Required"},
+        )
     result = services.create_academic_year(
         name=name,
         start_date=start_date,
@@ -61,7 +70,7 @@ def create_academic_year():
 @academics_bp.route("/academic-years/<year_id>", methods=["GET"])
 @tenant_required
 @auth_required
-@require_plan_feature("fees_management")
+@require_plan_feature("class_management")
 @require_any_permission(PERM_READ, PERM_MANAGE)
 def get_academic_year(year_id):
     """GET /api/academics/academic-years/<id>"""
@@ -74,7 +83,7 @@ def get_academic_year(year_id):
 @academics_bp.route("/academic-years/<year_id>", methods=["PUT"])
 @tenant_required
 @auth_required
-@require_plan_feature("fees_management")
+@require_plan_feature("class_management")
 @require_permission(PERM_MANAGE)
 def update_academic_year(year_id):
     """PUT /api/academics/academic-years/<id>"""
@@ -97,7 +106,7 @@ def update_academic_year(year_id):
 @academics_bp.route("/academic-years/<year_id>", methods=["DELETE"])
 @tenant_required
 @auth_required
-@require_plan_feature("fees_management")
+@require_plan_feature("class_management")
 @require_permission(PERM_MANAGE)
 def delete_academic_year(year_id):
     """DELETE /api/academics/academic-years/<id>"""

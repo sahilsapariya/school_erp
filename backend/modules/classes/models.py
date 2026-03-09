@@ -82,13 +82,23 @@ class ClassTeacher(TenantBaseModel):
 
     Maps teachers to classes they teach. A teacher can be assigned to multiple classes,
     and a class can have multiple teachers (for different subjects). Scoped by tenant.
+
+    Subject can be specified via:
+    - subject_id: FK to subjects table (preferred)
+    - subject: legacy string (backward compatibility)
     """
     __tablename__ = "class_teachers"
 
     id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     class_id = db.Column(db.String(36), db.ForeignKey("classes.id"), nullable=False)
     teacher_id = db.Column(db.String(36), db.ForeignKey("teachers.id"), nullable=False)
-    subject = db.Column(db.String(100), nullable=True)  # What subject the teacher teaches in this class
+    subject = db.Column(db.String(100), nullable=True)  # Legacy: free-text subject name
+    subject_id = db.Column(
+        db.String(36),
+        db.ForeignKey("subjects.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     is_class_teacher = db.Column(db.Boolean, default=False)
 
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
@@ -103,12 +113,18 @@ class ClassTeacher(TenantBaseModel):
     # Relationships
     class_ref = db.relationship('Class', backref=db.backref('class_teachers', lazy=True))
     teacher = db.relationship('Teacher', backref=db.backref('class_assignments', lazy=True))
+    subject_ref = db.relationship("Subject", foreign_keys=[subject_id], lazy=True)
 
     def save(self):
         db.session.add(self)
         db.session.commit()
 
     def to_dict(self):
+        subject_name = None
+        if self.subject_id and self.subject_ref:
+            subject_name = self.subject_ref.name
+        elif self.subject:
+            subject_name = self.subject
         return {
             "id": self.id,
             "class_id": self.class_id,
@@ -116,9 +132,59 @@ class ClassTeacher(TenantBaseModel):
             "teacher_name": self.teacher.user.name if self.teacher and self.teacher.user else None,
             "teacher_employee_id": self.teacher.employee_id if self.teacher else None,
             "subject": self.subject,
+            "subject_id": self.subject_id,
+            "subject_name": subject_name,
             "is_class_teacher": self.is_class_teacher,
             "created_at": self.created_at.isoformat(),
         }
 
     def __repr__(self):
         return f"<ClassTeacher class={self.class_id} teacher={self.teacher_id}>"
+
+
+class SubjectLoad(TenantBaseModel):
+    """
+    Subject Weekly Period Load per Class.
+
+    Defines how many periods per week a given subject should be scheduled
+    for a specific class. Used by the timetable generator as a constraint.
+    Unique per (class_id, subject_id, tenant_id).
+    """
+    __tablename__ = "subject_load"
+    __table_args__ = (
+        db.UniqueConstraint("class_id", "subject_id", "tenant_id", name="uq_subject_load_class_subject_tenant"),
+    )
+
+    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    class_id = db.Column(db.String(36), db.ForeignKey("classes.id", ondelete="CASCADE"), nullable=False, index=True)
+    subject_id = db.Column(db.String(36), db.ForeignKey("subjects.id", ondelete="CASCADE"), nullable=False, index=True)
+    weekly_periods = db.Column(db.Integer, nullable=False, default=1)
+
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    class_ref = db.relationship("Class", backref=db.backref("subject_loads", lazy=True))
+    subject_ref = db.relationship("Subject", backref=db.backref("class_loads", lazy=True))
+
+    def save(self):
+        db.session.add(self)
+        db.session.commit()
+
+    def delete(self):
+        db.session.delete(self)
+        db.session.commit()
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "class_id": self.class_id,
+            "subject_id": self.subject_id,
+            "subject_name": self.subject_ref.name if self.subject_ref else None,
+            "subject_code": self.subject_ref.code if self.subject_ref else None,
+            "weekly_periods": self.weekly_periods,
+            "created_at": self.created_at.isoformat(),
+            "updated_at": self.updated_at.isoformat(),
+        }
+
+    def __repr__(self):
+        return f"<SubjectLoad class={self.class_id} subject={self.subject_id} weekly={self.weekly_periods}>"

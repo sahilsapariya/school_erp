@@ -20,17 +20,32 @@ import { useAcademicYearContext } from "@/modules/academics/context/AcademicYear
 import { classService } from "@/modules/classes/services/classService";
 import { Teacher } from "@/modules/teachers/types";
 
+interface EditInitialData {
+  name: string;
+  section: string;
+  academic_year_id: string;
+  teacher_id?: string;
+  start_date?: string;
+  end_date?: string;
+}
+
 interface Props {
   visible: boolean;
   onClose: () => void;
   onSubmit: (data: CreateClassDTO) => Promise<void>;
+  /** When provided, modal acts as Edit mode with pre-filled form. Pass classId for teacher picker. */
+  initialData?: EditInitialData;
+  classId?: string;
 }
 
 export const CreateClassModal: React.FC<Props> = ({
   visible,
   onClose,
   onSubmit,
+  initialData,
+  classId,
 }) => {
+  const isEditMode = !!initialData;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -48,22 +63,41 @@ export const CreateClassModal: React.FC<Props> = ({
 
   useEffect(() => {
     if (visible) {
+      if (initialData) {
+        setName(initialData.name);
+        setSection(initialData.section);
+        setAcademicYearId(initialData.academic_year_id);
+        setClassTeacherId(initialData.teacher_id || "");
+        setStartDate(initialData.start_date || "");
+        setEndDate(initialData.end_date || "");
+      }
       setTeachersLoading(true);
       classService
-        .getAvailableClassTeachers()
+        .getAvailableClassTeachers(classId)
         .then(setTeachers)
         .finally(() => setTeachersLoading(false));
-      setAcademicYearId(contextYearId || "");
+      if (!initialData) {
+        setAcademicYearId(contextYearId || "");
+      }
     }
-  }, [visible, contextYearId]);
+  }, [visible, contextYearId, initialData, classId]);
 
   const resetForm = () => {
-    setName("");
-    setSection("");
-    setAcademicYearId(contextYearId || "");
-    setClassTeacherId("");
-    setStartDate("");
-    setEndDate("");
+    if (initialData) {
+      setName(initialData.name);
+      setSection(initialData.section);
+      setAcademicYearId(initialData.academic_year_id);
+      setClassTeacherId(initialData.teacher_id || "");
+      setStartDate(initialData.start_date || "");
+      setEndDate(initialData.end_date || "");
+    } else {
+      setName("");
+      setSection("");
+      setAcademicYearId(contextYearId || "");
+      setClassTeacherId("");
+      setStartDate("");
+      setEndDate("");
+    }
     setError(null);
   };
 
@@ -87,7 +121,7 @@ export const CreateClassModal: React.FC<Props> = ({
       });
       resetForm();
     } catch (err: any) {
-      setError(err.message || "Failed to create class");
+      setError(err.message || (isEditMode ? "Failed to update class" : "Failed to create class"));
     } finally {
       setLoading(false);
     }
@@ -104,7 +138,7 @@ export const CreateClassModal: React.FC<Props> = ({
           <TouchableOpacity onPress={onClose} style={styles.closeButton}>
             <Ionicons name="close" size={24} color={Colors.text} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Create Class</Text>
+          <Text style={styles.headerTitle}>{isEditMode ? "Edit Class" : "Create Class"}</Text>
           <View style={{ width: 40 }} />
         </View>
 
@@ -224,7 +258,7 @@ export const CreateClassModal: React.FC<Props> = ({
             {loading ? (
               <ActivityIndicator color="#FFFFFF" />
             ) : (
-              <Text style={styles.submitButtonText}>Create Class</Text>
+              <Text style={styles.submitButtonText}>{isEditMode ? "Update Class" : "Create Class"}</Text>
             )}
           </TouchableOpacity>
         </ScrollView>

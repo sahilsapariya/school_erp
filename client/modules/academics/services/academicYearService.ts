@@ -24,11 +24,11 @@ export const academicYearService = {
     return res.academic_years ?? [];
   },
   createAcademicYear: async (payload: CreateAcademicYearPayload): Promise<AcademicYear> => {
-    const res = await apiPost<{ data?: { academic_year?: AcademicYear } }>(
+    const res = await apiPost<{ academic_year?: AcademicYear }>(
       "/api/academics/academic-years",
       payload
     );
-    const ay = (res as any)?.data?.academic_year;
+    const ay = (res as any)?.academic_year;
     if (!ay) throw new Error("Failed to create academic year");
     return ay;
   },

@@ -14,16 +14,50 @@ import { usePermissions } from "@/modules/permissions/hooks/usePermissions";
 import { Protected } from "@/modules/permissions/components/Protected";
 import { useRouter } from "expo-router";
 import * as PERMS from "@/modules/permissions/constants/permissions";
-import { isAdmin } from "@/common/constants/navigation";
+import { isAdmin, isTeacher, getUserRole } from "@/common/constants/navigation";
+
+const ROLE_COLORS: Record<string, string> = {
+  Admin: "#6366f1",
+  Teacher: "#0ea5e9",
+  Student: "#10b981",
+  Parent: "#f59e0b",
+};
+
+const ROLE_ICONS: Record<string, keyof typeof import("@expo/vector-icons").Ionicons.glyphMap> = {
+  Admin: "shield-checkmark-outline",
+  Teacher: "school-outline",
+  Student: "person-outline",
+  Parent: "people-outline",
+};
+
+interface ActionCardProps {
+  icon: keyof typeof import("@expo/vector-icons").Ionicons.glyphMap;
+  label: string;
+  onPress: () => void;
+  color?: string;
+}
+
+function ActionCard({ icon, label, onPress, color }: ActionCardProps) {
+  return (
+    <TouchableOpacity style={styles.actionCard} onPress={onPress} activeOpacity={0.75}>
+      <View style={[styles.actionIcon, { backgroundColor: (color ?? Colors.primary) + "18" }]}>
+        <Ionicons name={icon} size={26} color={color ?? Colors.primary} />
+      </View>
+      <Text style={styles.actionLabel}>{label}</Text>
+    </TouchableOpacity>
+  );
+}
 
 export default function ProtectedHomeScreen() {
   const { user, logout, isFeatureEnabled } = useAuth();
   const { permissions } = usePermissions();
   const router = useRouter();
 
-  const handleLogout = async () => {
-    await logout();
-  };
+  const role = getUserRole(permissions);
+  const roleColor = ROLE_COLORS[role] ?? Colors.primary;
+  const roleIcon = ROLE_ICONS[role] ?? "person-outline";
+  const adminUser = isAdmin(permissions);
+  const teacherUser = isTeacher(permissions);
 
   return (
     <ScrollView
@@ -31,333 +65,200 @@ export default function ProtectedHomeScreen() {
       contentContainerStyle={styles.contentContainer}
       showsVerticalScrollIndicator={false}
     >
-      {/* Header Section */}
+      {/* Welcome header */}
       <View style={styles.header}>
-        <View style={styles.iconContainer}>
-          <Ionicons name="shield-checkmark" size={64} color={Colors.primary} />
+        <View style={[styles.avatarRing, { borderColor: roleColor }]}>
+          <Ionicons name={roleIcon} size={40} color={roleColor} />
         </View>
-        <Text style={styles.title}>Welcome!</Text>
-        <Text style={styles.subtitle}>{user?.email}</Text>
+        <Text style={styles.welcomeText}>Welcome back</Text>
+        <Text style={styles.nameText}>{user?.name ?? user?.email}</Text>
+        <View style={[styles.roleBadge, { backgroundColor: roleColor + "18", borderColor: roleColor + "40" }]}>
+          <Text style={[styles.roleText, { color: roleColor }]}>{role}</Text>
+        </View>
       </View>
 
-      {/* Cards Container */}
-      <View style={styles.cardsContainer}>
-        {/* User Info Card */}
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <Ionicons
-              name="person-circle-outline"
-              size={24}
-              color={Colors.primary}
-            />
-            <Text style={styles.cardTitle}>Your Profile</Text>
-          </View>
-          <View style={styles.cardContent}>
-            <Text style={styles.cardText}>Email: {user?.email}</Text>
-            <Text style={styles.cardText}>ID: {user?.id}</Text>
-          </View>
-        </View>
-
-        {/* Permissions Card */}
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <Ionicons name="key-outline" size={24} color={Colors.primary} />
-            <Text style={styles.cardTitle}>
-              Your Permissions ({permissions.length})
-            </Text>
-          </View>
-          <View style={styles.cardContent}>
-            {permissions.length > 0 ? (
-              permissions.slice(0, 5).map((perm, index) => (
-                <View key={index} style={styles.permissionItem}>
-                  <Ionicons
-                    name="checkmark-circle"
-                    size={16}
-                    color={Colors.success}
-                  />
-                  <Text style={styles.permissionText}>{perm}</Text>
-                </View>
-              ))
-            ) : (
-              <Text style={styles.noPermissions}>No permissions assigned</Text>
-            )}
-            {permissions.length > 5 && (
-              <Text style={styles.moreText}>
-                +{permissions.length - 5} more permissions
-              </Text>
-            )}
-          </View>
-        </View>
-
-        {/* Quick Actions - Shown based on permissions */}
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <Ionicons name="apps-outline" size={24} color={Colors.primary} />
-            <Text style={styles.cardTitle}>Quick Actions</Text>
-          </View>
+      {/* ── ADMIN QUICK ACTIONS ── */}
+      {adminUser && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Management</Text>
           <View style={styles.actionsGrid}>
-            {/* Show Create Student button - only when plan has student_management */}
             {isFeatureEnabled("student_management") && (
               <Protected permission={PERMS.STUDENT_CREATE}>
-                <TouchableOpacity
-                  style={styles.actionButton}
-                  onPress={() =>
-                    router.push({
-                      pathname: "/(protected)/students",
-                      params: { action: "create" },
-                    })
-                  }
-                >
-                  <Ionicons name="person-add" size={24} color={Colors.primary} />
-                  <Text style={styles.actionText}>Create Student</Text>
-                </TouchableOpacity>
+                <ActionCard icon="person-add-outline" label="Add Student"
+                  onPress={() => router.push({ pathname: "/(protected)/students", params: { action: "create" } })} />
               </Protected>
             )}
-
-            {/* Show Mark Attendance button (Teacher only, not admin) - when plan has attendance */}
-            {isFeatureEnabled("attendance") && (
-              <Protected permission={PERMS.ATTENDANCE_MARK}>
-                {!isAdmin(permissions) && (
-                  <TouchableOpacity
-                    style={styles.actionButton}
-                    onPress={() => router.push("/(protected)/attendance/my-classes" as any)}
-                  >
-                    <Ionicons
-                      name="checkbox-outline"
-                      size={24}
-                      color={Colors.primary}
-                    />
-                    <Text style={styles.actionText}>Mark Attendance</Text>
-                  </TouchableOpacity>
-                )}
-              </Protected>
-            )}
-
-            {/* Show My Attendance button (Student only, not admin) */}
-            {isFeatureEnabled("attendance") && (
-              <Protected permission={PERMS.ATTENDANCE_READ_SELF}>
-                {!isAdmin(permissions) && (
-                  <TouchableOpacity
-                    style={styles.actionButton}
-                    onPress={() => router.push("/(protected)/attendance/my-attendance" as any)}
-                  >
-                    <Ionicons
-                      name="calendar-outline"
-                      size={24}
-                      color={Colors.primary}
-                    />
-                    <Text style={styles.actionText}>My Attendance</Text>
-                  </TouchableOpacity>
-                )}
-              </Protected>
-            )}
-
-            {/* Show Attendance Overview (Admin) */}
-            {isFeatureEnabled("attendance") && (
-              <Protected permission={PERMS.ATTENDANCE_READ_ALL}>
-                <TouchableOpacity
-                  style={styles.actionButton}
-                  onPress={() => router.push("/(protected)/attendance/overview" as any)}
-                >
-                  <Ionicons
-                    name="stats-chart-outline"
-                    size={24}
-                    color={Colors.primary}
-                  />
-                  <Text style={styles.actionText}>Attendance Overview</Text>
-                </TouchableOpacity>
-              </Protected>
-            )}
-
-            {/* Show Teachers - only when plan has teacher_management */}
             {isFeatureEnabled("teacher_management") && (
               <Protected anyPermissions={[PERMS.TEACHER_READ, PERMS.TEACHER_MANAGE]}>
-                <TouchableOpacity
-                  style={styles.actionButton}
-                  onPress={() => router.push("/(protected)/teachers" as any)}
-                >
-                  <Ionicons
-                    name="school-outline"
-                    size={24}
-                    color={Colors.primary}
-                  />
-                  <Text style={styles.actionText}>Teachers</Text>
-                </TouchableOpacity>
+                <ActionCard icon="school-outline" label="Teachers"
+                  onPress={() => router.push("/(protected)/teachers" as any)} />
               </Protected>
             )}
-
-            {/* Show Classes - only when plan has class_management */}
             {isFeatureEnabled("class_management") && (
               <Protected anyPermissions={[PERMS.CLASS_READ, PERMS.CLASS_MANAGE]}>
-                <TouchableOpacity
-                  style={styles.actionButton}
-                onPress={() => router.push("/(protected)/classes" as any)}
-              >
-                <Ionicons
-                  name="library-outline"
-                  size={24}
-                  color={Colors.primary}
-                />
-                <Text style={styles.actionText}>Classes</Text>
-              </TouchableOpacity>
+                <ActionCard icon="library-outline" label="Classes"
+                  onPress={() => router.push("/(protected)/classes" as any)} />
               </Protected>
             )}
+            {isFeatureEnabled("student_management") && (
+              <Protected anyPermissions={[PERMS.STUDENT_READ_ALL, PERMS.STUDENT_MANAGE]}>
+                <ActionCard icon="people-outline" label="Students"
+                  onPress={() => router.push("/(protected)/students" as any)} />
+              </Protected>
+            )}
+            {isFeatureEnabled("fees_management") && (
+              <Protected anyPermissions={[PERMS.FINANCE_READ, PERMS.FINANCE_MANAGE]}>
+                <ActionCard icon="wallet-outline" label="Finance"
+                  onPress={() => router.push("/(protected)/finance" as any)} color="#10b981" />
+              </Protected>
+            )}
+            {isFeatureEnabled("attendance") && (
+              <Protected permission={PERMS.ATTENDANCE_READ_ALL}>
+                <ActionCard icon="stats-chart-outline" label="Attendance"
+                  onPress={() => router.push("/(protected)/attendance/overview" as any)} color="#f59e0b" />
+              </Protected>
+            )}
+          </View>
+        </View>
+      )}
 
-            {/* Show Admin Panel only for admins */}
-            <Protected
-              anyPermissions={[PERMS.USER_MANAGE, PERMS.SYSTEM_MANAGE]}
-            >
-              <TouchableOpacity style={styles.actionButton}>
-                <Ionicons
-                  name="settings-outline"
-                  size={24}
-                  color={Colors.primary}
-                />
-                <Text style={styles.actionText}>Admin Panel</Text>
-              </TouchableOpacity>
+      {adminUser && isFeatureEnabled("teacher_management") && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Leave Management</Text>
+          <View style={styles.actionsGrid}>
+            <Protected permission={PERMS.TEACHER_LEAVE_MANAGE}>
+              <ActionCard icon="document-text-outline" label="Leave Requests"
+                onPress={() => router.push("/(protected)/teacher-leaves" as any)} color="#6366f1" />
             </Protected>
           </View>
         </View>
+      )}
 
-        {/* Info Card */}
-        <View style={styles.infoCard}>
-          <Ionicons
-            name="information-circle-outline"
-            size={20}
-            color={Colors.primary}
-          />
-          <Text style={styles.infoText}>
-            This dashboard shows features based on your assigned permissions.
-            Contact your administrator if you need additional access.
-          </Text>
+      {/* ── TEACHER QUICK ACTIONS ── */}
+      {teacherUser && !adminUser && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Quick Actions</Text>
+          <View style={styles.actionsGrid}>
+            {isFeatureEnabled("attendance") && (
+              <Protected permission={PERMS.ATTENDANCE_MARK}>
+                <ActionCard icon="checkbox-outline" label="Mark Attendance"
+                  onPress={() => router.push("/(protected)/attendance/my-classes" as any)} color="#0ea5e9" />
+              </Protected>
+            )}
+            {isFeatureEnabled("class_management") && (
+              <Protected anyPermissions={[PERMS.TIMETABLE_READ, PERMS.TIMETABLE_MANAGE]}>
+                <ActionCard icon="grid-outline" label="Timetable"
+                  onPress={() => router.push("/(protected)/classes" as any)} color="#8b5cf6" />
+              </Protected>
+            )}
+            {isFeatureEnabled("teacher_management") && (
+              <Protected permission={PERMS.TEACHER_LEAVE_APPLY}>
+                <ActionCard icon="calendar-outline" label="My Leaves"
+                  onPress={() => router.push("/(protected)/my-leaves" as any)} color="#f59e0b" />
+              </Protected>
+            )}
+            <ActionCard icon="book-outline" label="Academics"
+              onPress={() => router.push("/(protected)/academics" as any)} color="#10b981" />
+            <ActionCard icon="calendar-outline" label="Schedule"
+              onPress={() => router.push("/(protected)/schedule/today" as any)} color="#6366f1" />
+          </View>
         </View>
+      )}
 
-        {/* Logout Button */}
-        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-          <Ionicons name="log-out-outline" size={20} color={Colors.error} />
-          <Text style={styles.logoutText}>Logout</Text>
-        </TouchableOpacity>
-      </View>
+      {/* ── STUDENT QUICK ACTIONS ── */}
+      {!adminUser && !teacherUser && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Quick Actions</Text>
+          <View style={styles.actionsGrid}>
+            {isFeatureEnabled("attendance") && (
+              <Protected permission={PERMS.ATTENDANCE_READ_SELF}>
+                <ActionCard icon="calendar-outline" label="My Attendance"
+                  onPress={() => router.push("/(protected)/attendance/my-attendance" as any)} color="#0ea5e9" />
+              </Protected>
+            )}
+            <ActionCard icon="book-outline" label="Academics"
+              onPress={() => router.push("/(protected)/academics" as any)} color="#10b981" />
+            {isFeatureEnabled("fees_management") && (
+              <Protected anyPermissions={[PERMS.FEE_PAY, PERMS.FEE_READ_SELF, PERMS.FEE_READ_CHILD]}>
+                <ActionCard icon="wallet-outline" label="Finance"
+                  onPress={() => router.push("/(protected)/finance" as any)} color="#f59e0b" />
+              </Protected>
+            )}
+            <ActionCard icon="person-outline" label="Profile"
+              onPress={() => router.push("/(protected)/profile" as any)} />
+          </View>
+        </View>
+      )}
+
+      {/* Logout */}
+      <TouchableOpacity style={styles.logoutButton} onPress={logout}>
+        <Ionicons name="log-out-outline" size={20} color={Colors.error} />
+        <Text style={styles.logoutText}>Logout</Text>
+      </TouchableOpacity>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  contentContainer: {
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.xl,
-    paddingBottom: Spacing.lg,
-  },
-  header: {
+  container: { flex: 1, backgroundColor: Colors.background },
+  contentContainer: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.xl, paddingBottom: Spacing.xl },
+
+  header: { alignItems: "center", marginBottom: Spacing.xl, gap: Spacing.sm },
+  avatarRing: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    borderWidth: 3,
+    justifyContent: "center",
     alignItems: "center",
-    marginBottom: Spacing.xl,
+    backgroundColor: Colors.backgroundSecondary,
+    marginBottom: Spacing.sm,
   },
-  iconContainer: {
+  welcomeText: { fontSize: 14, color: Colors.textSecondary },
+  nameText: { fontSize: 22, fontWeight: "700", color: Colors.text, textAlign: "center" },
+  roleBadge: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 4,
+    borderRadius: 20,
+    borderWidth: 1,
+    marginTop: 2,
+  },
+  roleText: { fontSize: 13, fontWeight: "600" },
+
+  section: { marginBottom: Spacing.xl },
+  sectionTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: Colors.textSecondary,
+    letterSpacing: 0.8,
+    textTransform: "uppercase",
     marginBottom: Spacing.md,
   },
-  title: {
-    fontSize: 32,
-    fontWeight: "700",
-    color: Colors.text,
-    marginBottom: Spacing.sm,
-    fontFamily: "System",
-  },
-  subtitle: {
-    fontSize: 16,
-    color: Colors.textSecondary,
-    fontFamily: "System",
-  },
-  cardsContainer: {
-    gap: Spacing.md,
-  },
-  card: {
+  actionsGrid: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.md },
+  actionCard: {
+    width: "47%",
     backgroundColor: Colors.backgroundSecondary,
     borderRadius: Layout.borderRadius.lg,
     padding: Spacing.md,
-  },
-  cardHeader: {
-    flexDirection: "row",
     alignItems: "center",
-    marginBottom: Spacing.md,
-  },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: Colors.text,
-    marginLeft: Spacing.sm,
-    fontFamily: "System",
-  },
-  cardContent: {
     gap: Spacing.sm,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
   },
-  cardText: {
-    fontSize: 14,
-    color: Colors.textSecondary,
-    fontFamily: "System",
-  },
-  permissionItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: Spacing.xs,
-  },
-  permissionText: {
-    fontSize: 13,
-    color: Colors.text,
-    marginLeft: Spacing.sm,
-    fontFamily: "System",
-  },
-  noPermissions: {
-    fontSize: 14,
-    color: Colors.textSecondary,
-    fontStyle: "italic",
-    fontFamily: "System",
-  },
-  moreText: {
-    fontSize: 12,
-    color: Colors.primary,
-    marginTop: Spacing.xs,
-    fontFamily: "System",
-  },
-  actionsGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: Spacing.md,
-    marginTop: Spacing.sm,
-  },
-  actionButton: {
-    backgroundColor: Colors.background,
-    borderRadius: Layout.borderRadius.md,
-    padding: Spacing.md,
-    alignItems: "center",
+  actionIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 16,
     justifyContent: "center",
-    width: "47%",
+    alignItems: "center",
   },
-  actionText: {
-    fontSize: 12,
+  actionLabel: {
+    fontSize: 13,
+    fontWeight: "500",
     color: Colors.text,
-    marginTop: Spacing.sm,
     textAlign: "center",
-    fontFamily: "System",
   },
-  infoCard: {
-    flexDirection: "row",
-    backgroundColor: Colors.backgroundSecondary,
-    padding: Spacing.md,
-    borderRadius: Layout.borderRadius.md,
-    borderLeftWidth: 4,
-    borderLeftColor: Colors.primary,
-  },
-  infoText: {
-    fontSize: 14,
-    color: Colors.textSecondary,
-    marginLeft: Spacing.md,
-    flex: 1,
-    lineHeight: 20,
-    fontFamily: "System",
-  },
+
   logoutButton: {
     flexDirection: "row",
     alignItems: "center",
@@ -366,13 +267,9 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
     borderRadius: Layout.borderRadius.md,
     borderWidth: 1,
-    borderColor: Colors.error,
+    borderColor: Colors.error + "60",
+    gap: Spacing.sm,
+    marginTop: Spacing.sm,
   },
-  logoutText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: Colors.error,
-    marginLeft: Spacing.sm,
-    fontFamily: "System",
-  },
+  logoutText: { fontSize: 15, fontWeight: "600", color: Colors.error },
 });

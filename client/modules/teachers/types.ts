@@ -1,3 +1,9 @@
+export interface TeacherSubjectItem {
+  id: string;
+  name: string;
+  code?: string;
+}
+
 export interface Teacher {
   id: string;
   user_id: string;
@@ -15,6 +21,72 @@ export interface Teacher {
   date_of_joining?: string;
   status: string;
   created_at: string;
+  subjects?: TeacherSubjectItem[];
+}
+
+// --- Teacher Subject Expertise ---
+export interface TeacherSubject {
+  id: string;
+  teacher_id: string;
+  subject_id: string;
+  subject_name?: string;
+  subject_code?: string;
+  created_at: string;
+}
+
+// --- Teacher Availability ---
+export interface TeacherAvailability {
+  id: string;
+  teacher_id: string;
+  day_of_week: number;
+  period_number: number;
+  available: boolean;
+  created_at: string;
+}
+
+export interface CreateAvailabilityDTO {
+  day_of_week: number;
+  period_number: number;
+  available: boolean;
+}
+
+// --- Teacher Leaves ---
+export type LeaveStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
+
+export interface TeacherLeave {
+  id: string;
+  teacher_id: string;
+  teacher_name?: string;
+  teacher_employee_id?: string;
+  start_date: string;
+  end_date: string;
+  leave_type: string;
+  reason?: string;
+  status: LeaveStatus;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateLeaveDTO {
+  start_date: string;
+  end_date: string;
+  leave_type: string;
+  reason?: string;
+}
+
+// --- Teacher Workload ---
+export interface TeacherWorkload {
+  id: string;
+  teacher_id: string;
+  max_periods_per_day: number;
+  max_periods_per_week: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WorkloadDTO {
+  max_periods_per_day: number;
+  max_periods_per_week: number;
 }
 
 export interface CreateTeacherDTO {

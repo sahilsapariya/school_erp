@@ -5,6 +5,7 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  ActivityIndicator,
 } from "react-native";
 import { Colors } from "@/common/constants/colors";
 import { Spacing, Layout } from "@/common/constants/spacing";
@@ -14,13 +15,15 @@ import { usePermissions } from "@/modules/permissions/hooks/usePermissions";
 import { useAuth } from "@/modules/auth/hooks/useAuth";
 import { useRouter } from "expo-router";
 import * as PERMS from "@/modules/permissions/constants/permissions";
+import { useAcademicsOverview } from "@/modules/academics/hooks/useAcademicsOverview";
 
 export default function AcademicsScreen() {
   const { hasAnyPermission } = usePermissions();
   const { isFeatureEnabled } = useAuth();
   const router = useRouter();
-
   const isAdmin = hasAnyPermission([PERMS.SYSTEM_MANAGE, PERMS.USER_MANAGE]);
+  const { data: overview, isLoading: overviewLoading } = useAcademicsOverview(isAdmin);
+
   const isTeacher = hasAnyPermission([
     PERMS.ATTENDANCE_MARK,
     PERMS.GRADE_CREATE,
@@ -58,7 +61,11 @@ export default function AcademicsScreen() {
                   size={32}
                   color={Colors.primary}
                 />
-                <Text style={styles.statValue}>24</Text>
+                {overviewLoading ? (
+                  <ActivityIndicator size="small" color={Colors.primary} style={{ marginTop: Spacing.sm }} />
+                ) : (
+                  <Text style={styles.statValue}>{overview?.total_classes ?? 0}</Text>
+                )}
                 <Text style={styles.statLabel}>Classes</Text>
               </View>
               <View style={styles.statCard}>
@@ -67,8 +74,12 @@ export default function AcademicsScreen() {
                   size={32}
                   color={Colors.primary}
                 />
-                <Text style={styles.statValue}>156</Text>
-                <Text style={styles.statLabel}>Courses</Text>
+                {overviewLoading ? (
+                  <ActivityIndicator size="small" color={Colors.primary} style={{ marginTop: Spacing.sm }} />
+                ) : (
+                  <Text style={styles.statValue}>{overview?.total_subjects ?? 0}</Text>
+                )}
+                <Text style={styles.statLabel}>Subjects</Text>
               </View>
             </View>
           </View>
@@ -82,7 +93,10 @@ export default function AcademicsScreen() {
             {(isStudent || isParent) && "Classes"}
           </Text>
 
-          <TouchableOpacity style={styles.actionCard}>
+          <TouchableOpacity
+            style={styles.actionCard}
+            onPress={() => router.push("/(protected)/classes" as any)}
+          >
             <View style={styles.cardContent}>
               <View style={styles.cardIcon}>
                 <Ionicons
@@ -360,7 +374,10 @@ export default function AcademicsScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Lectures & Schedule</Text>
 
-          <TouchableOpacity style={styles.actionCard}>
+          <TouchableOpacity
+            style={styles.actionCard}
+            onPress={() => router.push("/(protected)/schedule/today" as any)}
+          >
             <View style={styles.cardContent}>
               <View style={styles.cardIcon}>
                 <Ionicons
@@ -383,7 +400,10 @@ export default function AcademicsScreen() {
             />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.actionCard}>
+          <TouchableOpacity
+            style={styles.actionCard}
+            onPress={() => router.push("/(protected)/timetable" as any)}
+          >
             <View style={styles.cardContent}>
               <View style={styles.cardIcon}>
                 <Ionicons

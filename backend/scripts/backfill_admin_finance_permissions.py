@@ -12,7 +12,7 @@ from backend.app import create_app
 from backend.core.models import Tenant, TENANT_STATUS_ACTIVE, TENANT_STATUS_SUSPENDED
 from backend.scripts.seed_rbac import PERMISSIONS
 from backend.modules.rbac.services import create_permission
-from backend.modules.platform.services import seed_roles_for_tenant
+from backend.modules.rbac.role_seeder import seed_roles_for_tenant
 
 
 def ensure_permissions():

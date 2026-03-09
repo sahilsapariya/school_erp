@@ -9,6 +9,7 @@ from backend.core.tenant import get_tenant_id
 from backend.core.models import Tenant
 from backend.modules.auth.models import User
 from backend.modules.rbac.services import assign_role_to_user_by_email
+from backend.modules.rbac.role_seeder import seed_roles_for_tenant
 from backend.modules.classes.models import Class
 from .models import Student
 
@@ -223,12 +224,16 @@ def create_student(
                 user.email_verified = True  # Auto-verify for admin-created students
                 user.force_password_reset = True  # Force password change on first login
                 user.save()
-                
-                # Assign Student role
-                role_result = assign_role_to_user_by_email(email, 'Student')
-                if not role_result['success']:
-                    # Log warning but continue (admin can assign role later)
-                    print(f"Warning: Could not assign Student role: {role_result.get('error')}")
+
+            # Ensure Student role exists and has all its permissions for this tenant.
+            # This is a no-op if everything is already correct (idempotent).
+            seed_roles_for_tenant(tenant_id)
+
+            # Assign Student role (for both new and existing users)
+            role_result = assign_role_to_user_by_email(email, 'Student', tenant_id=tenant_id)
+            if not role_result['success']:
+                db.session.rollback()
+                return {'success': False, 'error': f"Could not assign Student role: {role_result.get('error')}"}
         
         # Student without email/login credentials - create minimal user placeholder
         if not user:

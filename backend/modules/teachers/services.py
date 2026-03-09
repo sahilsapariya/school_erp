@@ -8,6 +8,7 @@ from backend.core.tenant import get_tenant_id
 from backend.core.models import Tenant
 from backend.modules.auth.models import User
 from backend.modules.rbac.services import assign_role_to_user_by_email
+from backend.modules.rbac.role_seeder import seed_roles_for_tenant
 from .models import Teacher
 
 
@@ -126,10 +127,15 @@ def create_teacher(
             user.force_password_reset = True
             user.save()
 
-            # Assign Teacher role
-            role_result = assign_role_to_user_by_email(actual_email, 'Teacher')
-            if not role_result['success']:
-                print(f"Warning: Could not assign Teacher role: {role_result.get('error')}")
+        # Ensure Teacher role exists and has all its permissions for this tenant.
+        # This is a no-op if everything is already correct (idempotent).
+        seed_roles_for_tenant(tenant_id)
+
+        # Assign Teacher role (for both new and existing users)
+        role_result = assign_role_to_user_by_email(actual_email, 'Teacher', tenant_id=tenant_id)
+        if not role_result['success']:
+            db.session.rollback()
+            return {'success': False, 'error': f"Could not assign Teacher role: {role_result.get('error')}"}
 
         teacher = Teacher(
             tenant_id=tenant_id,
@@ -201,9 +207,9 @@ def list_teachers(search: Optional[str] = None, status: Optional[str] = None) ->
 
 
 def get_teacher_by_id(teacher_id: str) -> Optional[Dict]:
-    """Get teacher details by ID."""
+    """Get teacher details by ID, including subject expertise."""
     teacher = Teacher.query.get(teacher_id)
-    return teacher.to_dict() if teacher else None
+    return teacher.to_dict(include_subjects=True) if teacher else None
 
 
 def get_teacher_by_user_id(user_id: str) -> Optional[Dict]:
@@ -266,6 +272,14 @@ def delete_teacher(teacher_id: str) -> Dict:
         teacher = Teacher.query.get(teacher_id)
         if not teacher:
             return {'success': False, 'error': 'Teacher not found'}
+
+        # class_teachers has no ON DELETE CASCADE on its FK, so SQLAlchemy would
+        # try to SET teacher_id = NULL (NOT NULL column) and raise a violation.
+        # Explicitly remove those rows before deleting the teacher.
+        from backend.modules.classes.models import ClassTeacher
+        ClassTeacher.query.filter_by(teacher_id=teacher_id).delete(synchronize_session=False)
+        db.session.flush()
+
         teacher.delete()
         return {'success': True, 'message': 'Teacher deleted successfully'}
     except Exception as e:

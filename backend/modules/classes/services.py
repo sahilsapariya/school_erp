@@ -324,17 +324,35 @@ def remove_student_from_class(class_id: str, student_id: str) -> Dict:
         return {'success': False, 'error': str(e)}
 
 
-def assign_teacher_to_class(class_id: str, teacher_id: str, subject: str = None, is_class_teacher: bool = False) -> Dict:
-    """Assign a teacher to a class."""
+def assign_teacher_to_class(
+    class_id: str,
+    teacher_id: str,
+    subject_id: str = None,
+    is_class_teacher: bool = False,
+) -> Dict:
+    """
+    Assign a teacher to a class.
+
+    Validates: class exists, teacher exists, subject exists.
+    """
     try:
+        from backend.modules.teachers.models import Teacher
+        from backend.modules.subjects.models import Subject
+
         cls = Class.query.get(class_id)
         if not cls:
             return {'success': False, 'error': 'Class not found'}
 
-        from backend.modules.teachers.models import Teacher
         teacher = Teacher.query.get(teacher_id)
         if not teacher:
             return {'success': False, 'error': 'Teacher not found'}
+
+        subject_id_val = None
+        if subject_id:
+            subj = Subject.query.filter_by(id=subject_id, tenant_id=cls.tenant_id).first()
+            if not subj:
+                return {'success': False, 'error': 'Subject not found'}
+            subject_id_val = subj.id
 
         # Check if already assigned
         existing = ClassTeacher.query.filter_by(class_id=class_id, teacher_id=teacher_id).first()
@@ -377,7 +395,8 @@ def assign_teacher_to_class(class_id: str, teacher_id: str, subject: str = None,
             tenant_id=cls.tenant_id,
             class_id=class_id,
             teacher_id=teacher_id,
-            subject=subject,
+            subject_id=subject_id_val,
+            subject=None,  # Use subject_id only
             is_class_teacher=is_class_teacher,
         )
         db.session.add(ct)

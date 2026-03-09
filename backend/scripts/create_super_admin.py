@@ -58,7 +58,7 @@ def create_super_admin_user(email: str, password: str, name: str = None) -> bool
         tenant_id = default_tenant.id
 
         # 2. Ensure global permissions exist (needed for roles)
-        from backend.modules.platform.services import seed_roles_for_tenant
+        from backend.modules.rbac.role_seeder import seed_roles_for_tenant
         n = ensure_permissions()
         if n:
             print(f"✓ Created {n} global permission(s)")

@@ -58,7 +58,7 @@ def create_admin_user(email: str, password: str, name: str = None, tenant_id: st
         print(f"✓ User created: {email}")
         
         # Assign Admin role
-        result = assign_role_to_user_by_email(email, 'Admin')
+        result = assign_role_to_user_by_email(email, 'Admin', tenant_id=tenant_id)
         if result['success']:
             print(f"✓ Admin role assigned to {email}")
             return True

@@ -68,8 +68,13 @@ def create_class():
 @require_plan_feature('class_management')
 @require_permission(PERM_READ)
 def get_available_class_teachers():
-    """Get teachers who can be selected as class teacher (excludes those already class teacher of another class)."""
-    teachers = services.get_available_class_teachers()
+    """
+    Get teachers who can be selected as class teacher (excludes those already
+    class teacher of another class). Pass class_id when editing to include the
+    current class's teacher in the list.
+    """
+    class_id = request.args.get('class_id')
+    teachers = services.get_available_class_teachers(class_id=class_id)
     return success_response(data=teachers)
 
 
@@ -161,17 +166,26 @@ def remove_student(class_id, student_id):
 @require_plan_feature('class_management')
 @require_permission(PERM_UPDATE)
 def assign_teacher(class_id):
-    """Assign a teacher to a class."""
-    data = request.get_json()
+    """
+    Assign a teacher to a class.
+
+    Body: { teacher_id, subject_id, is_class_teacher }
+    """
+    data = request.get_json() or {}
     teacher_id = data.get('teacher_id')
+    subject_id = data.get('subject_id')
+    is_class_teacher = data.get('is_class_teacher', False)
+
     if not teacher_id:
         return validation_error_response('teacher_id is required')
+    if not subject_id:
+        return validation_error_response('subject_id is required')
 
     result = services.assign_teacher_to_class(
         class_id,
         teacher_id,
-        subject=data.get('subject'),
-        is_class_teacher=data.get('is_class_teacher', False),
+        subject_id=subject_id,
+        is_class_teacher=is_class_teacher,
     )
     if result['success']:
         return success_response(data=result.get('assignment'), message=result['message'])
