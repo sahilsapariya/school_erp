@@ -18,6 +18,7 @@ from flask_cors import CORS
 from backend.config import get_config
 from backend.core.database import db, init_db
 from backend.core.extensions import init_extensions
+from backend.utils.memory_monitor import start_memory_monitor
 
 
 def create_app(config_name=None):
@@ -67,7 +68,10 @@ def create_app(config_name=None):
     # Production-specific initialization
     if config_class.__name__ == 'ProductionConfig':
         config_class.init_app(app)
-    
+
+    # Start lightweight memory monitoring (logs RSS/VMS/CPU every 30s)
+    start_memory_monitor(interval=30)
+
     return app
 
 

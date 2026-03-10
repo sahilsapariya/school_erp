@@ -8,10 +8,10 @@ export OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES
 
 echo "Starting Celery worker + beat..."
 
-# Start Celery worker with beat scheduler in background
-celery -A backend.celery_worker:celery worker -B -l info &
+# Run only ONE celery worker to keep memory low
+celery -A backend.celery_worker:celery worker -B --concurrency=1 -l info &
 
 echo "Starting Flask API with Gunicorn..."
 
-# Start Flask API
-exec gunicorn -c gunicorn_conf.py "backend.app:app"
+# Run only one gunicorn worker
+exec gunicorn -c gunicorn_conf.py backend.app:app --workers 1 --threads 2
