@@ -118,6 +118,17 @@ export const ALL_TABS: TabConfig[] = [
     requiredPlanFeature: 'teacher_management',
   },
   {
+    name: 'holidays',
+    title: 'Holidays',
+    icon: 'calendar',
+    iconOutline: 'calendar-outline',
+    requiredPermissions: [
+      PERMS.HOLIDAY_READ,
+      PERMS.HOLIDAY_MANAGE,
+    ],
+    requiredPlanFeature: 'holiday_management',
+  },
+  {
     name: 'profile',
     title: 'Profile',
     icon: 'person',

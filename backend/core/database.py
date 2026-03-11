@@ -81,6 +81,7 @@ def init_db(app):
         from backend.modules.subjects.models import Subject
         from backend.modules.timetable.models import TimetableSlot, TimetableConfig
         from backend.modules.schedule.models import ScheduleOverride
+        from backend.modules.holidays.models import Holiday
 
 
 def reset_db(app):

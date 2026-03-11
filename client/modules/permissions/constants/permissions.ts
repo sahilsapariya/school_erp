@@ -126,6 +126,13 @@ export const REPORT_READ_ALL = 'report.read.all';
 export const REPORT_GENERATE = 'report.generate';
 export const REPORT_MANAGE = 'report.manage';
 
+// Holiday Management
+export const HOLIDAY_READ = 'holiday.read';
+export const HOLIDAY_CREATE = 'holiday.create';
+export const HOLIDAY_UPDATE = 'holiday.update';
+export const HOLIDAY_DELETE = 'holiday.delete';
+export const HOLIDAY_MANAGE = 'holiday.manage';
+
 // Helper function to check if a permission belongs to a resource
 export const isResourcePermission = (permission: string, resource: string): boolean => {
   return permission.startsWith(`${resource}.`);

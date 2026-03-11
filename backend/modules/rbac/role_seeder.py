@@ -28,6 +28,7 @@ DEFAULT_ROLES: Dict[str, dict] = {
             "subject.manage", "timetable.manage",
             "finance.read", "finance.manage", "finance.collect", "finance.refund",
             "teacher.leave.manage",
+            "holiday.manage",
         ],
     },
     "Teacher": {
@@ -37,6 +38,7 @@ DEFAULT_ROLES: Dict[str, dict] = {
             "grades.create", "grades.update", "grades.read.class",
             "course.read", "class.read", "subject.read", "timetable.read",
             "teacher.leave.apply",
+            "holiday.read",
         ],
     },
     "Student": {
@@ -44,6 +46,7 @@ DEFAULT_ROLES: Dict[str, dict] = {
         "permissions": [
             "student.read.self", "attendance.read.self", "grades.read.self",
             "course.read", "timetable.read",
+            "holiday.read",
         ],
     },
     "Parent": {
@@ -51,6 +54,7 @@ DEFAULT_ROLES: Dict[str, dict] = {
         "permissions": [
             "student.read.self", "attendance.read.self", "grades.read.self",
             "course.read", "timetable.read",
+            "holiday.read",
         ],
     },
 }

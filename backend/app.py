@@ -128,6 +128,7 @@ def register_blueprints(app: Flask):
     from backend.modules.subjects import subjects_bp
     from backend.modules.timetable import timetable_bp
     from backend.modules.schedule import schedule_bp
+    from backend.modules.holidays import holidays_bp
 
     # Register blueprints with URL prefixes
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
@@ -144,6 +145,7 @@ def register_blueprints(app: Flask):
     app.register_blueprint(timetable_bp, url_prefix='/api/timetable')
     app.register_blueprint(schedule_bp, url_prefix='/api/schedule')
     app.register_blueprint(notifications_bp, url_prefix='/api')
+    app.register_blueprint(holidays_bp, url_prefix='/api/holidays')
 
 
 def register_error_handlers(app: Flask):

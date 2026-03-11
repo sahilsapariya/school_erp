@@ -109,6 +109,13 @@ PERMISSIONS = [
     ('finance.collect', 'Collect fee payments'),
     ('finance.refund', 'Refund payments'),
     ('finance.manage', 'Full finance management access'),
+
+    # Holiday permissions
+    ('holiday.read', 'View holidays and weekly-off calendar'),
+    ('holiday.create', 'Create holidays'),
+    ('holiday.update', 'Update holiday details'),
+    ('holiday.delete', 'Delete holidays'),
+    ('holiday.manage', 'Full holiday management access'),
 ]
 
 
@@ -134,6 +141,7 @@ ROLES = {
             'finance.collect',
             'finance.refund',
             'teacher.leave.manage',
+            'holiday.manage',
         ]
     },
     'Teacher': {
@@ -150,6 +158,7 @@ ROLES = {
             'subject.read',
             'timetable.read',
             'teacher.leave.apply',
+            'holiday.read',
         ]
     },
     'Student': {
@@ -160,6 +169,7 @@ ROLES = {
             'grades.read.self',
             'course.read',
             'timetable.read',
+            'holiday.read',
         ]
     },
     'Parent': {
@@ -170,6 +180,7 @@ ROLES = {
             'grades.read.self',
             'course.read',
             'timetable.read',
+            'holiday.read',
         ]
     },
 }
