@@ -1,20 +1,16 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
   StyleSheet,
-  ActivityIndicator,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
-  Alert,
+  FlatList,
   Modal,
   TextInput,
-  FlatList,
   Switch,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
 import { useTeachers } from "../hooks/useTeachers";
 import { useTeacherSubjects } from "../hooks/useTeacherSubjects";
 import { useTeacherAvailability } from "../hooks/useTeacherAvailability";
@@ -22,24 +18,46 @@ import { useTeacherLeaves } from "../hooks/useTeacherLeaves";
 import { useTeacherWorkload } from "../hooks/useTeacherWorkload";
 import { usePermissions } from "@/modules/permissions/hooks/usePermissions";
 import * as PERMS from "@/modules/permissions/constants/permissions";
-import { Colors } from "@/common/constants/colors";
-import { Spacing, Layout } from "@/common/constants/spacing";
 import { CreateTeacherModal } from "../components/CreateTeacherModal";
 import { subjectService } from "@/modules/subjects/services/subjectService";
 import { Subject } from "@/modules/subjects/types";
 import { TeacherLeave, TeacherAvailability } from "../types";
+import { ScreenContainer } from "@/src/components/ui/ScreenContainer";
+import { Header } from "@/src/components/ui/Header";
+import { SurfaceCard } from "@/src/components/ui/SurfaceCard";
+import { DataRow } from "@/src/components/ui/DataRow";
+import { LoadingState } from "@/src/components/ui/LoadingState";
+import { EmptyState } from "@/src/components/ui/EmptyState";
+import { PrimaryButton } from "@/src/components/ui/PrimaryButton";
+import { StatusBadge } from "@/src/components/ui/StatusBadge";
+import { ConfirmationDialog } from "@/src/components/ui/ConfirmationDialog";
+import { Avatar } from "@/src/components/ui/Avatar";
+import { useToast } from "@/src/components/ui/Toast";
+import { theme } from "@/src/design-system/theme";
+import { Icons } from "@/src/design-system/icons";
 
 type TabKey = "info" | "subjects" | "availability" | "leaves" | "workload";
 
 const DAYS = ["", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
+const TABS: { key: TabKey; label: string }[] = [
+  { key: "info", label: "Info" },
+  { key: "subjects", label: "Subjects" },
+  { key: "availability", label: "Availability" },
+  { key: "leaves", label: "Leaves" },
+  { key: "workload", label: "Workload" },
+];
+
 export default function TeacherDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const toast = useToast();
   const { currentTeacher, loading, fetchTeacher, updateTeacher, deleteTeacher } = useTeachers();
   const { hasPermission } = usePermissions();
   const [activeTab, setActiveTab] = useState<TabKey>("info");
   const [editModalVisible, setEditModalVisible] = useState(false);
+  const [deleteDialogVisible, setDeleteDialogVisible] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const canUpdate = hasPermission(PERMS.TEACHER_UPDATE);
   const canDelete = hasPermission(PERMS.TEACHER_DELETE);
@@ -48,34 +66,18 @@ export default function TeacherDetailScreen() {
 
   const teacherId = id || "";
 
-  // --- Subjects tab ---
-  const {
-    subjects: teacherSubjects,
-    loading: subjectsLoading,
-    fetchSubjects,
-    addSubject,
-    removeSubject,
-  } = useTeacherSubjects(teacherId);
+  const { subjects: teacherSubjects, loading: subjectsLoading, fetchSubjects, addSubject, removeSubject } = useTeacherSubjects(teacherId);
   const [allSubjects, setAllSubjects] = useState<Subject[]>([]);
   const [showSubjectPicker, setShowSubjectPicker] = useState(false);
 
-  // --- Availability tab ---
-  const {
-    availability,
-    loading: availLoading,
-    fetchAvailability,
-    createSlot,
-    deleteSlot,
-  } = useTeacherAvailability(teacherId);
+  const { availability, loading: availLoading, fetchAvailability, createSlot, deleteSlot } = useTeacherAvailability(teacherId);
   const [showAvailModal, setShowAvailModal] = useState(false);
   const [availDay, setAvailDay] = useState("1");
   const [availPeriod, setAvailPeriod] = useState("1");
   const [availIsAvailable, setAvailIsAvailable] = useState(false);
 
-  // --- Leaves tab ---
   const { leaves, loading: leavesLoading, fetchLeaves, approveLeave, rejectLeave } = useTeacherLeaves();
 
-  // --- Workload tab ---
   const { workload, loading: workloadLoading, fetchWorkload, saveWorkload } = useTeacherWorkload(teacherId);
   const [showWorkloadModal, setShowWorkloadModal] = useState(false);
   const [maxPerDay, setMaxPerDay] = useState("6");
@@ -86,9 +88,7 @@ export default function TeacherDetailScreen() {
     if (id) fetchTeacher(id);
   }, [id]);
 
-  // Load tab data on first visit
   const tabVisited = React.useRef<Partial<Record<TabKey, boolean>>>({});
-
   useEffect(() => {
     if (!teacherId) return;
     if (!tabVisited.current[activeTab]) {
@@ -96,9 +96,7 @@ export default function TeacherDetailScreen() {
       if (activeTab === "subjects") fetchSubjects();
       if (activeTab === "availability") fetchAvailability();
       if (activeTab === "leaves") fetchLeaves({ teacher_id: teacherId });
-      if (activeTab === "workload") {
-        fetchWorkload();
-      }
+      if (activeTab === "workload") fetchWorkload();
     }
   }, [activeTab, teacherId]);
 
@@ -107,30 +105,28 @@ export default function TeacherDetailScreen() {
     try {
       await updateTeacher(id, data);
       setEditModalVisible(false);
-      Alert.alert("Success", "Teacher updated successfully");
+      toast.success("Teacher updated", "Changes saved successfully.");
       fetchTeacher(id);
     } catch (error: any) {
       throw error;
     }
   };
 
-  const handleDelete = () => {
-    Alert.alert("Delete Teacher", "Are you sure?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Delete",
-        style: "destructive",
-        onPress: async () => {
-          if (!id) return;
-          await deleteTeacher(id);
-          Alert.alert("Success", "Teacher deleted");
-          router.back();
-        },
-      },
-    ]);
+  const handleDelete = async () => {
+    if (!id) return;
+    setDeleting(true);
+    try {
+      await deleteTeacher(id);
+      toast.success("Teacher deleted");
+      router.back();
+    } catch (e: any) {
+      toast.error("Delete failed", e.message || "Could not delete teacher.");
+    } finally {
+      setDeleting(false);
+      setDeleteDialogVisible(false);
+    }
   };
 
-  // --- Subject helpers ---
   const openSubjectPicker = async () => {
     try {
       const subs = await subjectService.getSubjects();
@@ -138,7 +134,7 @@ export default function TeacherDetailScreen() {
       setAllSubjects(subs.filter((s) => !assigned.has(s.id)));
       setShowSubjectPicker(true);
     } catch {
-      Alert.alert("Error", "Failed to load subjects");
+      toast.error("Failed to load subjects");
     }
   };
 
@@ -146,76 +142,59 @@ export default function TeacherDetailScreen() {
     try {
       await addSubject(subjectId);
       setShowSubjectPicker(false);
+      toast.success("Subject assigned");
     } catch (e: any) {
-      Alert.alert("Error", e.message || "Failed to assign subject");
+      toast.error("Error", e.message || "Failed to assign subject");
     }
   };
 
-  const handleRemoveSubject = (subjectId: string, name: string) => {
-    Alert.alert("Remove Subject", `Remove ${name}?`, [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Remove",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            await removeSubject(subjectId);
-          } catch (e: any) {
-            Alert.alert("Error", e.message);
-          }
-        },
-      },
-    ]);
+  const handleRemoveSubject = async (subjectId: string, name: string) => {
+    try {
+      await removeSubject(subjectId);
+      toast.success(`Removed ${name}`);
+    } catch (e: any) {
+      toast.error("Error", e.message);
+    }
   };
 
-  // --- Availability helpers ---
   const handleCreateAvail = async () => {
     try {
-      await createSlot({
-        day_of_week: parseInt(availDay),
-        period_number: parseInt(availPeriod),
-        available: availIsAvailable,
-      });
+      await createSlot({ day_of_week: parseInt(availDay), period_number: parseInt(availPeriod), available: availIsAvailable });
       setShowAvailModal(false);
-      setAvailDay("1");
-      setAvailPeriod("1");
-      setAvailIsAvailable(false);
+      setAvailDay("1"); setAvailPeriod("1"); setAvailIsAvailable(false);
+      toast.success("Slot added");
     } catch (e: any) {
-      Alert.alert("Error", e.message || "Failed to save");
+      toast.error("Error", e.message || "Failed to save");
     }
   };
 
-  const handleDeleteAvail = (slot: TeacherAvailability) => {
-    Alert.alert("Delete Slot", `Remove ${DAYS[slot.day_of_week]} period ${slot.period_number}?`, [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Delete",
-        style: "destructive",
-        onPress: async () => {
-          try { await deleteSlot(slot.id); } catch (e: any) { Alert.alert("Error", e.message); }
-        },
-      },
-    ]);
+  const handleDeleteAvail = async (slot: TeacherAvailability) => {
+    try {
+      await deleteSlot(slot.id);
+      toast.success("Slot removed");
+    } catch (e: any) {
+      toast.error("Error", e.message);
+    }
   };
 
-  // --- Leave helpers ---
   const handleApproveLeave = async (leave: TeacherLeave) => {
     try {
       await approveLeave(leave.id);
+      toast.success("Leave approved");
     } catch (e: any) {
-      Alert.alert("Error", e.message);
+      toast.error("Error", e.message);
     }
   };
 
   const handleRejectLeave = async (leave: TeacherLeave) => {
     try {
       await rejectLeave(leave.id);
+      toast.warning("Leave rejected");
     } catch (e: any) {
-      Alert.alert("Error", e.message);
+      toast.error("Error", e.message);
     }
   };
 
-  // --- Workload helpers ---
   const openWorkloadModal = () => {
     setMaxPerDay(workload?.max_periods_per_day?.toString() ?? "6");
     setMaxPerWeek(workload?.max_periods_per_week?.toString() ?? "30");
@@ -226,243 +205,253 @@ export default function TeacherDetailScreen() {
     const day = parseInt(maxPerDay);
     const week = parseInt(maxPerWeek);
     if (!day || !week || day < 1 || week < 1) {
-      Alert.alert("Validation", "Enter valid period counts (≥ 1)");
+      toast.warning("Enter valid period counts (≥ 1)");
       return;
     }
     try {
       setWorkloadSaving(true);
       await saveWorkload({ max_periods_per_day: day, max_periods_per_week: week });
       setShowWorkloadModal(false);
+      toast.success("Workload rule saved");
     } catch (e: any) {
-      Alert.alert("Error", e.message || "Failed to save workload");
+      toast.error("Error", e.message || "Failed to save workload");
     } finally {
       setWorkloadSaving(false);
     }
   };
 
-  const statusColor = (status: string) => {
-    if (status === "approved") return Colors.success;
-    if (status === "rejected") return Colors.error;
-    return Colors.warning;
+  const leaveStatusBadge = (status: string): "success" | "danger" | "warning" | "info" => {
+    if (status === "approved") return "success";
+    if (status === "rejected") return "danger";
+    return "warning";
   };
 
   if (loading && !currentTeacher) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color={Colors.primary} />
-        </View>
-      </SafeAreaView>
+      <ScreenContainer>
+        <Header title="Teacher Details" onBack={() => router.back()} compact />
+        <LoadingState message="Loading teacher..." />
+      </ScreenContainer>
     );
   }
 
   if (!currentTeacher) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.center}>
-          <Text style={styles.errorText}>Teacher not found</Text>
-          <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-            <Text style={styles.backBtnText}>Go Back</Text>
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
+      <ScreenContainer>
+        <Header title="Teacher Details" onBack={() => router.back()} compact />
+        <EmptyState title="Teacher not found" />
+      </ScreenContainer>
     );
   }
 
-  const InfoRow = ({ label, value }: { label: string; value?: string | number | null }) => {
-    if (!value && value !== 0) return null;
-    return (
-      <View style={styles.infoRow}>
-        <Text style={styles.label}>{label}</Text>
-        <Text style={styles.value}>{value}</Text>
-      </View>
-    );
-  };
-
-  const TABS: { key: TabKey; label: string }[] = [
-    { key: "info", label: "Info" },
-    { key: "subjects", label: "Subjects" },
-    { key: "availability", label: "Availability" },
-    { key: "leaves", label: "Leaves" },
-    { key: "workload", label: "Workload" },
-  ];
-
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backIcon}>
-          <Ionicons name="arrow-back" size={24} color={Colors.text} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle} numberOfLines={1}>{currentTeacher.name}</Text>
-        {canDelete && (
-          <TouchableOpacity style={styles.iconBtn} onPress={handleDelete}>
-            <Ionicons name="trash-outline" size={22} color={Colors.error} />
-          </TouchableOpacity>
-        )}
-        {canUpdate && (
-          <TouchableOpacity style={styles.iconBtn} onPress={() => setEditModalVisible(true)}>
-            <Ionicons name="create-outline" size={22} color={Colors.primary} />
-          </TouchableOpacity>
-        )}
+    <ScreenContainer>
+      <Header
+        title={currentTeacher.name}
+        onBack={() => router.back()}
+        compact
+        rightAction={
+          <View style={styles.headerActions}>
+            {canDelete && (
+              <TouchableOpacity style={styles.iconBtn} onPress={() => setDeleteDialogVisible(true)}>
+                <Icons.Delete size={18} color={theme.colors.danger} />
+              </TouchableOpacity>
+            )}
+            {canUpdate && (
+              <TouchableOpacity style={styles.iconBtn} onPress={() => setEditModalVisible(true)}>
+                <Icons.Edit size={18} color={theme.colors.primary[500]} />
+              </TouchableOpacity>
+            )}
+          </View>
+        }
+      />
+
+      {/* Avatar row */}
+      <View style={styles.avatarRow}>
+        <Avatar name={currentTeacher.name} size={56} />
+        <View style={styles.avatarInfo}>
+          <Text style={styles.teacherName}>{currentTeacher.name}</Text>
+          <Text style={styles.teacherEmpId}>{currentTeacher.employee_id}</Text>
+        </View>
+        <StatusBadge
+          status={currentTeacher.status === "active" ? "success" : "warning"}
+          label={currentTeacher.status || "active"}
+        />
       </View>
 
       {/* Tab Bar */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabBar} contentContainerStyle={styles.tabBarContent}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.tabBar}
+        contentContainerStyle={styles.tabBarContent}
+      >
         {TABS.map((tab) => (
           <TouchableOpacity
             key={tab.key}
             style={[styles.tab, activeTab === tab.key && styles.tabActive]}
             onPress={() => setActiveTab(tab.key)}
           >
-            <Text style={[styles.tabText, activeTab === tab.key && styles.tabTextActive]}>{tab.label}</Text>
+            <Text style={[styles.tabText, activeTab === tab.key && styles.tabTextActive]}>
+              {tab.label}
+            </Text>
           </TouchableOpacity>
         ))}
       </ScrollView>
 
-      {/* ── INFO TAB ── */}
+      {/* ── INFO ── */}
       {activeTab === "info" && (
-        <ScrollView style={styles.content}>
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Basic Information</Text>
-            <InfoRow label="Full Name" value={currentTeacher.name} />
-            <InfoRow label="Employee ID" value={currentTeacher.employee_id} />
-            <InfoRow label="Email" value={currentTeacher.email} />
-            <InfoRow label="Phone" value={currentTeacher.phone} />
-            <InfoRow label="Status" value={currentTeacher.status} />
-          </View>
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Professional Information</Text>
-            <InfoRow label="Designation" value={currentTeacher.designation} />
-            <InfoRow label="Department" value={currentTeacher.department} />
-            <InfoRow label="Qualification" value={currentTeacher.qualification} />
-            <InfoRow label="Specialization" value={currentTeacher.specialization} />
-            <InfoRow label="Experience" value={currentTeacher.experience_years ? `${currentTeacher.experience_years} years` : undefined} />
-            <InfoRow label="Date of Joining" value={currentTeacher.date_of_joining} />
-          </View>
-          {currentTeacher.address && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Address</Text>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.tabContent}>
+          <SurfaceCard title="Basic Information" style={styles.card}>
+            <DataRow title="Full Name" subtitle={currentTeacher.name} noBorder />
+            <DataRow title="Employee ID" subtitle={currentTeacher.employee_id} />
+            <DataRow title="Email" subtitle={currentTeacher.email} />
+            {currentTeacher.phone ? <DataRow title="Phone" subtitle={currentTeacher.phone} /> : null}
+          </SurfaceCard>
+          <SurfaceCard title="Professional" style={styles.card}>
+            {currentTeacher.designation ? <DataRow title="Designation" subtitle={currentTeacher.designation} noBorder /> : null}
+            {currentTeacher.department ? <DataRow title="Department" subtitle={currentTeacher.department} /> : null}
+            {currentTeacher.qualification ? <DataRow title="Qualification" subtitle={currentTeacher.qualification} /> : null}
+            {currentTeacher.specialization ? <DataRow title="Specialization" subtitle={currentTeacher.specialization} /> : null}
+            {currentTeacher.experience_years ? <DataRow title="Experience" subtitle={`${currentTeacher.experience_years} years`} /> : null}
+            {currentTeacher.date_of_joining ? <DataRow title="Date of Joining" subtitle={currentTeacher.date_of_joining} noBorder /> : null}
+          </SurfaceCard>
+          {currentTeacher.address ? (
+            <SurfaceCard title="Address" style={styles.card}>
               <Text style={styles.addressText}>{currentTeacher.address}</Text>
-            </View>
-          )}
+            </SurfaceCard>
+          ) : null}
         </ScrollView>
       )}
 
-      {/* ── SUBJECTS TAB ── */}
+      {/* ── SUBJECTS ── */}
       {activeTab === "subjects" && (
-        <View style={styles.tabContent}>
-          <View style={styles.tabContentHeader}>
-            <Text style={styles.tabContentTitle}>Subject Expertise</Text>
+        <View style={styles.flex}>
+          <View style={styles.tabActionRow}>
+            <Text style={styles.tabSectionTitle}>Subject Expertise</Text>
             {canManage && (
-              <TouchableOpacity style={styles.addBtn} onPress={openSubjectPicker}>
-                <Ionicons name="add" size={20} color="#fff" />
-                <Text style={styles.addBtnText}>Add</Text>
+              <TouchableOpacity style={styles.addChipBtn} onPress={openSubjectPicker}>
+                <Icons.Add size={16} color={theme.colors.primary[500]} />
+                <Text style={styles.addChipBtnText}>Assign</Text>
               </TouchableOpacity>
             )}
           </View>
           {subjectsLoading ? (
-            <ActivityIndicator style={{ marginTop: Spacing.xl }} color={Colors.primary} />
+            <LoadingState />
           ) : teacherSubjects.length === 0 ? (
-            <Text style={styles.emptyText}>No subjects assigned yet.</Text>
+            <EmptyState title="No subjects assigned" description="Assign subjects to this teacher." />
           ) : (
             <FlatList
               data={teacherSubjects}
               keyExtractor={(item) => item.id}
-              contentContainerStyle={{ padding: Spacing.md }}
+              contentContainerStyle={styles.tabContent}
+              showsVerticalScrollIndicator={false}
               renderItem={({ item }) => (
-                <View style={styles.listItem}>
-                  <View style={styles.listItemInfo}>
-                    <Text style={styles.listItemName}>{item.subject_name}</Text>
-                    {item.subject_code ? <Text style={styles.listItemDetail}>{item.subject_code}</Text> : null}
-                  </View>
-                  {canManage && (
-                    <TouchableOpacity onPress={() => handleRemoveSubject(item.subject_id, item.subject_name || "")}>
-                      <Ionicons name="close-circle-outline" size={22} color={Colors.error} />
-                    </TouchableOpacity>
-                  )}
-                </View>
+                <DataRow
+                  title={item.subject_name || "Subject"}
+                  subtitle={item.subject_code}
+                  leftIcon={<Icons.Class size={18} color={theme.colors.primary[500]} />}
+                  rightComponent={
+                    canManage ? (
+                      <TouchableOpacity
+                        onPress={() => handleRemoveSubject(item.subject_id, item.subject_name || "")}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
+                        <Icons.Close size={18} color={theme.colors.danger} />
+                      </TouchableOpacity>
+                    ) : undefined
+                  }
+                />
               )}
             />
           )}
         </View>
       )}
 
-      {/* ── AVAILABILITY TAB ── */}
+      {/* ── AVAILABILITY ── */}
       {activeTab === "availability" && (
-        <View style={styles.tabContent}>
-          <View style={styles.tabContentHeader}>
-            <Text style={styles.tabContentTitle}>Unavailability Slots</Text>
+        <View style={styles.flex}>
+          <View style={styles.tabActionRow}>
+            <Text style={styles.tabSectionTitle}>Availability</Text>
             {canManage && (
-              <TouchableOpacity style={styles.addBtn} onPress={() => setShowAvailModal(true)}>
-                <Ionicons name="add" size={20} color="#fff" />
-                <Text style={styles.addBtnText}>Add</Text>
+              <TouchableOpacity style={styles.addChipBtn} onPress={() => setShowAvailModal(true)}>
+                <Icons.Add size={16} color={theme.colors.primary[500]} />
+                <Text style={styles.addChipBtnText}>Add Slot</Text>
               </TouchableOpacity>
             )}
           </View>
-          <Text style={styles.helperText}>Records where teacher is marked unavailable (available = false).</Text>
           {availLoading ? (
-            <ActivityIndicator style={{ marginTop: Spacing.xl }} color={Colors.primary} />
+            <LoadingState />
           ) : availability.length === 0 ? (
-            <Text style={styles.emptyText}>No constraints set. Teacher is available for all slots.</Text>
+            <EmptyState title="No constraints set" description="Teacher is available for all slots by default." />
           ) : (
             <FlatList
               data={availability}
               keyExtractor={(item) => item.id}
-              contentContainerStyle={{ padding: Spacing.md }}
+              contentContainerStyle={styles.tabContent}
+              showsVerticalScrollIndicator={false}
               renderItem={({ item }) => (
-                <View style={styles.listItem}>
-                  <View style={styles.listItemInfo}>
-                    <Text style={styles.listItemName}>{DAYS[item.day_of_week]} — Period {item.period_number}</Text>
-                    <Text style={[styles.listItemDetail, { color: item.available ? Colors.success : Colors.error }]}>
-                      {item.available ? "Available" : "Unavailable"}
-                    </Text>
-                  </View>
-                  {canManage && (
-                    <TouchableOpacity onPress={() => handleDeleteAvail(item)}>
-                      <Ionicons name="close-circle-outline" size={22} color={Colors.error} />
-                    </TouchableOpacity>
-                  )}
-                </View>
+                <DataRow
+                  title={`${DAYS[item.day_of_week]} — Period ${item.period_number}`}
+                  rightComponent={
+                    <View style={styles.availRightRow}>
+                      <StatusBadge
+                        status={item.available ? "success" : "danger"}
+                        label={item.available ? "Available" : "Unavailable"}
+                      />
+                      {canManage && (
+                        <TouchableOpacity onPress={() => handleDeleteAvail(item)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                          <Icons.Delete size={16} color={theme.colors.danger} />
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  }
+                />
               )}
             />
           )}
         </View>
       )}
 
-      {/* ── LEAVES TAB ── */}
+      {/* ── LEAVES ── */}
       {activeTab === "leaves" && (
-        <View style={styles.tabContent}>
-          <View style={styles.tabContentHeader}>
-            <Text style={styles.tabContentTitle}>Leave Requests</Text>
+        <View style={styles.flex}>
+          <View style={styles.tabActionRow}>
+            <Text style={styles.tabSectionTitle}>Leave Requests</Text>
           </View>
           {leavesLoading ? (
-            <ActivityIndicator style={{ marginTop: Spacing.xl }} color={Colors.primary} />
+            <LoadingState />
           ) : leaves.length === 0 ? (
-            <Text style={styles.emptyText}>No leave requests.</Text>
+            <EmptyState title="No leave requests" />
           ) : (
             <FlatList
               data={leaves}
               keyExtractor={(item) => item.id}
-              contentContainerStyle={{ padding: Spacing.md }}
+              contentContainerStyle={styles.tabContent}
+              showsVerticalScrollIndicator={false}
               renderItem={({ item }) => (
                 <View style={styles.leaveCard}>
-                  <View style={styles.leaveCardHeader}>
+                  <View style={styles.leaveCardTop}>
                     <Text style={styles.leaveType}>{item.leave_type.toUpperCase()}</Text>
-                    <View style={[styles.statusBadge, { backgroundColor: statusColor(item.status) + "20" }]}>
-                      <Text style={[styles.statusText, { color: statusColor(item.status) }]}>{item.status}</Text>
-                    </View>
+                    <StatusBadge status={leaveStatusBadge(item.status)} label={item.status} />
                   </View>
                   <Text style={styles.leaveDates}>{item.start_date} → {item.end_date}</Text>
                   {item.reason ? <Text style={styles.leaveReason}>{item.reason}</Text> : null}
                   {canLeaveManage && item.status === "pending" && (
                     <View style={styles.leaveActions}>
-                      <TouchableOpacity style={styles.approveBtn} onPress={() => handleApproveLeave(item)}>
-                        <Text style={styles.approveBtnText}>Approve</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity style={styles.rejectBtn} onPress={() => handleRejectLeave(item)}>
-                        <Text style={styles.rejectBtnText}>Reject</Text>
-                      </TouchableOpacity>
+                      <PrimaryButton
+                        title="Approve"
+                        size="sm"
+                        onPress={() => handleApproveLeave(item)}
+                        style={{ flex: 1 }}
+                      />
+                      <PrimaryButton
+                        title="Reject"
+                        size="sm"
+                        variant="outline"
+                        onPress={() => handleRejectLeave(item)}
+                        style={{ flex: 1 }}
+                      />
                     </View>
                   )}
                 </View>
@@ -472,40 +461,32 @@ export default function TeacherDetailScreen() {
         </View>
       )}
 
-      {/* ── WORKLOAD TAB ── */}
+      {/* ── WORKLOAD ── */}
       {activeTab === "workload" && (
-        <ScrollView style={styles.content}>
-          <View style={styles.section}>
-            <View style={styles.sectionHeaderRow}>
-              <Text style={styles.sectionTitle}>Workload Rule</Text>
-              {canManage && (
-                <TouchableOpacity style={styles.addSmallBtn} onPress={openWorkloadModal}>
-                  <Ionicons name={workload ? "create-outline" : "add"} size={18} color={Colors.primary} />
-                  <Text style={styles.addSmallBtnText}>{workload ? "Edit" : "Set Rule"}</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-            {workloadLoading ? (
-              <ActivityIndicator color={Colors.primary} />
-            ) : workload ? (
-              <>
-                <View style={styles.workloadRow}>
-                  <Text style={styles.workloadLabel}>Max Periods / Day</Text>
-                  <Text style={styles.workloadValue}>{workload.max_periods_per_day}</Text>
-                </View>
-                <View style={styles.workloadRow}>
-                  <Text style={styles.workloadLabel}>Max Periods / Week</Text>
-                  <Text style={styles.workloadValue}>{workload.max_periods_per_week}</Text>
-                </View>
-              </>
-            ) : (
-              <Text style={styles.emptyText}>No workload rule set. Default limits will apply.</Text>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.tabContent}>
+          <View style={styles.tabActionRow}>
+            <Text style={styles.tabSectionTitle}>Workload Rule</Text>
+            {canManage && (
+              <TouchableOpacity style={styles.addChipBtn} onPress={openWorkloadModal}>
+                <Icons.Edit size={16} color={theme.colors.primary[500]} />
+                <Text style={styles.addChipBtnText}>{workload ? "Edit" : "Set Rule"}</Text>
+              </TouchableOpacity>
             )}
           </View>
+          {workloadLoading ? (
+            <LoadingState />
+          ) : workload ? (
+            <SurfaceCard style={styles.card}>
+              <DataRow title="Max Periods / Day" subtitle={String(workload.max_periods_per_day)} noBorder />
+              <DataRow title="Max Periods / Week" subtitle={String(workload.max_periods_per_week)} noBorder />
+            </SurfaceCard>
+          ) : (
+            <EmptyState title="No workload rule" description="Default limits will apply." />
+          )}
         </ScrollView>
       )}
 
-      {/* Edit Teacher Modal */}
+      {/* Edit Modal */}
       {canUpdate && (
         <CreateTeacherModal
           visible={editModalVisible}
@@ -516,305 +497,249 @@ export default function TeacherDetailScreen() {
         />
       )}
 
-      {/* Subject Picker Modal */}
+      {/* Subject Picker */}
       <Modal visible={showSubjectPicker} animationType="slide" presentationStyle="pageSheet">
-        <SafeAreaView style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Assign Subject</Text>
-            <TouchableOpacity onPress={() => setShowSubjectPicker(false)}>
-              <Ionicons name="close" size={24} color={Colors.text} />
-            </TouchableOpacity>
-          </View>
+        <ScreenContainer>
+          <Header
+            title="Assign Subject"
+            onBack={() => setShowSubjectPicker(false)}
+            compact
+          />
           <FlatList
             data={allSubjects}
             keyExtractor={(item) => item.id}
-            contentContainerStyle={{ padding: Spacing.md }}
+            contentContainerStyle={styles.tabContent}
             renderItem={({ item }) => (
-              <TouchableOpacity style={styles.pickerItem} onPress={() => handleAddSubject(item.id)}>
-                <Text style={styles.pickerName}>{item.name}</Text>
-                {item.code ? <Text style={styles.pickerDetail}>{item.code}</Text> : null}
-              </TouchableOpacity>
+              <DataRow
+                title={item.name}
+                subtitle={item.code}
+                leftIcon={<Icons.Class size={18} color={theme.colors.primary[500]} />}
+                onPress={() => handleAddSubject(item.id)}
+              />
             )}
-            ListEmptyComponent={<Text style={styles.emptyText}>All subjects already assigned.</Text>}
+            ListEmptyComponent={<EmptyState title="All subjects assigned" />}
           />
-        </SafeAreaView>
+        </ScreenContainer>
       </Modal>
 
       {/* Availability Modal */}
       <Modal visible={showAvailModal} animationType="slide" presentationStyle="formSheet">
-        <SafeAreaView style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Add Availability Slot</Text>
-            <TouchableOpacity onPress={() => setShowAvailModal(false)}>
-              <Ionicons name="close" size={24} color={Colors.text} />
-            </TouchableOpacity>
-          </View>
-          <ScrollView style={{ padding: Spacing.lg }}>
+        <ScreenContainer keyboardAvoiding>
+          <Header
+            title="Add Availability Slot"
+            onBack={() => setShowAvailModal(false)}
+            compact
+          />
+          <ScrollView contentContainerStyle={styles.modalForm}>
             <Text style={styles.fieldLabel}>Day of Week (1=Mon … 7=Sun)</Text>
-            <TextInput
-              style={styles.input}
-              value={availDay}
-              onChangeText={setAvailDay}
-              keyboardType="number-pad"
-              placeholder="e.g. 1"
-            />
+            <TextInput style={styles.fieldInput} value={availDay} onChangeText={setAvailDay} keyboardType="number-pad" placeholder="e.g. 1" placeholderTextColor={theme.colors.text[400]} />
             <Text style={styles.fieldLabel}>Period Number</Text>
-            <TextInput
-              style={styles.input}
-              value={availPeriod}
-              onChangeText={setAvailPeriod}
-              keyboardType="number-pad"
-              placeholder="e.g. 3"
-            />
+            <TextInput style={styles.fieldInput} value={availPeriod} onChangeText={setAvailPeriod} keyboardType="number-pad" placeholder="e.g. 3" placeholderTextColor={theme.colors.text[400]} />
             <View style={styles.switchRow}>
               <Text style={styles.fieldLabel}>Available</Text>
               <Switch
                 value={availIsAvailable}
                 onValueChange={setAvailIsAvailable}
-                trackColor={{ true: Colors.success, false: Colors.error }}
+                trackColor={{ true: theme.colors.success, false: theme.colors.danger }}
+                thumbColor="white"
               />
             </View>
-            <Text style={styles.helperText}>
-              Turn OFF to mark this slot as unavailable (e.g. teacher has a meeting).
-            </Text>
-            <TouchableOpacity style={styles.submitBtn} onPress={handleCreateAvail}>
-              <Text style={styles.submitBtnText}>Save Slot</Text>
-            </TouchableOpacity>
+            <PrimaryButton title="Save Slot" onPress={handleCreateAvail} style={{ marginTop: theme.spacing.m }} />
           </ScrollView>
-        </SafeAreaView>
+        </ScreenContainer>
       </Modal>
 
-      {/* Workload Rule Modal */}
+      {/* Workload Modal */}
       <Modal visible={showWorkloadModal} animationType="slide" presentationStyle="formSheet">
-        <SafeAreaView style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Set Workload Rule</Text>
-            <TouchableOpacity onPress={() => setShowWorkloadModal(false)}>
-              <Ionicons name="close" size={24} color={Colors.text} />
-            </TouchableOpacity>
-          </View>
-          <ScrollView style={{ padding: Spacing.lg }}>
-            <Text style={styles.fieldLabel}>Max Periods Per Day *</Text>
-            <TextInput style={styles.input} value={maxPerDay} onChangeText={setMaxPerDay} keyboardType="number-pad" placeholder="e.g. 6" />
-
-            <Text style={styles.fieldLabel}>Max Periods Per Week *</Text>
-            <TextInput style={styles.input} value={maxPerWeek} onChangeText={setMaxPerWeek} keyboardType="number-pad" placeholder="e.g. 30" />
-
-            <TouchableOpacity style={styles.submitBtn} onPress={handleSaveWorkload} disabled={workloadSaving}>
-              <Text style={styles.submitBtnText}>{workloadSaving ? "Saving..." : "Save Rule"}</Text>
-            </TouchableOpacity>
+        <ScreenContainer keyboardAvoiding>
+          <Header
+            title="Set Workload Rule"
+            onBack={() => setShowWorkloadModal(false)}
+            compact
+          />
+          <ScrollView contentContainerStyle={styles.modalForm}>
+            <Text style={styles.fieldLabel}>Max Periods Per Day</Text>
+            <TextInput style={styles.fieldInput} value={maxPerDay} onChangeText={setMaxPerDay} keyboardType="number-pad" placeholder="e.g. 6" placeholderTextColor={theme.colors.text[400]} />
+            <Text style={styles.fieldLabel}>Max Periods Per Week</Text>
+            <TextInput style={styles.fieldInput} value={maxPerWeek} onChangeText={setMaxPerWeek} keyboardType="number-pad" placeholder="e.g. 30" placeholderTextColor={theme.colors.text[400]} />
+            <PrimaryButton title={workloadSaving ? "Saving..." : "Save Rule"} onPress={handleSaveWorkload} loading={workloadSaving} style={{ marginTop: theme.spacing.m }} />
           </ScrollView>
-        </SafeAreaView>
+        </ScreenContainer>
       </Modal>
-    </SafeAreaView>
+
+      <ConfirmationDialog
+        visible={deleteDialogVisible}
+        title="Delete Teacher"
+        message={`Delete ${currentTeacher.name}? This action cannot be undone.`}
+        confirmLabel="Delete"
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteDialogVisible(false)}
+        loading={deleting}
+        destructive
+      />
+    </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
-  center: { flex: 1, justifyContent: "center", alignItems: "center", padding: Spacing.xl },
-  header: {
+  flex: { flex: 1 },
+  headerActions: {
+    flexDirection: "row",
+    gap: theme.spacing.s,
+  },
+  iconBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: theme.radius.m,
+    backgroundColor: theme.colors.backgroundSecondary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarRow: {
     flexDirection: "row",
     alignItems: "center",
-    padding: Spacing.lg,
+    paddingHorizontal: theme.spacing.m,
+    paddingBottom: theme.spacing.m,
+    gap: theme.spacing.m,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
+    borderBottomColor: theme.colors.border,
   },
-  backIcon: { padding: Spacing.sm },
-  headerTitle: { flex: 1, fontSize: 20, fontWeight: "bold", color: Colors.text, marginLeft: Spacing.md },
-  iconBtn: {
-    padding: Spacing.sm,
-    backgroundColor: Colors.backgroundSecondary,
-    borderRadius: Layout.borderRadius.md,
-    marginLeft: Spacing.sm,
+  avatarInfo: { flex: 1 },
+  teacherName: {
+    ...theme.typography.h3,
+    color: theme.colors.text[900],
   },
-  // Tab bar
-  tabBar: { borderBottomWidth: 1, borderBottomColor: Colors.borderLight, maxHeight: 40 },
-  tabBarContent: { paddingHorizontal: Spacing.md },
+  teacherEmpId: {
+    ...theme.typography.caption,
+    color: theme.colors.text[500],
+    marginTop: 2,
+  },
+  tabBar: {
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+    flexGrow: 0,
+  },
+  tabBarContent: {
+    paddingHorizontal: theme.spacing.m,
+    gap: theme.spacing.xs,
+  },
   tab: {
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
-    marginRight: 4,
+    paddingHorizontal: theme.spacing.m,
+    paddingVertical: theme.spacing.sm,
     borderBottomWidth: 2,
     borderBottomColor: "transparent",
   },
-  tabActive: { borderBottomColor: Colors.primary },
-  tabText: { fontSize: 14, fontWeight: "500", color: Colors.textSecondary },
-  tabTextActive: { color: Colors.primary },
-  // Content
-  content: { flex: 1, padding: Spacing.lg },
-  tabContent: { flex: 1 },
-  tabContentHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: Spacing.lg,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
+  tabActive: { borderBottomColor: theme.colors.primary[500] },
+  tabText: {
+    ...theme.typography.label,
+    color: theme.colors.text[500],
   },
-  tabContentTitle: { fontSize: 17, fontWeight: "600", color: Colors.text },
-  section: {
-    marginBottom: Spacing.xl,
-    backgroundColor: Colors.background,
-    borderRadius: Layout.borderRadius.md,
-    borderWidth: 1,
-    borderColor: Colors.borderLight,
-    padding: Spacing.lg,
-  },
-  sectionTitle: {
-    fontSize: 18,
+  tabTextActive: {
+    color: theme.colors.primary[500],
     fontWeight: "600",
-    color: Colors.text,
-    marginBottom: Spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
-    paddingBottom: Spacing.sm,
   },
-  sectionHeaderRow: {
+  tabContent: {
+    paddingHorizontal: theme.spacing.m,
+    paddingTop: theme.spacing.m,
+    paddingBottom: theme.spacing.xxl,
+  },
+  tabActionRow: {
     flexDirection: "row",
+    alignItems: "center",
     justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: Spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
-    paddingBottom: Spacing.sm,
+    paddingHorizontal: theme.spacing.m,
+    paddingVertical: theme.spacing.sm,
   },
-  infoRow: { marginBottom: Spacing.md },
-  label: { fontSize: 14, color: Colors.textSecondary, marginBottom: 4 },
-  value: { fontSize: 16, fontWeight: "500", color: Colors.text },
-  addressText: { fontSize: 16, color: Colors.text, lineHeight: 24 },
-  // List items
-  listItem: {
+  tabSectionTitle: {
+    ...theme.typography.h3,
+    color: theme.colors.text[900],
+  },
+  addChipBtn: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
+    gap: theme.spacing.xs,
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.xs,
+    backgroundColor: theme.colors.primary[50],
+    borderRadius: theme.radius.full,
+    borderWidth: 1,
+    borderColor: theme.colors.primary[200],
   },
-  listItemInfo: { flex: 1 },
-  listItemName: { fontSize: 15, fontWeight: "500", color: Colors.text },
-  listItemDetail: { fontSize: 13, color: Colors.textSecondary, marginTop: 2 },
-  emptyText: { fontSize: 14, color: Colors.textSecondary, fontStyle: "italic", padding: Spacing.lg },
-  helperText: { fontSize: 13, color: Colors.textTertiary, paddingHorizontal: Spacing.lg, paddingBottom: Spacing.sm },
-  // Leave cards
+  addChipBtnText: {
+    ...theme.typography.caption,
+    color: theme.colors.primary[500],
+    fontWeight: "600",
+  },
+  card: { marginBottom: theme.spacing.m },
+  addressText: {
+    ...theme.typography.body,
+    color: theme.colors.text[700],
+    lineHeight: 24,
+  },
+  availRightRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing.s,
+  },
   leaveCard: {
-    marginHorizontal: Spacing.md,
-    marginBottom: Spacing.md,
-    padding: Spacing.md,
-    borderRadius: Layout.borderRadius.md,
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radius.xl,
+    padding: theme.spacing.m,
     borderWidth: 1,
-    borderColor: Colors.borderLight,
-    backgroundColor: Colors.backgroundTertiary,
+    borderColor: theme.colors.border,
+    marginBottom: theme.spacing.s,
+    ...theme.shadows.sm,
   },
-  leaveCardHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: Spacing.sm },
-  leaveType: { fontSize: 13, fontWeight: "700", color: Colors.text, letterSpacing: 0.5 },
-  statusBadge: { paddingHorizontal: Spacing.sm, paddingVertical: 3, borderRadius: Layout.borderRadius.sm },
-  statusText: { fontSize: 12, fontWeight: "600" },
-  leaveDates: { fontSize: 14, color: Colors.text, marginBottom: 4 },
-  leaveReason: { fontSize: 13, color: Colors.textSecondary, marginTop: 4 },
-  leaveActions: { flexDirection: "row", gap: Spacing.sm, marginTop: Spacing.sm },
-  approveBtn: {
-    flex: 1,
-    backgroundColor: Colors.success + "20",
-    paddingVertical: Spacing.sm,
-    borderRadius: Layout.borderRadius.sm,
-    alignItems: "center",
-  },
-  approveBtnText: { color: Colors.success, fontWeight: "600", fontSize: 13 },
-  rejectBtn: {
-    flex: 1,
-    backgroundColor: Colors.error + "20",
-    paddingVertical: Spacing.sm,
-    borderRadius: Layout.borderRadius.sm,
-    alignItems: "center",
-  },
-  rejectBtnText: { color: Colors.error, fontWeight: "600", fontSize: 13 },
-  // Workload
-  workloadRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingVertical: Spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
-  },
-  workloadLabel: { fontSize: 15, color: Colors.textSecondary },
-  workloadValue: { fontSize: 15, fontWeight: "600", color: Colors.text },
-  // Buttons
-  addBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: Colors.primary,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: Layout.borderRadius.sm,
-    gap: 4,
-  },
-  addBtnText: { color: "#fff", fontWeight: "600", fontSize: 14 },
-  addSmallBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: Colors.backgroundSecondary,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.xs,
-    borderRadius: Layout.borderRadius.sm,
-    gap: 4,
-  },
-  addSmallBtnText: { fontSize: 14, color: Colors.primary, fontWeight: "500" },
-  // Modal
-  modalContainer: { flex: 1, backgroundColor: Colors.background },
-  modalHeader: {
+  leaveCardTop: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    padding: Spacing.lg,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
+    marginBottom: theme.spacing.s,
   },
-  modalTitle: { fontSize: 18, fontWeight: "600", color: Colors.text },
-  pickerItem: { padding: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.borderLight },
-  pickerName: { fontSize: 16, fontWeight: "500", color: Colors.text },
-  pickerDetail: { fontSize: 13, color: Colors.textSecondary, marginTop: 2 },
-  // Form
-  fieldLabel: { fontSize: 14, fontWeight: "500", color: Colors.text, marginBottom: Spacing.xs, marginTop: Spacing.md },
-  input: {
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: Layout.borderRadius.sm,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    fontSize: 15,
-    color: Colors.text,
-    backgroundColor: Colors.backgroundSecondary,
+  leaveType: {
+    ...theme.typography.overline,
+    color: theme.colors.text[700],
   },
-  switchRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginVertical: Spacing.md },
-  chip: {
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: Layout.borderRadius.sm,
-    borderWidth: 1,
-    borderColor: Colors.borderLight,
-    backgroundColor: Colors.backgroundSecondary,
-    marginRight: Spacing.sm,
+  leaveDates: {
+    ...theme.typography.body,
+    fontWeight: "500",
+    color: theme.colors.text[900],
+    marginBottom: theme.spacing.xs,
   },
-  chipActive: { borderColor: Colors.primary, backgroundColor: Colors.primary + "20" },
-  chipText: { fontSize: 13, color: Colors.text },
-  chipTextActive: { color: Colors.primary, fontWeight: "600" },
-  submitBtn: {
-    backgroundColor: Colors.primary,
-    paddingVertical: Spacing.md,
-    borderRadius: Layout.borderRadius.md,
+  leaveReason: {
+    ...theme.typography.bodySmall,
+    color: theme.colors.text[500],
+    marginBottom: theme.spacing.s,
+  },
+  leaveActions: {
+    flexDirection: "row",
+    gap: theme.spacing.s,
+    marginTop: theme.spacing.s,
+  },
+  modalForm: {
+    padding: theme.spacing.m,
+    paddingBottom: theme.spacing.xxl,
+  },
+  fieldLabel: {
+    ...theme.typography.label,
+    color: theme.colors.text[700],
+    marginBottom: theme.spacing.xs,
+    marginTop: theme.spacing.m,
+  },
+  fieldInput: {
+    height: 48,
+    borderWidth: 1.5,
+    borderColor: theme.colors.border,
+    borderRadius: theme.radius.l,
+    paddingHorizontal: theme.spacing.m,
+    ...theme.typography.body,
+    color: theme.colors.text[900],
+    backgroundColor: theme.colors.surface,
+  },
+  switchRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
-    marginTop: Spacing.xl,
-    marginBottom: Spacing.lg,
+    marginTop: theme.spacing.m,
   },
-  submitBtnText: { color: "#fff", fontWeight: "700", fontSize: 16 },
-  errorText: { fontSize: 16, color: Colors.error, textAlign: "center", marginBottom: Spacing.lg },
-  backBtn: {
-    backgroundColor: Colors.primary,
-    paddingHorizontal: Spacing.xl,
-    paddingVertical: Spacing.md,
-    borderRadius: Layout.borderRadius.md,
-  },
-  backBtnText: { color: "#FFFFFF", fontSize: 16, fontWeight: "600" },
 });

@@ -3,52 +3,52 @@ import {
   View,
   Text,
   StyleSheet,
-  ActivityIndicator,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
-  Alert,
   FlatList,
   Modal,
   TextInput,
+  ActivityIndicator,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
 import { useClasses } from "../hooks/useClasses";
 import { useSubjectLoad } from "../hooks/useSubjectLoad";
 import { CreateClassModal } from "../components/CreateClassModal";
 import { usePermissions } from "@/modules/permissions/hooks/usePermissions";
 import * as PERMS from "@/modules/permissions/constants/permissions";
-import { Colors } from "@/common/constants/colors";
-import { Spacing, Layout } from "@/common/constants/spacing";
 import { Student } from "@/modules/students/types";
 import { Teacher } from "@/modules/teachers/types";
 import { subjectService } from "@/modules/subjects/services/subjectService";
 import { Subject } from "@/modules/subjects/types";
 import { SubjectLoad } from "../types";
+import { ScreenContainer } from "@/src/components/ui/ScreenContainer";
+import { Header } from "@/src/components/ui/Header";
+import { SurfaceCard } from "@/src/components/ui/SurfaceCard";
+import { DataRow } from "@/src/components/ui/DataRow";
+import { LoadingState } from "@/src/components/ui/LoadingState";
+import { EmptyState } from "@/src/components/ui/EmptyState";
+import { PrimaryButton } from "@/src/components/ui/PrimaryButton";
+import { ConfirmationDialog } from "@/src/components/ui/ConfirmationDialog";
+import { useToast } from "@/src/components/ui/Toast";
+import { theme } from "@/src/design-system/theme";
+import { Icons } from "@/src/design-system/icons";
 
 export default function ClassDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const toast = useToast();
   const {
-    currentClass,
-    loading,
-    fetchClassDetail,
-    updateClass,
-    assignStudent,
-    removeStudent,
-    assignTeacher,
-    removeTeacher,
-    fetchUnassignedStudents,
-    fetchUnassignedTeachers,
-    unassignedStudents,
-    unassignedTeachers,
+    currentClass, loading, fetchClassDetail, updateClass,
+    assignStudent, removeStudent, assignTeacher, removeTeacher,
+    fetchUnassignedStudents, fetchUnassignedTeachers,
+    unassignedStudents, unassignedTeachers,
   } = useClasses();
   const { hasPermission } = usePermissions();
 
   const canUpdate = hasPermission(PERMS.CLASS_UPDATE);
   const canManage = hasPermission(PERMS.CLASS_MANAGE);
   const canViewTimetable = hasPermission(PERMS.TIMETABLE_READ) || hasPermission(PERMS.TIMETABLE_MANAGE);
+
   const [showStudentPicker, setShowStudentPicker] = useState(false);
   const [showTeacherPicker, setShowTeacherPicker] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -56,15 +56,15 @@ export default function ClassDetailScreen() {
   const [subjectsLoading, setSubjectsLoading] = useState(false);
   const [selectedSubjectId, setSelectedSubjectId] = useState<string>("");
 
-  // --- Subject Load ---
+  // Remove confirmations
+  const [removeStudentTarget, setRemoveStudentTarget] = useState<Student | null>(null);
+  const [removeTeacherTarget, setRemoveTeacherTarget] = useState<{ id: string; name: string } | null>(null);
+  const [removing, setRemoving] = useState(false);
+
   const classId = id || "";
   const {
-    subjectLoads,
-    loading: loadLoading,
-    fetchSubjectLoads,
-    createSubjectLoad,
-    updateSubjectLoad,
-    deleteSubjectLoad,
+    subjectLoads, loading: loadLoading,
+    fetchSubjectLoads, createSubjectLoad, updateSubjectLoad, deleteSubjectLoad,
   } = useSubjectLoad(classId);
   const [showLoadModal, setShowLoadModal] = useState(false);
   const [loadSubjectId, setLoadSubjectId] = useState("");
@@ -72,12 +72,10 @@ export default function ClassDetailScreen() {
   const [loadSubmitting, setLoadSubmitting] = useState(false);
   const [editingLoad, setEditingLoad] = useState<SubjectLoad | null>(null);
   const [editPeriods, setEditPeriods] = useState("4");
+  const [deleteLoadTarget, setDeleteLoadTarget] = useState<SubjectLoad | null>(null);
 
   useEffect(() => {
-    if (id) {
-      fetchClassDetail(id);
-      fetchSubjectLoads();
-    }
+    if (id) { fetchClassDetail(id); fetchSubjectLoads(); }
   }, [id]);
 
   const handleAssignStudent = async (student: Student) => {
@@ -85,62 +83,54 @@ export default function ClassDetailScreen() {
     try {
       await assignStudent(id, student.id);
       setShowStudentPicker(false);
-      Alert.alert("Success", `${student.name} assigned to class`);
+      toast.success("Student assigned", `${student.name} added to class.`);
     } catch (err: any) {
-      Alert.alert("Error", err.message || "Failed to assign student");
+      toast.error("Failed", err.message || "Could not assign student");
     }
   };
 
-  const handleRemoveStudent = (student: Student) => {
-    Alert.alert("Remove Student", `Remove ${student.name} from this class?`, [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Remove",
-        style: "destructive",
-        onPress: async () => {
-          if (!id) return;
-          try {
-            await removeStudent(id, student.id);
-          } catch (err: any) {
-            Alert.alert("Error", err.message);
-          }
-        },
-      },
-    ]);
+  const handleRemoveStudentConfirm = async () => {
+    if (!removeStudentTarget || !id) return;
+    setRemoving(true);
+    try {
+      await removeStudent(id, removeStudentTarget.id);
+      toast.success("Student removed");
+    } catch (err: any) {
+      toast.error("Error", err.message);
+    } finally {
+      setRemoving(false);
+      setRemoveStudentTarget(null);
+    }
   };
 
   const handleAssignTeacher = async (teacher: Teacher) => {
     if (!id) return;
     if (!selectedSubjectId) {
-      Alert.alert("Select Subject", "Please select a subject first.");
+      toast.warning("Select a subject", "Please select a subject before assigning a teacher.");
       return;
     }
     try {
       await assignTeacher(id, teacher.id, selectedSubjectId);
       setShowTeacherPicker(false);
       setSelectedSubjectId("");
-      Alert.alert("Success", `${teacher.name} assigned to class`);
+      toast.success("Teacher assigned", `${teacher.name} added to class.`);
     } catch (err: any) {
-      Alert.alert("Error", err.message || "Failed to assign teacher");
+      toast.error("Failed", err.message || "Could not assign teacher");
     }
   };
 
-  const handleRemoveTeacher = (teacherId: string, teacherName: string) => {
-    Alert.alert("Remove Teacher", `Remove ${teacherName} from this class?`, [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Remove",
-        style: "destructive",
-        onPress: async () => {
-          if (!id) return;
-          try {
-            await removeTeacher(id, teacherId);
-          } catch (err: any) {
-            Alert.alert("Error", err.message);
-          }
-        },
-      },
-    ]);
+  const handleRemoveTeacherConfirm = async () => {
+    if (!removeTeacherTarget || !id) return;
+    setRemoving(true);
+    try {
+      await removeTeacher(id, removeTeacherTarget.id);
+      toast.success("Teacher removed");
+    } catch (err: any) {
+      toast.error("Error", err.message);
+    } finally {
+      setRemoving(false);
+      setRemoveTeacherTarget(null);
+    }
   };
 
   const openStudentPicker = async () => {
@@ -149,12 +139,12 @@ export default function ClassDetailScreen() {
     setShowStudentPicker(true);
   };
 
-  const handleUpdateClass = async (data: { name: string; section: string; academic_year_id: string; teacher_id?: string; start_date?: string; end_date?: string }) => {
+  const handleUpdateClass = async (data: any) => {
     if (!id) return;
     try {
       await updateClass(id, data);
       setShowEditModal(false);
-      Alert.alert("Success", "Class updated successfully");
+      toast.success("Class updated successfully");
       fetchClassDetail(id);
     } catch (err: any) {
       throw err;
@@ -177,7 +167,6 @@ export default function ClassDetailScreen() {
     setShowTeacherPicker(true);
   };
 
-  // --- Subject Load helpers ---
   const openLoadModal = async () => {
     setLoadSubjectId("");
     setLoadPeriods("4");
@@ -196,20 +185,21 @@ export default function ClassDetailScreen() {
 
   const handleCreateLoad = async () => {
     if (!loadSubjectId) {
-      Alert.alert("Validation", "Select a subject");
+      toast.warning("Validation", "Please select a subject.");
       return;
     }
     const periods = parseInt(loadPeriods);
     if (!periods || periods < 1) {
-      Alert.alert("Validation", "Enter a valid period count (≥ 1)");
+      toast.warning("Validation", "Enter a valid period count (≥ 1).");
       return;
     }
     try {
       setLoadSubmitting(true);
       await createSubjectLoad({ subject_id: loadSubjectId, weekly_periods: periods });
       setShowLoadModal(false);
+      toast.success("Subject load added");
     } catch (e: any) {
-      Alert.alert("Error", e.message || "Failed to save");
+      toast.error("Error", e.message || "Failed to save");
     } finally {
       setLoadSubmitting(false);
     }
@@ -224,96 +214,88 @@ export default function ClassDetailScreen() {
     if (!editingLoad) return;
     const periods = parseInt(editPeriods);
     if (!periods || periods < 1) {
-      Alert.alert("Validation", "Enter a valid period count");
+      toast.warning("Validation", "Enter a valid period count.");
       return;
     }
     try {
       await updateSubjectLoad(editingLoad.id, periods);
       setEditingLoad(null);
+      toast.success("Updated successfully");
     } catch (e: any) {
-      Alert.alert("Error", e.message);
+      toast.error("Error", e.message);
     }
   };
 
-  const handleDeleteLoad = (load: SubjectLoad) => {
-    Alert.alert("Delete", `Remove ${load.subject_name} from weekly load?`, [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Delete",
-        style: "destructive",
-        onPress: async () => {
-          try { await deleteSubjectLoad(load.id); } catch (e: any) { Alert.alert("Error", e.message); }
-        },
-      },
-    ]);
+  const handleDeleteLoadConfirm = async () => {
+    if (!deleteLoadTarget) return;
+    try {
+      await deleteSubjectLoad(deleteLoadTarget.id);
+      toast.success("Subject load removed");
+    } catch (e: any) {
+      toast.error("Error", e.message);
+    } finally {
+      setDeleteLoadTarget(null);
+    }
   };
 
   if (loading && !currentClass) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color={Colors.primary} />
-        </View>
-      </SafeAreaView>
+      <ScreenContainer>
+        <Header title="Class Details" onBack={() => router.back()} compact />
+        <LoadingState message="Loading class..." />
+      </ScreenContainer>
     );
   }
 
   if (!currentClass) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.center}>
-          <Text style={styles.errorText}>Class not found</Text>
-          <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-            <Text style={styles.backBtnText}>Go Back</Text>
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
+      <ScreenContainer>
+        <Header title="Class Details" onBack={() => router.back()} compact />
+        <EmptyState
+          icon={<Icons.Class size={32} color={theme.colors.text[300]} />}
+          title="Class not found"
+          description="This class could not be loaded."
+          action={{ label: "Go Back", onPress: () => router.back() }}
+        />
+      </ScreenContainer>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backIcon}>
-          <Ionicons name="arrow-back" size={24} color={Colors.text} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>
-          {currentClass.name} - {currentClass.section}
-        </Text>
-        {canUpdate && (
-          <TouchableOpacity
-            style={styles.editIcon}
-            onPress={() => setShowEditModal(true)}
-          >
-            <Ionicons name="create-outline" size={24} color={Colors.primary} />
-          </TouchableOpacity>
-        )}
-      </View>
-
-      <ScrollView style={styles.content}>
-        {/* Class Info */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Class Information</Text>
+    <ScreenContainer>
+      <Header
+        title={`${currentClass.name} – ${currentClass.section}`}
+        onBack={() => router.back()}
+        compact
+        rightAction={
+          <View style={styles.headerActions}>
             {canViewTimetable && (
               <TouchableOpacity
-                style={styles.addSmallBtn}
+                style={styles.iconBtn}
                 onPress={() => router.push(`/(protected)/timetable/${id}` as any)}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               >
-                <Ionicons name="calendar-outline" size={18} color={Colors.primary} />
-                <Text style={styles.addSmallBtnText}>Timetable</Text>
+                <Icons.Calendar size={20} color={theme.colors.primary[500]} />
+              </TouchableOpacity>
+            )}
+            {canUpdate && (
+              <TouchableOpacity
+                style={styles.iconBtn}
+                onPress={() => setShowEditModal(true)}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Icons.Edit size={20} color={theme.colors.primary[500]} />
               </TouchableOpacity>
             )}
           </View>
-          <View style={styles.infoRow}>
-            <Text style={styles.label}>Academic Year</Text>
-            <Text style={styles.value}>{currentClass.academic_year}</Text>
-          </View>
-          <View style={styles.infoRow}>
-            <Text style={styles.label}>Class Teacher</Text>
-            <Text style={styles.value}>{currentClass.teacher_name || "Not assigned"}</Text>
-          </View>
+        }
+      />
+
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+        {/* Class Info */}
+        <SurfaceCard title="Class Information" style={styles.section}>
+          <DataRow title="Academic Year" subtitle={currentClass.academic_year} noBorder />
+          <DataRow title="Class Teacher" subtitle={currentClass.teacher_name || "Not assigned"} />
           <View style={styles.statsRow}>
             <View style={styles.statCard}>
               <Text style={styles.statNumber}>{currentClass.student_count || 0}</Text>
@@ -324,137 +306,165 @@ export default function ClassDetailScreen() {
               <Text style={styles.statLabel}>Teachers</Text>
             </View>
           </View>
-        </View>
+        </SurfaceCard>
 
-        {/* Students Section */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Students</Text>
-            {canUpdate && (
-              <TouchableOpacity style={styles.addSmallBtn} onPress={openStudentPicker}>
-                <Ionicons name="add" size={20} color={Colors.primary} />
-                <Text style={styles.addSmallBtnText}>Add</Text>
+        {/* Students */}
+        <SurfaceCard
+          title="Students"
+          style={styles.section}
+          rightAction={
+            canUpdate ? (
+              <TouchableOpacity style={styles.addBtn} onPress={openStudentPicker}>
+                <Icons.Add size={18} color={theme.colors.primary[500]} />
+                <Text style={styles.addBtnText}>Add</Text>
               </TouchableOpacity>
-            )}
-          </View>
+            ) : undefined
+          }
+          padded={false}
+        >
           {currentClass.students && currentClass.students.length > 0 ? (
             currentClass.students.map((student) => (
-              <View key={student.id} style={styles.listItem}>
-                <View style={styles.listItemInfo}>
-                  <Text style={styles.listItemName}>{student.name}</Text>
-                  <Text style={styles.listItemDetail}>{student.admission_number}</Text>
-                </View>
-                {canUpdate && (
-                  <TouchableOpacity onPress={() => handleRemoveStudent(student)}>
-                    <Ionicons name="close-circle-outline" size={22} color={Colors.error} />
-                  </TouchableOpacity>
-                )}
-              </View>
+              <DataRow
+                key={student.id}
+                title={student.name}
+                subtitle={student.admission_number}
+                leftIcon={<Icons.Student size={18} color={theme.colors.primary[500]} />}
+                rightComponent={
+                  canUpdate ? (
+                    <TouchableOpacity onPress={() => setRemoveStudentTarget(student)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                      <Icons.Close size={18} color={theme.colors.danger} />
+                    </TouchableOpacity>
+                  ) : undefined
+                }
+              />
             ))
           ) : (
-            <Text style={styles.emptyText}>No students assigned</Text>
+            <View style={styles.emptySection}>
+              <Text style={styles.emptyText}>No students assigned</Text>
+            </View>
           )}
-        </View>
+        </SurfaceCard>
 
-        {/* Teachers Section */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Teachers</Text>
-            {canUpdate && (
-              <TouchableOpacity style={styles.addSmallBtn} onPress={openTeacherPicker}>
-                <Ionicons name="add" size={20} color={Colors.primary} />
-                <Text style={styles.addSmallBtnText}>Add</Text>
+        {/* Teachers */}
+        <SurfaceCard
+          title="Teachers"
+          style={styles.section}
+          rightAction={
+            canUpdate ? (
+              <TouchableOpacity style={styles.addBtn} onPress={openTeacherPicker}>
+                <Icons.Add size={18} color={theme.colors.primary[500]} />
+                <Text style={styles.addBtnText}>Add</Text>
               </TouchableOpacity>
-            )}
-          </View>
+            ) : undefined
+          }
+          padded={false}
+        >
           {currentClass.teachers && currentClass.teachers.length > 0 ? (
             currentClass.teachers.map((ct) => (
-              <View key={ct.id} style={styles.listItem}>
-                <View style={styles.listItemInfo}>
-                  <Text style={styles.listItemName}>{ct.teacher_name}</Text>
-                  <Text style={styles.listItemDetail}>
-                    {ct.teacher_employee_id}
-                    {(ct.subject_name || ct.subject) ? ` - ${ct.subject_name || ct.subject}` : ""}
-                  </Text>
-                </View>
-                {canUpdate && (
-                  <TouchableOpacity onPress={() => handleRemoveTeacher(ct.teacher_id, ct.teacher_name)}>
-                    <Ionicons name="close-circle-outline" size={22} color={Colors.error} />
-                  </TouchableOpacity>
-                )}
-              </View>
+              <DataRow
+                key={ct.id}
+                title={ct.teacher_name}
+                subtitle={`${ct.teacher_employee_id}${ct.subject_name || ct.subject ? ` • ${ct.subject_name || ct.subject}` : ""}`}
+                leftIcon={<Icons.Users size={18} color={theme.colors.primary[500]} />}
+                rightComponent={
+                  canUpdate ? (
+                    <TouchableOpacity onPress={() => setRemoveTeacherTarget({ id: ct.teacher_id, name: ct.teacher_name })} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                      <Icons.Close size={18} color={theme.colors.danger} />
+                    </TouchableOpacity>
+                  ) : undefined
+                }
+              />
             ))
           ) : (
-            <Text style={styles.emptyText}>No teachers assigned</Text>
+            <View style={styles.emptySection}>
+              <Text style={styles.emptyText}>No teachers assigned</Text>
+            </View>
           )}
-        </View>
+        </SurfaceCard>
 
-        {/* Subject Weekly Load Section */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Subject Weekly Load</Text>
-            {canManage && (
-              <TouchableOpacity style={styles.addSmallBtn} onPress={openLoadModal}>
-                <Ionicons name="add" size={20} color={Colors.primary} />
-                <Text style={styles.addSmallBtnText}>Add</Text>
+        {/* Subject Weekly Load */}
+        <SurfaceCard
+          title="Subject Weekly Load"
+          style={styles.section}
+          rightAction={
+            canManage ? (
+              <TouchableOpacity style={styles.addBtn} onPress={openLoadModal}>
+                <Icons.Add size={18} color={theme.colors.primary[500]} />
+                <Text style={styles.addBtnText}>Add</Text>
               </TouchableOpacity>
-            )}
-          </View>
-          <Text style={styles.helperText}>Periods per week per subject for timetable generation.</Text>
+            ) : undefined
+          }
+          padded={false}
+        >
+          <Text style={styles.helperText}>Periods per week for timetable generation.</Text>
           {loadLoading ? (
-            <ActivityIndicator size="small" color={Colors.primary} style={{ marginVertical: Spacing.md }} />
+            <ActivityIndicator size="small" color={theme.colors.primary[500]} style={styles.loader} />
           ) : subjectLoads.length === 0 ? (
-            <Text style={styles.emptyText}>No subject loads configured.</Text>
+            <View style={styles.emptySection}>
+              <Text style={styles.emptyText}>No subject loads configured.</Text>
+            </View>
           ) : (
             subjectLoads.map((load) => (
-              <View key={load.id} style={styles.loadRow}>
-                <View style={styles.listItemInfo}>
-                  <Text style={styles.listItemName}>{load.subject_name}</Text>
-                  {load.subject_code ? <Text style={styles.listItemDetail}>{load.subject_code}</Text> : null}
-                </View>
-                <View style={styles.loadPeriodBadge}>
-                  <Text style={styles.loadPeriodText}>{load.weekly_periods} / wk</Text>
-                </View>
-                {canManage && (
-                  <View style={styles.loadActions}>
-                    <TouchableOpacity onPress={() => openEditLoad(load)} style={styles.loadActionBtn}>
-                      <Ionicons name="create-outline" size={18} color={Colors.primary} />
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => handleDeleteLoad(load)} style={styles.loadActionBtn}>
-                      <Ionicons name="close-circle-outline" size={18} color={Colors.error} />
-                    </TouchableOpacity>
+              <DataRow
+                key={load.id}
+                title={load.subject_name}
+                subtitle={load.subject_code}
+                rightComponent={
+                  <View style={styles.loadRight}>
+                    <View style={styles.periodBadge}>
+                      <Text style={styles.periodText}>{load.weekly_periods}/wk</Text>
+                    </View>
+                    {canManage && (
+                      <>
+                        <TouchableOpacity onPress={() => openEditLoad(load)} style={styles.actionIconBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                          <Icons.Edit size={16} color={theme.colors.primary[500]} />
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => setDeleteLoadTarget(load)} style={styles.actionIconBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                          <Icons.Delete size={16} color={theme.colors.danger} />
+                        </TouchableOpacity>
+                      </>
+                    )}
                   </View>
-                )}
-              </View>
+                }
+              />
             ))
           )}
-        </View>
+        </SurfaceCard>
       </ScrollView>
+
+      {/* Edit Class Modal */}
+      {canUpdate && (
+        <CreateClassModal
+          visible={showEditModal}
+          onClose={() => setShowEditModal(false)}
+          onSubmit={handleUpdateClass}
+          initialData={{
+            name: currentClass.name, section: currentClass.section,
+            academic_year_id: currentClass.academic_year_id ?? "",
+            teacher_id: currentClass.teacher_id,
+            start_date: currentClass.start_date, end_date: currentClass.end_date,
+          }}
+          classId={id}
+        />
+      )}
 
       {/* Subject Load Create Modal */}
       <Modal visible={showLoadModal} animationType="slide" presentationStyle="formSheet">
-        <SafeAreaView style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Add Subject Load</Text>
-            <TouchableOpacity onPress={() => setShowLoadModal(false)}>
-              <Ionicons name="close" size={24} color={Colors.text} />
-            </TouchableOpacity>
-          </View>
-          <ScrollView style={{ padding: Spacing.lg }}>
+        <ScreenContainer>
+          <Header title="Add Subject Load" onBack={() => setShowLoadModal(false)} compact />
+          <ScrollView contentContainerStyle={styles.modalForm} showsVerticalScrollIndicator={false}>
             <Text style={styles.fieldLabel}>Select Subject *</Text>
             {subjectsLoading ? (
-              <ActivityIndicator size="small" color={Colors.primary} style={{ marginVertical: Spacing.md }} />
+              <ActivityIndicator size="small" color={theme.colors.primary[500]} style={styles.loader} />
             ) : (
-              <View style={styles.subjectGrid}>
+              <View style={styles.chipGrid}>
                 {subjects.map((s) => (
                   <TouchableOpacity
                     key={s.id}
-                    style={[styles.subjectChip, loadSubjectId === s.id && styles.subjectChipActive]}
+                    style={[styles.chip, loadSubjectId === s.id && styles.chipActive]}
                     onPress={() => setLoadSubjectId(s.id)}
                   >
-                    <Text style={[styles.subjectChipText, loadSubjectId === s.id && styles.subjectChipTextActive]}>
-                      {s.name}
-                    </Text>
+                    <Text style={[styles.chipText, loadSubjectId === s.id && styles.chipTextActive]}>{s.name}</Text>
                   </TouchableOpacity>
                 ))}
                 {!subjectsLoading && subjects.length === 0 && (
@@ -469,303 +479,206 @@ export default function ClassDetailScreen() {
               onChangeText={setLoadPeriods}
               keyboardType="number-pad"
               placeholder="e.g. 5"
+              placeholderTextColor={theme.colors.text[400]}
             />
-            <TouchableOpacity style={styles.submitBtn} onPress={handleCreateLoad} disabled={loadSubmitting}>
-              <Text style={styles.submitBtnText}>{loadSubmitting ? "Saving..." : "Save"}</Text>
-            </TouchableOpacity>
+            <PrimaryButton title={loadSubmitting ? "Saving…" : "Save"} onPress={handleCreateLoad} loading={loadSubmitting} style={styles.submitBtn} />
           </ScrollView>
-        </SafeAreaView>
+        </ScreenContainer>
       </Modal>
 
       {/* Subject Load Edit Modal */}
       <Modal visible={!!editingLoad} animationType="slide" presentationStyle="formSheet">
-        <SafeAreaView style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Edit Weekly Periods</Text>
-            <TouchableOpacity onPress={() => setEditingLoad(null)}>
-              <Ionicons name="close" size={24} color={Colors.text} />
-            </TouchableOpacity>
-          </View>
-          <View style={{ padding: Spacing.lg }}>
-            {editingLoad && (
-              <Text style={styles.fieldLabel}>{editingLoad.subject_name} — Weekly Periods</Text>
-            )}
+        <ScreenContainer>
+          <Header title="Edit Weekly Periods" onBack={() => setEditingLoad(null)} compact />
+          <View style={styles.modalForm}>
+            {editingLoad && <Text style={styles.fieldLabel}>{editingLoad.subject_name} — Weekly Periods</Text>}
             <TextInput
               style={styles.input}
               value={editPeriods}
               onChangeText={setEditPeriods}
               keyboardType="number-pad"
               placeholder="e.g. 5"
+              placeholderTextColor={theme.colors.text[400]}
             />
-            <TouchableOpacity style={styles.submitBtn} onPress={handleUpdateLoad}>
-              <Text style={styles.submitBtnText}>Update</Text>
-            </TouchableOpacity>
+            <PrimaryButton title="Update" onPress={handleUpdateLoad} style={styles.submitBtn} />
           </View>
-        </SafeAreaView>
+        </ScreenContainer>
       </Modal>
 
-      {/* Student Picker Modal */}
+      {/* Student Picker */}
       <Modal visible={showStudentPicker} animationType="slide" presentationStyle="pageSheet">
-        <SafeAreaView style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Add Student</Text>
-            <TouchableOpacity onPress={() => setShowStudentPicker(false)}>
-              <Ionicons name="close" size={24} color={Colors.text} />
-            </TouchableOpacity>
-          </View>
+        <ScreenContainer>
+          <Header title="Add Student" onBack={() => setShowStudentPicker(false)} compact />
           <FlatList
             data={unassignedStudents}
             keyExtractor={(item) => item.id}
-            contentContainerStyle={{ padding: Spacing.md }}
+            contentContainerStyle={styles.pickerList}
             renderItem={({ item }) => (
-              <TouchableOpacity
-                style={styles.pickerItem}
-                onPress={() => handleAssignStudent(item)}
-              >
-                <Text style={styles.pickerName}>{item.name}</Text>
-                <Text style={styles.pickerDetail}>{item.admission_number}</Text>
+              <TouchableOpacity style={styles.pickerItem} onPress={() => handleAssignStudent(item)} activeOpacity={0.7}>
+                <Icons.Student size={18} color={theme.colors.primary[500]} />
+                <View style={styles.pickerInfo}>
+                  <Text style={styles.pickerName}>{item.name}</Text>
+                  <Text style={styles.pickerDetail}>{item.admission_number}</Text>
+                </View>
+                <Icons.Add size={18} color={theme.colors.primary[500]} />
               </TouchableOpacity>
             )}
-            ListEmptyComponent={
-              <View style={styles.center}>
-                <Text style={styles.emptyText}>No unassigned students available</Text>
-              </View>
-            }
+            ListEmptyComponent={<EmptyState title="No unassigned students" description="All students are already assigned to a class." />}
           />
-        </SafeAreaView>
+        </ScreenContainer>
       </Modal>
 
-      {/* Edit Class Modal */}
-      {canUpdate && (
-        <CreateClassModal
-          visible={showEditModal}
-          onClose={() => setShowEditModal(false)}
-          onSubmit={handleUpdateClass}
-          initialData={{
-            name: currentClass.name,
-            section: currentClass.section,
-            academic_year_id: currentClass.academic_year_id ?? "",
-            teacher_id: currentClass.teacher_id,
-            start_date: currentClass.start_date,
-            end_date: currentClass.end_date,
-          }}
-          classId={id}
-        />
-      )}
-
-      {/* Teacher Picker Modal */}
+      {/* Teacher Picker */}
       <Modal visible={showTeacherPicker} animationType="slide" presentationStyle="pageSheet">
-        <SafeAreaView style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Add Teacher</Text>
-            <TouchableOpacity onPress={() => { setShowTeacherPicker(false); setSelectedSubjectId(""); }}>
-              <Ionicons name="close" size={24} color={Colors.text} />
-            </TouchableOpacity>
-          </View>
+        <ScreenContainer>
+          <Header
+            title="Add Teacher"
+            onBack={() => { setShowTeacherPicker(false); setSelectedSubjectId(""); }}
+            compact
+          />
           <View style={styles.subjectSection}>
-            <Text style={styles.subjectLabel}>1. Select Subject *</Text>
+            <Text style={styles.fieldLabel}>1. Select Subject *</Text>
             {subjectsLoading ? (
-              <ActivityIndicator size="small" color={Colors.primary} style={{ marginVertical: Spacing.md }} />
+              <ActivityIndicator size="small" color={theme.colors.primary[500]} />
             ) : (
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.subjectChips}>
-                {subjects.map((s) => (
-                  <TouchableOpacity
-                    key={s.id}
-                    style={[styles.subjectChip, selectedSubjectId === s.id && styles.subjectChipActive]}
-                    onPress={() => setSelectedSubjectId(s.id)}
-                  >
-                    <Text style={[styles.subjectChipText, selectedSubjectId === s.id && styles.subjectChipTextActive]}>
-                      {s.name}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-                {!subjectsLoading && subjects.length === 0 && (
-                  <Text style={styles.subjectEmpty}>No subjects. Create subjects first.</Text>
-                )}
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <View style={styles.chipRow}>
+                  {subjects.map((s) => (
+                    <TouchableOpacity
+                      key={s.id}
+                      style={[styles.chip, selectedSubjectId === s.id && styles.chipActive]}
+                      onPress={() => setSelectedSubjectId(s.id)}
+                    >
+                      <Text style={[styles.chipText, selectedSubjectId === s.id && styles.chipTextActive]}>{s.name}</Text>
+                    </TouchableOpacity>
+                  ))}
+                  {!subjectsLoading && subjects.length === 0 && (
+                    <Text style={styles.emptyText}>No subjects. Create subjects first.</Text>
+                  )}
+                </View>
               </ScrollView>
             )}
           </View>
-          <View style={styles.teacherSection}>
-            <Text style={styles.subjectLabel}>2. Select Teacher</Text>
-          </View>
+          <Text style={[styles.fieldLabel, { paddingHorizontal: theme.spacing.m }]}>2. Select Teacher</Text>
           <FlatList
             data={unassignedTeachers}
             keyExtractor={(item) => item.id}
-            contentContainerStyle={{ padding: Spacing.md }}
+            contentContainerStyle={styles.pickerList}
             renderItem={({ item }) => (
-              <TouchableOpacity
-                style={styles.pickerItem}
-                onPress={() => handleAssignTeacher(item)}
-              >
-                <Text style={styles.pickerName}>{item.name}</Text>
-                <Text style={styles.pickerDetail}>
-                  {item.employee_id}
-                  {item.department ? ` - ${item.department}` : ""}
-                </Text>
+              <TouchableOpacity style={styles.pickerItem} onPress={() => handleAssignTeacher(item)} activeOpacity={0.7}>
+                <Icons.Users size={18} color={theme.colors.primary[500]} />
+                <View style={styles.pickerInfo}>
+                  <Text style={styles.pickerName}>{item.name}</Text>
+                  <Text style={styles.pickerDetail}>{item.employee_id}{item.department ? ` • ${item.department}` : ""}</Text>
+                </View>
+                <Icons.Add size={18} color={theme.colors.primary[500]} />
               </TouchableOpacity>
             )}
-            ListEmptyComponent={
-              <View style={styles.center}>
-                <Text style={styles.emptyText}>No available teachers</Text>
-              </View>
-            }
+            ListEmptyComponent={<EmptyState title="No available teachers" description="All teachers are already assigned." />}
           />
-        </SafeAreaView>
+        </ScreenContainer>
       </Modal>
-    </SafeAreaView>
+
+      {/* Remove Student Confirmation */}
+      <ConfirmationDialog
+        visible={!!removeStudentTarget}
+        title="Remove Student"
+        message={removeStudentTarget ? `Remove ${removeStudentTarget.name} from this class?` : ''}
+        confirmLabel="Remove"
+        onConfirm={handleRemoveStudentConfirm}
+        onCancel={() => setRemoveStudentTarget(null)}
+        loading={removing}
+        destructive
+      />
+
+      {/* Remove Teacher Confirmation */}
+      <ConfirmationDialog
+        visible={!!removeTeacherTarget}
+        title="Remove Teacher"
+        message={removeTeacherTarget ? `Remove ${removeTeacherTarget.name} from this class?` : ''}
+        confirmLabel="Remove"
+        onConfirm={handleRemoveTeacherConfirm}
+        onCancel={() => setRemoveTeacherTarget(null)}
+        loading={removing}
+        destructive
+      />
+
+      {/* Delete Load Confirmation */}
+      <ConfirmationDialog
+        visible={!!deleteLoadTarget}
+        title="Remove Subject Load"
+        message={deleteLoadTarget ? `Remove ${deleteLoadTarget.subject_name} from weekly load?` : ''}
+        confirmLabel="Remove"
+        onConfirm={handleDeleteLoadConfirm}
+        onCancel={() => setDeleteLoadTarget(null)}
+        destructive
+      />
+    </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
-  center: { flex: 1, justifyContent: "center", alignItems: "center", padding: Spacing.xl },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: Spacing.lg,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
+  content: { padding: theme.spacing.m, paddingBottom: theme.spacing.xxl },
+  headerActions: { flexDirection: "row", gap: theme.spacing.xs },
+  iconBtn: {
+    width: 36, height: 36, borderRadius: theme.radius.m,
+    backgroundColor: theme.colors.backgroundSecondary,
+    alignItems: "center", justifyContent: "center",
   },
-  backIcon: { padding: Spacing.sm },
-  headerTitle: { flex: 1, fontSize: 20, fontWeight: "bold", color: Colors.text, marginLeft: Spacing.md },
-  editIcon: { padding: Spacing.sm },
-  content: { flex: 1, padding: Spacing.lg },
-  section: {
-    marginBottom: Spacing.xl,
-    backgroundColor: Colors.background,
-    borderRadius: Layout.borderRadius.md,
-    borderWidth: 1,
-    borderColor: Colors.borderLight,
-    padding: Spacing.lg,
-  },
-  sectionHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: Spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
-    paddingBottom: Spacing.sm,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: Colors.text,
-  },
-  addSmallBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: Colors.backgroundSecondary,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.xs,
-    borderRadius: Layout.borderRadius.sm,
-    gap: 4,
-  },
-  addSmallBtnText: { fontSize: 14, color: Colors.primary, fontWeight: "500" },
-  infoRow: { marginBottom: Spacing.md },
-  label: { fontSize: 14, color: Colors.textSecondary, marginBottom: 4 },
-  value: { fontSize: 16, fontWeight: "500", color: Colors.text },
-  statsRow: { flexDirection: "row", gap: Spacing.md, marginTop: Spacing.sm },
+  section: { marginBottom: theme.spacing.m },
+  statsRow: { flexDirection: "row", gap: theme.spacing.m, marginTop: theme.spacing.m },
   statCard: {
-    flex: 1,
-    backgroundColor: Colors.backgroundSecondary,
-    padding: Spacing.md,
-    borderRadius: Layout.borderRadius.md,
-    alignItems: "center",
+    flex: 1, backgroundColor: theme.colors.backgroundSecondary, borderRadius: theme.radius.l,
+    padding: theme.spacing.m, alignItems: "center",
   },
-  statNumber: { fontSize: 24, fontWeight: "700", color: Colors.text },
-  statLabel: { fontSize: 13, color: Colors.textSecondary, marginTop: 4 },
-  listItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: Spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
+  statNumber: { ...theme.typography.h1, color: theme.colors.text[900] },
+  statLabel: { ...theme.typography.caption, color: theme.colors.text[500], marginTop: 4 },
+  addBtn: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    backgroundColor: theme.colors.primary[50], paddingHorizontal: theme.spacing.s,
+    paddingVertical: theme.spacing.xs, borderRadius: theme.radius.m,
+    borderWidth: 1, borderColor: theme.colors.primary[200],
   },
-  listItemInfo: { flex: 1 },
-  listItemName: { fontSize: 15, fontWeight: "500", color: Colors.text },
-  listItemDetail: { fontSize: 13, color: Colors.textSecondary },
-  emptyText: { fontSize: 14, color: Colors.textSecondary, fontStyle: "italic" },
-  errorText: { fontSize: 16, color: Colors.error, textAlign: "center", marginBottom: Spacing.lg },
-  backBtn: {
-    backgroundColor: Colors.primary,
-    paddingHorizontal: Spacing.xl,
-    paddingVertical: Spacing.md,
-    borderRadius: Layout.borderRadius.md,
+  addBtnText: { ...theme.typography.caption, color: theme.colors.primary[600], fontWeight: "600" },
+  emptySection: { padding: theme.spacing.m },
+  emptyText: { ...theme.typography.body, color: theme.colors.text[400], fontStyle: "italic" },
+  helperText: { ...theme.typography.caption, color: theme.colors.text[400], fontStyle: "italic", padding: theme.spacing.m, paddingBottom: 0 },
+  loader: { marginVertical: theme.spacing.m },
+  loadRight: { flexDirection: "row", alignItems: "center", gap: theme.spacing.xs },
+  periodBadge: {
+    backgroundColor: theme.colors.primary[50], borderRadius: theme.radius.m,
+    paddingHorizontal: theme.spacing.s, paddingVertical: 2,
+    borderWidth: 1, borderColor: theme.colors.primary[200],
   },
-  backBtnText: { color: "#FFFFFF", fontSize: 16, fontWeight: "600" },
-  // Modal styles
-  modalContainer: { flex: 1, backgroundColor: Colors.background },
-  modalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: Spacing.lg,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
-  },
-  modalTitle: { fontSize: 18, fontWeight: "600", color: Colors.text },
-  subjectSection: { paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.borderLight },
-  subjectLabel: { fontSize: 14, fontWeight: "500", color: Colors.text, marginBottom: Spacing.sm },
-  subjectChips: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.sm },
-  subjectChip: {
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-    borderRadius: Layout.borderRadius.sm,
-    borderWidth: 1,
-    borderColor: Colors.borderLight,
-    backgroundColor: Colors.backgroundSecondary,
-  },
-  subjectChipActive: { borderColor: Colors.primary, backgroundColor: Colors.primary + "20" },
-  subjectChipText: { fontSize: 14, color: Colors.text },
-  subjectChipTextActive: { color: Colors.primary, fontWeight: "600" },
-  subjectEmpty: { fontSize: 14, color: Colors.textSecondary, fontStyle: "italic", paddingVertical: Spacing.sm },
-  teacherSection: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.md },
-  pickerItem: {
-    padding: Spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
-  },
-  pickerName: { fontSize: 16, fontWeight: "500", color: Colors.text },
-  pickerDetail: { fontSize: 13, color: Colors.textSecondary, marginTop: 2 },
-  // Subject Load styles
-  helperText: { fontSize: 13, color: Colors.textTertiary, marginBottom: Spacing.sm, fontStyle: "italic" },
-  loadRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: Spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
-  },
-  loadPeriodBadge: {
-    backgroundColor: Colors.backgroundSecondary,
-    borderRadius: Layout.borderRadius.sm,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.xs,
-    marginRight: Spacing.sm,
-  },
-  loadPeriodText: { fontSize: 13, fontWeight: "600", color: Colors.primary },
-  loadActions: { flexDirection: "row", gap: 4 },
-  loadActionBtn: { padding: 4 },
-  subjectGrid: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.sm, marginBottom: Spacing.md },
-  fieldLabel: { fontSize: 14, fontWeight: "500", color: Colors.text, marginBottom: Spacing.xs, marginTop: Spacing.md },
+  periodText: { ...theme.typography.caption, fontWeight: "700", color: theme.colors.primary[600] },
+  actionIconBtn: { padding: 4 },
+  // Modal
+  modalForm: { padding: theme.spacing.m, paddingBottom: theme.spacing.xxl },
+  fieldLabel: { ...theme.typography.label, color: theme.colors.text[700], marginBottom: theme.spacing.xs, marginTop: theme.spacing.m },
   input: {
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: Layout.borderRadius.sm,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    fontSize: 15,
-    color: Colors.text,
-    backgroundColor: Colors.backgroundSecondary,
+    borderWidth: 1.5, borderColor: theme.colors.border, borderRadius: theme.radius.l,
+    paddingHorizontal: theme.spacing.m, paddingVertical: theme.spacing.sm,
+    ...theme.typography.body, color: theme.colors.text[900],
+    backgroundColor: theme.colors.surface,
   },
-  submitBtn: {
-    backgroundColor: Colors.primary,
-    paddingVertical: Spacing.md,
-    borderRadius: Layout.borderRadius.md,
-    alignItems: "center",
-    marginTop: Spacing.xl,
-    marginBottom: Spacing.lg,
+  submitBtn: { marginTop: theme.spacing.xl },
+  chipGrid: { flexDirection: "row", flexWrap: "wrap", gap: theme.spacing.s, marginBottom: theme.spacing.m },
+  chipRow: { flexDirection: "row", gap: theme.spacing.s, paddingBottom: theme.spacing.s },
+  chip: {
+    paddingVertical: theme.spacing.s, paddingHorizontal: theme.spacing.m,
+    borderRadius: theme.radius.full, borderWidth: 1, borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surface,
   },
-  submitBtnText: { color: "#fff", fontWeight: "700", fontSize: 16 },
+  chipActive: { borderColor: theme.colors.primary[500], backgroundColor: theme.colors.primary[500] },
+  chipText: { ...theme.typography.caption, fontWeight: "600", color: theme.colors.text[700] },
+  chipTextActive: { color: "#fff" },
+  subjectSection: { paddingHorizontal: theme.spacing.m, paddingBottom: theme.spacing.m, borderBottomWidth: 1, borderBottomColor: theme.colors.border },
+  pickerList: { padding: theme.spacing.m },
+  pickerItem: {
+    flexDirection: "row", alignItems: "center", gap: theme.spacing.m,
+    paddingVertical: theme.spacing.m, borderBottomWidth: 1, borderBottomColor: theme.colors.border,
+  },
+  pickerInfo: { flex: 1 },
+  pickerName: { ...theme.typography.body, fontWeight: "500", color: theme.colors.text[900] },
+  pickerDetail: { ...theme.typography.caption, color: theme.colors.text[500], marginTop: 2 },
 });

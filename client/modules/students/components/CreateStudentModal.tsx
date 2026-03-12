@@ -10,9 +10,8 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
-import { Colors } from "@/common/constants/colors";
-import { Spacing, Layout } from "@/common/constants/spacing";
-import { Ionicons } from "@expo/vector-icons";
+import { theme } from "@/src/design-system/theme";
+import { Icons } from "@/src/design-system/icons";
 import { CreateStudentDTO, Student } from "../types";
 import { validateStudentData } from "../validation/schemas";
 import { useAcademicYears } from "@/modules/academics/hooks/useAcademicYears";
@@ -180,7 +179,7 @@ export const CreateStudentModal: React.FC<CreateStudentModalProps> = ({
               {mode === "edit" ? "Edit Student" : "Add New Student"}
             </Text>
             <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-              <Ionicons name="close" size={24} color={Colors.text} />
+              <Icons.Close size={24} color={theme.colors.text[500]} />
             </TouchableOpacity>
           </View>
 
@@ -209,7 +208,7 @@ export const CreateStudentModal: React.FC<CreateStudentModalProps> = ({
                 }
               }}
               placeholder="e.g. John Doe"
-              placeholderTextColor={Colors.textSecondary}
+              placeholderTextColor={theme.colors.text[400]}
             />
             {fieldErrors.name && (
               <Text style={styles.fieldError}>{fieldErrors.name}</Text>
@@ -233,7 +232,7 @@ export const CreateStudentModal: React.FC<CreateStudentModalProps> = ({
                 }
               }}
               placeholder="Auto-generated if empty"
-              placeholderTextColor={Colors.textSecondary}
+              placeholderTextColor={theme.colors.text[400]}
               editable={mode === "create"} // Cannot edit admission number
             />
             {fieldErrors.admission_number && (
@@ -250,10 +249,10 @@ export const CreateStudentModal: React.FC<CreateStudentModalProps> = ({
                     setFormData((prev) => ({ ...prev, gender: text }))
                   }
                   placeholder="Male/Female/Other"
-                  placeholderTextColor={Colors.textSecondary}
+                  placeholderTextColor={theme.colors.text[400]}
                 />
               </View>
-              <View style={[styles.col, { marginLeft: Spacing.md }]}>
+              <View style={[styles.col, { marginLeft: theme.spacing.s }]}>
                 <Text style={styles.label}>Date of Birth</Text>
                 <TextInput
                   style={styles.input}
@@ -262,7 +261,7 @@ export const CreateStudentModal: React.FC<CreateStudentModalProps> = ({
                     setFormData((prev) => ({ ...prev, date_of_birth: text }))
                   }
                   placeholder="YYYY-MM-DD"
-                  placeholderTextColor={Colors.textSecondary}
+                  placeholderTextColor={theme.colors.text[400]}
                 />
               </View>
             </View>
@@ -350,7 +349,7 @@ export const CreateStudentModal: React.FC<CreateStudentModalProps> = ({
                 }
               }}
               placeholder="Parent/Guardian Name"
-              placeholderTextColor={Colors.textSecondary}
+              placeholderTextColor={theme.colors.text[400]}
             />
             {fieldErrors.guardian_name && (
               <Text style={styles.fieldError}>{fieldErrors.guardian_name}</Text>
@@ -373,13 +372,13 @@ export const CreateStudentModal: React.FC<CreateStudentModalProps> = ({
                     }
                   }}
                   placeholder="e.g. Father"
-                  placeholderTextColor={Colors.textSecondary}
+                  placeholderTextColor={theme.colors.text[400]}
                 />
                 {fieldErrors.guardian_relationship && (
                   <Text style={styles.fieldError}>{fieldErrors.guardian_relationship}</Text>
                 )}
               </View>
-              <View style={[styles.col, { marginLeft: Spacing.md }]}>
+              <View style={[styles.col, { marginLeft: theme.spacing.s }]}>
                 <Text style={styles.label}>Phone *</Text>
                 <TextInput
                   style={[styles.input, fieldErrors.guardian_phone && styles.inputError]}
@@ -395,7 +394,7 @@ export const CreateStudentModal: React.FC<CreateStudentModalProps> = ({
                     }
                   }}
                   placeholder="Contact Number"
-                  placeholderTextColor={Colors.textSecondary}
+                  placeholderTextColor={theme.colors.text[400]}
                   keyboardType="phone-pad"
                 />
                 {fieldErrors.guardian_phone && (
@@ -422,7 +421,7 @@ export const CreateStudentModal: React.FC<CreateStudentModalProps> = ({
                 }
               }}
               placeholder="e.g. 1234567890"
-              placeholderTextColor={Colors.textSecondary}
+              placeholderTextColor={theme.colors.text[400]}
               keyboardType="phone-pad"
             />
             {fieldErrors.phone && (
@@ -447,7 +446,7 @@ export const CreateStudentModal: React.FC<CreateStudentModalProps> = ({
                 }
               }}
               placeholder="e.g. john@student.school"
-              placeholderTextColor={Colors.textSecondary}
+              placeholderTextColor={theme.colors.text[400]}
               autoCapitalize="none"
               keyboardType="email-address"
             />
@@ -482,71 +481,70 @@ export const CreateStudentModal: React.FC<CreateStudentModalProps> = ({
 const styles = StyleSheet.create({
   modalContainer: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
+    backgroundColor: theme.colors.overlay,
     justifyContent: "flex-end",
   },
   modalContent: {
-    backgroundColor: Colors.background,
-    borderTopLeftRadius: Layout.borderRadius.xl,
-    borderTopRightRadius: Layout.borderRadius.xl,
+    backgroundColor: theme.colors.surface,
+    borderTopLeftRadius: theme.radius.xl,
+    borderTopRightRadius: theme.radius.xl,
     height: "85%",
-    padding: Spacing.lg,
+    padding: theme.spacing.m,
   },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: Spacing.lg,
+    marginBottom: theme.spacing.m,
   },
   title: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: Colors.text,
+    ...theme.typography.h3,
+    color: theme.colors.text[900],
   },
   closeButton: {
-    padding: Spacing.xs,
+    padding: theme.spacing.xs,
   },
   form: {
     flex: 1,
   },
   label: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: Colors.text,
-    marginBottom: Spacing.xs,
-    marginTop: Spacing.sm,
+    ...theme.typography.label,
+    color: theme.colors.text[700],
+    marginBottom: theme.spacing.xs,
+    marginTop: theme.spacing.xs,
   },
   helperText: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-    marginBottom: Spacing.xs,
+    ...theme.typography.bodySmall,
+    color: theme.colors.text[400],
+    marginBottom: theme.spacing.xs,
     fontStyle: "italic",
   },
   input: {
-    backgroundColor: Colors.backgroundSecondary,
+    backgroundColor: theme.colors.backgroundSecondary,
     borderWidth: 1,
-    borderColor: Colors.borderLight,
-    borderRadius: Layout.borderRadius.md,
-    padding: Spacing.md,
-    color: Colors.text,
-    fontSize: 16,
+    borderColor: theme.colors.border,
+    borderRadius: theme.radius.m,
+    paddingHorizontal: theme.spacing.m,
+    paddingVertical: theme.spacing.s,
+    color: theme.colors.text[900],
+    ...theme.typography.body,
   },
   inputError: {
-    borderColor: Colors.error,
+    borderColor: theme.colors.danger,
     borderWidth: 2,
   },
   fieldError: {
-    color: Colors.error,
+    color: theme.colors.danger,
     fontSize: 12,
     marginTop: 4,
-    marginBottom: 8,
+    marginBottom: 6,
   },
   sectionTitle: {
-    fontSize: 16,
+    ...theme.typography.body,
     fontWeight: "600",
-    color: Colors.text,
-    marginTop: Spacing.lg,
-    marginBottom: Spacing.sm,
+    color: theme.colors.text[900],
+    marginTop: theme.spacing.m,
+    marginBottom: theme.spacing.xs,
   },
   row: {
     flexDirection: "row",
@@ -555,62 +553,70 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   errorContainer: {
-    backgroundColor: "#FFE5E5",
-    padding: Spacing.sm,
-    borderRadius: Layout.borderRadius.md,
-    marginBottom: Spacing.md,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: theme.colors.dangerLight,
+    padding: theme.spacing.s,
+    borderRadius: theme.radius.m,
+    marginBottom: theme.spacing.s,
+    borderLeftWidth: 3,
+    borderLeftColor: theme.colors.danger,
   },
   errorText: {
-    color: Colors.error,
-    fontSize: 14,
+    ...theme.typography.bodySmall,
+    color: theme.colors.danger,
+    flex: 1,
   },
   footer: {
     flexDirection: "row",
-    marginTop: Spacing.lg,
-    paddingTop: Spacing.md,
+    marginTop: theme.spacing.m,
+    paddingTop: theme.spacing.s,
     borderTopWidth: 1,
-    borderTopColor: Colors.borderLight,
+    borderTopColor: theme.colors.border,
   },
   cancelButton: {
     flex: 1,
-    padding: Spacing.md,
+    paddingVertical: theme.spacing.s,
     alignItems: "center",
-    marginRight: Spacing.md,
+    marginRight: theme.spacing.s,
+    justifyContent: "center",
   },
   cancelButtonText: {
-    fontSize: 16,
-    color: Colors.textSecondary,
+    ...theme.typography.label,
+    color: theme.colors.text[500],
     fontWeight: "600",
   },
   submitButton: {
     flex: 2,
-    backgroundColor: Colors.primary,
-    padding: Spacing.md,
-    borderRadius: Layout.borderRadius.md,
+    backgroundColor: theme.colors.primary[500],
+    paddingVertical: theme.spacing.s,
+    borderRadius: theme.radius.m,
     alignItems: "center",
+    justifyContent: "center",
+    height: 48,
   },
   disabledButton: {
     opacity: 0.7,
   },
   submitButtonText: {
-    fontSize: 16,
+    ...theme.typography.label,
     color: "#FFFFFF",
     fontWeight: "600",
   },
-  chipRow: { marginBottom: Spacing.xs, flexDirection: "row" },
+  chipRow: { marginBottom: theme.spacing.xs, flexDirection: "row", gap: theme.spacing.xs },
   chip: {
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-    marginRight: Spacing.sm,
-    borderRadius: Layout.borderRadius.sm,
+    paddingVertical: 6,
+    paddingHorizontal: theme.spacing.s,
+    borderRadius: theme.radius.s,
     borderWidth: 1,
-    borderColor: Colors.borderLight,
-    backgroundColor: Colors.backgroundSecondary,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.backgroundSecondary,
   },
   chipActive: {
-    borderColor: Colors.primary,
-    backgroundColor: Colors.primary + "20",
+    borderColor: theme.colors.primary[500],
+    backgroundColor: theme.colors.primary[50],
   },
-  chipText: { fontSize: 14, color: Colors.text },
-  chipTextActive: { color: Colors.primary, fontWeight: "600" },
+  chipText: { ...theme.typography.bodySmall, color: theme.colors.text[700] },
+  chipTextActive: { color: theme.colors.primary[500], fontWeight: "600" },
 });

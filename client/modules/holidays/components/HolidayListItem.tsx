@@ -1,8 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '@/common/constants/colors';
-import { Spacing, Layout } from '@/common/constants/spacing';
+import { theme } from '@/src/design-system/theme';
+import { Icons } from '@/src/design-system/icons';
 import { Holiday, HOLIDAY_TYPE_LABELS, HOLIDAY_TYPE_COLORS } from '../types';
 
 interface HolidayListItemProps {
@@ -13,13 +12,9 @@ interface HolidayListItemProps {
 }
 
 function formatDateRange(h: Holiday): string {
-  if (h.is_recurring) {
-    return `Every ${h.recurring_day_name}`;
-  }
+  if (h.is_recurring) return `Every ${h.recurring_day_name}`;
   if (!h.start_date) return '';
-  if (h.is_single_day || !h.end_date || h.start_date === h.end_date) {
-    return formatDate(h.start_date);
-  }
+  if (h.is_single_day || !h.end_date || h.start_date === h.end_date) return formatDate(h.start_date);
   return `${formatDate(h.start_date)} – ${formatDate(h.end_date)}`;
 }
 
@@ -29,29 +24,23 @@ function formatDate(iso: string): string {
 }
 
 export const HolidayListItem: React.FC<HolidayListItemProps> = ({
-  holiday,
-  onEdit,
-  onDelete,
-  canManage = false,
+  holiday, onEdit, onDelete, canManage = false,
 }) => {
-  const typeColor = HOLIDAY_TYPE_COLORS[holiday.holiday_type] ?? Colors.text;
+  const typeColor = HOLIDAY_TYPE_COLORS[holiday.holiday_type] ?? theme.colors.text[700];
   const typeLabel = HOLIDAY_TYPE_LABELS[holiday.holiday_type] ?? holiday.holiday_type;
   const dateRange = formatDateRange(holiday);
 
   return (
     <View style={styles.container}>
-      {/* Left accent bar */}
       <View style={[styles.accentBar, { backgroundColor: typeColor }]} />
-
       <View style={styles.body}>
         <View style={styles.topRow}>
           <View style={styles.titleRow}>
             {holiday.is_recurring && (
-              <Ionicons name="repeat" size={14} color={Colors.textSecondary} style={styles.recurIcon} />
+              <Icons.Refresh size={13} color={theme.colors.text[500]} style={{ marginRight: 4 }} />
             )}
             <Text style={styles.name} numberOfLines={1}>{holiday.name}</Text>
           </View>
-
           {canManage && (
             <View style={styles.actions}>
               {onEdit && (
@@ -60,7 +49,7 @@ export const HolidayListItem: React.FC<HolidayListItemProps> = ({
                   onPress={() => onEdit(holiday)}
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 4 }}
                 >
-                  <Ionicons name="pencil-outline" size={16} color={Colors.textSecondary} />
+                  <Icons.Edit size={15} color={theme.colors.text[500]} />
                 </TouchableOpacity>
               )}
               {onDelete && (
@@ -69,7 +58,7 @@ export const HolidayListItem: React.FC<HolidayListItemProps> = ({
                   onPress={() => onDelete(holiday)}
                   hitSlop={{ top: 8, bottom: 8, left: 4, right: 8 }}
                 >
-                  <Ionicons name="trash-outline" size={16} color={Colors.error} />
+                  <Icons.Delete size={15} color={theme.colors.danger} />
                 </TouchableOpacity>
               )}
             </View>
@@ -77,18 +66,13 @@ export const HolidayListItem: React.FC<HolidayListItemProps> = ({
         </View>
 
         <View style={styles.metaRow}>
-          {/* Type badge */}
           <View style={[styles.badge, { borderColor: typeColor + '50', backgroundColor: typeColor + '15' }]}>
             <Text style={[styles.badgeText, { color: typeColor }]}>{typeLabel}</Text>
           </View>
-
-          {/* Date */}
           <View style={styles.dateRow}>
-            <Ionicons name="calendar-outline" size={13} color={Colors.textSecondary} />
+            <Icons.Calendar size={12} color={theme.colors.text[500]} />
             <Text style={styles.dateText}>{dateRange}</Text>
           </View>
-
-          {/* Duration badge for multi-day */}
           {!holiday.is_recurring && holiday.duration_days > 1 && (
             <View style={styles.durationBadge}>
               <Text style={styles.durationText}>{holiday.duration_days}d</Text>
@@ -96,24 +80,17 @@ export const HolidayListItem: React.FC<HolidayListItemProps> = ({
           )}
         </View>
 
-        {/* Sunday collision warning */}
         {holiday.falls_on_sunday && (
           <View style={styles.warningRow}>
-            <Ionicons name="warning-outline" size={13} color={Colors.warning} />
+            <Icons.AlertCircle size={12} color={theme.colors.warning} />
             <Text style={styles.warningText}>Falls on Sunday (weekly off)</Text>
           </View>
         )}
-
-        {/* Description */}
         {!!holiday.description && (
           <Text style={styles.description} numberOfLines={2}>{holiday.description}</Text>
         )}
-
-        {/* Academic year */}
         {!!holiday.academic_year_name && (
-          <Text style={styles.academicYear}>
-            <Ionicons name="school-outline" size={11} color={Colors.textTertiary} /> {holiday.academic_year_name}
-          </Text>
+          <Text style={styles.academicYear}>{holiday.academic_year_name}</Text>
         )}
       </View>
     </View>
@@ -123,106 +100,51 @@ export const HolidayListItem: React.FC<HolidayListItemProps> = ({
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
-    backgroundColor: Colors.background,
-    borderRadius: Layout.borderRadius.md,
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radius.l,
     borderWidth: 1,
-    borderColor: Colors.borderLight,
-    marginBottom: Spacing.sm,
+    borderColor: theme.colors.border,
+    marginBottom: theme.spacing.s,
     overflow: 'hidden',
+    ...theme.shadows.sm,
   },
-  accentBar: {
-    width: 4,
-  },
-  body: {
-    flex: 1,
-    padding: Spacing.md,
-  },
+  accentBar: { width: 4 },
+  body: { flex: 1, padding: theme.spacing.m },
   topRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: Spacing.xs,
+    marginBottom: theme.spacing.xs,
   },
-  titleRow: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginRight: Spacing.sm,
-  },
-  recurIcon: {
-    marginRight: 4,
-  },
-  name: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: Colors.text,
-    flex: 1,
-  },
-  actions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.xs,
-  },
-  actionBtn: {
-    padding: Spacing.xs,
-  },
+  titleRow: { flex: 1, flexDirection: 'row', alignItems: 'center', marginRight: theme.spacing.s },
+  name: { ...theme.typography.body, fontWeight: '600', color: theme.colors.text[900], flex: 1 },
+  actions: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.xs },
+  actionBtn: { padding: theme.spacing.xs },
   metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
     flexWrap: 'wrap',
-    gap: Spacing.xs,
-    marginBottom: Spacing.xs,
+    gap: theme.spacing.xs,
+    marginBottom: theme.spacing.xs,
   },
   badge: {
     paddingHorizontal: 7,
     paddingVertical: 2,
-    borderRadius: Layout.borderRadius.sm,
+    borderRadius: theme.radius.s,
     borderWidth: 1,
   },
-  badgeText: {
-    fontSize: 11,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.3,
-  },
-  dateRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-  },
-  dateText: {
-    fontSize: 13,
-    color: Colors.textSecondary,
-  },
+  badgeText: { ...theme.typography.caption, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.3 },
+  dateRow: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  dateText: { ...theme.typography.bodySmall, color: theme.colors.text[500] },
   durationBadge: {
-    backgroundColor: Colors.backgroundSecondary,
+    backgroundColor: theme.colors.backgroundSecondary,
     borderRadius: 10,
     paddingHorizontal: 7,
     paddingVertical: 1,
   },
-  durationText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: Colors.textSecondary,
-  },
-  warningRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginBottom: Spacing.xs,
-  },
-  warningText: {
-    fontSize: 12,
-    color: Colors.warning,
-  },
-  description: {
-    fontSize: 13,
-    color: Colors.textSecondary,
-    marginBottom: 2,
-  },
-  academicYear: {
-    fontSize: 11,
-    color: Colors.textTertiary,
-    marginTop: 2,
-  },
+  durationText: { ...theme.typography.caption, fontWeight: '700', color: theme.colors.text[500] },
+  warningRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: theme.spacing.xs },
+  warningText: { ...theme.typography.caption, color: theme.colors.warning },
+  description: { ...theme.typography.bodySmall, color: theme.colors.text[500], marginBottom: 2 },
+  academicYear: { ...theme.typography.caption, color: theme.colors.text[400], marginTop: 2 },
 });

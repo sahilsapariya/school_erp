@@ -1,11 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, SectionList, ActivityIndicator,
-  SafeAreaView, RefreshControl, TouchableOpacity, Alert, TextInput,
+  View, Text, StyleSheet, SectionList, RefreshControl, TouchableOpacity,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '@/common/constants/colors';
-import { Spacing, Layout } from '@/common/constants/spacing';
 import { usePermissions } from '@/modules/permissions/hooks/usePermissions';
 import { useAcademicYearContext } from '@/modules/academics/context/AcademicYearContext';
 import * as PERMS from '@/modules/permissions/constants/permissions';
@@ -13,21 +9,24 @@ import { useHolidays } from '../hooks/useHolidays';
 import { HolidayListItem } from '../components/HolidayListItem';
 import { HolidayFormModal } from '../components/HolidayFormModal';
 import { Holiday, CreateHolidayDTO } from '../types';
+import { ScreenContainer } from '@/src/components/ui/ScreenContainer';
+import { Header } from '@/src/components/ui/Header';
+import { SearchBar } from '@/src/components/ui/SearchBar';
+import { LoadingState } from '@/src/components/ui/LoadingState';
+import { EmptyState } from '@/src/components/ui/EmptyState';
+import { FloatingActionButton } from '@/src/components/ui/FloatingActionButton';
+import { ConfirmationDialog } from '@/src/components/ui/ConfirmationDialog';
+import { useToast } from '@/src/components/ui/Toast';
+import { useDebounce } from '@/src/hooks/useDebounce';
+import { theme } from '@/src/design-system/theme';
+import { Icons } from '@/src/design-system/icons';
 
 type FilterTab = 'all' | 'upcoming' | 'recurring';
-
-function useDebounce<T>(value: T, delay: number): T {
-  const [debouncedValue, setDebouncedValue] = useState<T>(value);
-  useEffect(() => {
-    const timer = setTimeout(() => setDebouncedValue(value), delay);
-    return () => clearTimeout(timer);
-  }, [value, delay]);
-  return debouncedValue;
-}
 
 export default function HolidaysScreen() {
   const { hasAnyPermission, hasPermission } = usePermissions();
   const { selectedAcademicYearId } = useAcademicYearContext();
+  const toast = useToast();
   const {
     holidays, recurringHolidays, loading, error,
     fetchHolidays, fetchRecurring,
@@ -40,26 +39,24 @@ export default function HolidaysScreen() {
   const [activeTab, setActiveTab] = useState<FilterTab>('all');
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 400);
-  const [typeFilter, setTypeFilter] = useState<string>('');
 
   const [modalVisible, setModalVisible] = useState(false);
   const [editTarget, setEditTarget] = useState<Holiday | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Holiday | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const loadData = useCallback(() => {
     fetchHolidays({
       search: debouncedSearch || undefined,
-      holiday_type: typeFilter || undefined,
       academic_year_id: selectedAcademicYearId || undefined,
     });
     fetchRecurring();
-  }, [debouncedSearch, typeFilter, selectedAcademicYearId]);
+  }, [debouncedSearch, selectedAcademicYearId]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  // ── Section data ──────────────────────────────────────────────────────────
   const sections = (() => {
     const list: { title: string; data: Holiday[] }[] = [];
-
     if (activeTab === 'all' || activeTab === 'upcoming') {
       const today = new Date().toISOString().split('T')[0];
       const filtered = activeTab === 'upcoming'
@@ -67,37 +64,27 @@ export default function HolidaysScreen() {
         : holidays;
       if (filtered.length) list.push({ title: 'Holidays', data: filtered });
     }
-
     if (activeTab === 'all' || activeTab === 'recurring') {
       if (recurringHolidays.length) list.push({ title: 'Weekly Off Days', data: recurringHolidays });
     }
-
     return list;
   })();
 
-  // ── Handlers ───────────────────────────────────────────────────────────────
   const handleAdd = () => { setEditTarget(null); setModalVisible(true); };
   const handleEdit = (h: Holiday) => { setEditTarget(h); setModalVisible(true); };
 
-  const handleDelete = (h: Holiday) => {
-    Alert.alert(
-      'Delete Holiday',
-      `Remove "${h.name}"${h.is_recurring ? ` (recurring – every ${h.recurring_day_name})` : ''}?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await deleteHoliday(h.id, h.is_recurring);
-            } catch (err: any) {
-              Alert.alert('Error', err.message || 'Failed to delete holiday');
-            }
-          },
-        },
-      ]
-    );
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await deleteHoliday(deleteTarget.id, deleteTarget.is_recurring);
+      toast.success('Holiday deleted', `"${deleteTarget.name}" has been removed.`);
+    } catch (err: any) {
+      toast.error('Delete failed', err.message || 'Failed to delete holiday');
+    } finally {
+      setDeleting(false);
+      setDeleteTarget(null);
+    }
   };
 
   const handleSubmit = async (data: CreateHolidayDTO) => {
@@ -105,12 +92,16 @@ export default function HolidaysScreen() {
       if (editTarget) {
         const updated = await updateHoliday(editTarget.id, data);
         if ((updated as any).warning) {
-          Alert.alert('Holiday Updated', (updated as any).warning);
+          toast.warning('Holiday Updated', (updated as any).warning);
+        } else {
+          toast.success('Holiday updated successfully');
         }
       } else {
         const created = await createHoliday(data);
         if ((created as any).warning) {
-          Alert.alert('Holiday Added', (created as any).warning);
+          toast.warning('Holiday Added', (created as any).warning);
+        } else {
+          toast.success('Holiday added successfully');
         }
       }
       setModalVisible(false);
@@ -119,71 +110,78 @@ export default function HolidaysScreen() {
     }
   };
 
-  // ── Render ─────────────────────────────────────────────────────────────────
+  const TABS: { key: FilterTab; label: string }[] = [
+    { key: 'all', label: 'All' },
+    { key: 'upcoming', label: 'Upcoming' },
+    { key: 'recurring', label: 'Recurring' },
+  ];
+
   if (loading && !holidays.length && !recurringHolidays.length) {
     return (
-      <SafeAreaView style={styles.container}>
-        <ScreenHeader canManage={canManage} onAdd={handleAdd} />
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color={Colors.primary} />
-        </View>
-      </SafeAreaView>
+      <ScreenContainer>
+        <Header title="Holidays" subtitle="School calendar & weekly off" />
+        <LoadingState message="Loading holidays..." />
+      </ScreenContainer>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScreenHeader canManage={canManage} onAdd={handleAdd} />
+    <ScreenContainer>
+      <Header
+        title="Holidays"
+        subtitle="School calendar & weekly off"
+        rightAction={
+          canManage ? (
+            <TouchableOpacity style={styles.addBtn} onPress={handleAdd} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Icons.Add size={22} color={theme.colors.primary[500]} />
+            </TouchableOpacity>
+          ) : undefined
+        }
+      />
 
-      {/* Search */}
-      <View style={styles.searchContainer}>
-        <Ionicons name="search" size={18} color={Colors.textSecondary} style={styles.searchIcon} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Search holidays…"
-          placeholderTextColor={Colors.textSecondary}
-          value={search}
-          onChangeText={setSearch}
-        />
-        {!!search && (
-          <TouchableOpacity onPress={() => setSearch('')}>
-            <Ionicons name="close-circle" size={18} color={Colors.textSecondary} />
-          </TouchableOpacity>
-        )}
-      </View>
+      <SearchBar
+        value={search}
+        onChangeText={setSearch}
+        placeholder="Search holidays…"
+        style={styles.searchBar}
+      />
 
       {/* Filter tabs */}
       <View style={styles.tabRow}>
-        {(['all', 'upcoming', 'recurring'] as FilterTab[]).map((tab) => (
+        {TABS.map((tab) => (
           <TouchableOpacity
-            key={tab}
-            style={[styles.tab, activeTab === tab && styles.tabActive]}
-            onPress={() => setActiveTab(tab)}
+            key={tab.key}
+            style={[styles.tab, activeTab === tab.key && styles.tabActive]}
+            onPress={() => setActiveTab(tab.key)}
           >
-            <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>
-              {tab.charAt(0).toUpperCase() + tab.slice(1)}
+            <Text style={[styles.tabText, activeTab === tab.key && styles.tabTextActive]}>
+              {tab.label}
             </Text>
           </TouchableOpacity>
         ))}
       </View>
 
-      {/* Error state */}
-      {!!error && (
+      {/* Summary chips */}
+      <View style={styles.summaryRow}>
+        <View style={styles.summaryChip}>
+          <Icons.Calendar size={13} color={theme.colors.text[500]} />
+          <Text style={styles.summaryCount}>{holidays.length}</Text>
+          <Text style={styles.summaryLabel}>Holidays</Text>
+        </View>
+        <View style={styles.summaryChip}>
+          <Icons.Refresh size={13} color={theme.colors.text[500]} />
+          <Text style={styles.summaryCount}>{recurringHolidays.length}</Text>
+          <Text style={styles.summaryLabel}>Weekly Off</Text>
+        </View>
+      </View>
+
+      {error && (
         <View style={styles.errorBanner}>
-          <Ionicons name="alert-circle-outline" size={16} color={Colors.error} />
+          <Icons.AlertCircle size={15} color={theme.colors.danger} />
           <Text style={styles.errorText}>{error}</Text>
         </View>
       )}
 
-      {/* Summary counts */}
-      {!error && (
-        <View style={styles.summaryRow}>
-          <SummaryChip icon="calendar-outline" count={holidays.length} label="Holidays" />
-          <SummaryChip icon="repeat-outline" count={recurringHolidays.length} label="Weekly Off" />
-        </View>
-      )}
-
-      {/* List */}
       <SectionList
         sections={sections}
         keyExtractor={(item) => item.id}
@@ -192,7 +190,7 @@ export default function HolidaysScreen() {
             holiday={item}
             canManage={canManage || canDelete}
             onEdit={canManage ? handleEdit : undefined}
-            onDelete={canDelete ? handleDelete : undefined}
+            onDelete={canDelete ? (h) => setDeleteTarget(h) : undefined}
           />
         )}
         renderSectionHeader={({ section }) => (
@@ -205,21 +203,21 @@ export default function HolidaysScreen() {
         )}
         contentContainerStyle={styles.listContent}
         refreshControl={
-          <RefreshControl refreshing={loading} onRefresh={loadData} tintColor={Colors.primary} />
+          <RefreshControl refreshing={loading} onRefresh={loadData} tintColor={theme.colors.primary[500]} />
         }
         ListEmptyComponent={
-          <View style={styles.center}>
-            <Ionicons name="calendar-outline" size={48} color={Colors.textTertiary} />
-            <Text style={styles.emptyTitle}>No holidays found</Text>
-            <Text style={styles.emptySubtitle}>
-              {canManage ? 'Tap + to add a holiday or weekly-off day.' : 'No holidays scheduled yet.'}
-            </Text>
-          </View>
+          <EmptyState
+            icon={<Icons.Calendar size={32} color={theme.colors.primary[300]} />}
+            title={search ? 'No holidays found' : 'No holidays scheduled'}
+            description={canManage ? 'Tap + to add a holiday or weekly-off day.' : 'No holidays have been scheduled yet.'}
+            action={canManage ? { label: 'Add Holiday', onPress: handleAdd } : undefined}
+          />
         }
         stickySectionHeadersEnabled={false}
       />
 
-      {/* Form Modal */}
+      {canManage && <FloatingActionButton onPress={handleAdd} />}
+
       <HolidayFormModal
         visible={modalVisible}
         onClose={() => setModalVisible(false)}
@@ -227,140 +225,72 @@ export default function HolidaysScreen() {
         initialData={editTarget}
         mode={editTarget ? 'edit' : 'create'}
       />
-    </SafeAreaView>
+
+      <ConfirmationDialog
+        visible={!!deleteTarget}
+        title="Delete Holiday"
+        message={deleteTarget ? `Remove "${deleteTarget.name}"${deleteTarget.is_recurring ? ` (recurring – every ${deleteTarget.recurring_day_name})` : ''}?` : ''}
+        confirmLabel="Delete"
+        onConfirm={handleDeleteConfirm}
+        onCancel={() => setDeleteTarget(null)}
+        loading={deleting}
+        destructive
+      />
+    </ScreenContainer>
   );
 }
-
-// ── Sub-components ────────────────────────────────────────────────────────────
-
-function ScreenHeader({ canManage, onAdd }: { canManage: boolean; onAdd: () => void }) {
-  return (
-    <View style={styles.header}>
-      <View>
-        <Text style={styles.headerTitle}>Holidays</Text>
-        <Text style={styles.headerSubtitle}>School calendar & weekly off</Text>
-      </View>
-      {canManage && (
-        <TouchableOpacity style={styles.addBtn} onPress={onAdd}>
-          <Ionicons name="add" size={22} color={Colors.primary} />
-        </TouchableOpacity>
-      )}
-    </View>
-  );
-}
-
-function SummaryChip({ icon, count, label }: { icon: any; count: number; label: string }) {
-  return (
-    <View style={styles.summaryChip}>
-      <Ionicons name={icon} size={14} color={Colors.textSecondary} />
-      <Text style={styles.summaryCount}>{count}</Text>
-      <Text style={styles.summaryLabel}>{label}</Text>
-    </View>
-  );
-}
-
-// ── Styles ────────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: Spacing.xl },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.md,
-    paddingBottom: Spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
-  },
-  headerTitle: { fontSize: 24, fontWeight: 'bold', color: Colors.text },
-  headerSubtitle: { fontSize: 13, color: Colors.textSecondary, marginTop: 1 },
+  searchBar: { marginHorizontal: theme.spacing.m, marginBottom: theme.spacing.s },
   addBtn: {
-    padding: Spacing.sm,
-    backgroundColor: Colors.backgroundSecondary,
-    borderRadius: Layout.borderRadius.md,
-    borderWidth: 1,
-    borderColor: Colors.borderLight,
+    width: 36, height: 36, borderRadius: theme.radius.m,
+    backgroundColor: theme.colors.primary[50],
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: theme.colors.primary[200],
   },
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.backgroundSecondary,
-    borderRadius: Layout.borderRadius.md,
-    paddingHorizontal: Spacing.md,
-    marginHorizontal: Spacing.md,
-    marginTop: Spacing.md,
-    marginBottom: Spacing.xs,
-    borderWidth: 1,
-    borderColor: Colors.borderLight,
-  },
-  searchIcon: { marginRight: Spacing.sm },
-  searchInput: { flex: 1, fontSize: 15, color: Colors.text, paddingVertical: Spacing.sm },
-  // Filter tabs
   tabRow: {
     flexDirection: 'row',
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    gap: Spacing.sm,
+    paddingHorizontal: theme.spacing.m,
+    paddingBottom: theme.spacing.s,
+    gap: theme.spacing.s,
   },
   tab: {
-    paddingVertical: Spacing.xs + 2,
-    paddingHorizontal: Spacing.md,
-    borderRadius: Layout.borderRadius.sm,
-    borderWidth: 1,
-    borderColor: Colors.borderLight,
-    backgroundColor: Colors.backgroundSecondary,
+    paddingVertical: theme.spacing.xs + 2, paddingHorizontal: theme.spacing.m,
+    borderRadius: theme.radius.full, borderWidth: 1, borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surface,
   },
-  tabActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  tabText: { fontSize: 13, fontWeight: '600', color: Colors.textSecondary },
-  tabTextActive: { color: Colors.background },
-  // Summary
+  tabActive: { backgroundColor: theme.colors.primary[500], borderColor: theme.colors.primary[500] },
+  tabText: { ...theme.typography.caption, fontWeight: '600', color: theme.colors.text[500] },
+  tabTextActive: { color: '#fff' },
   summaryRow: {
-    flexDirection: 'row',
-    paddingHorizontal: Spacing.md,
-    gap: Spacing.sm,
-    marginBottom: Spacing.sm,
+    flexDirection: 'row', paddingHorizontal: theme.spacing.m,
+    gap: theme.spacing.s, marginBottom: theme.spacing.s,
   },
   summaryChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: Colors.backgroundSecondary,
-    paddingVertical: Spacing.xs,
-    paddingHorizontal: Spacing.sm,
-    borderRadius: Layout.borderRadius.sm,
-    borderWidth: 1,
-    borderColor: Colors.borderLight,
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: theme.colors.backgroundSecondary, paddingVertical: theme.spacing.xs,
+    paddingHorizontal: theme.spacing.s, borderRadius: theme.radius.m,
+    borderWidth: 1, borderColor: theme.colors.border,
   },
-  summaryCount: { fontSize: 13, fontWeight: '700', color: Colors.text },
-  summaryLabel: { fontSize: 12, color: Colors.textSecondary },
-  // Section
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: Spacing.sm,
-    marginTop: Spacing.sm,
-  },
-  sectionTitle: { fontSize: 14, fontWeight: '700', color: Colors.text, textTransform: 'uppercase', letterSpacing: 0.5 },
-  sectionCount: {
-    marginLeft: Spacing.sm,
-    backgroundColor: Colors.backgroundSecondary,
-    paddingHorizontal: 7,
-    paddingVertical: 1,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: Colors.borderLight,
-  },
-  sectionCountText: { fontSize: 11, fontWeight: '700', color: Colors.textSecondary },
-  listContent: { padding: Spacing.md, paddingTop: 0, flexGrow: 1 },
+  summaryCount: { ...theme.typography.caption, fontWeight: '700', color: theme.colors.text[900] },
+  summaryLabel: { ...theme.typography.caption, color: theme.colors.text[500] },
   errorBanner: {
-    flexDirection: 'row', alignItems: 'center', gap: Spacing.xs,
-    backgroundColor: '#FFF0F0', margin: Spacing.md,
-    padding: Spacing.sm, borderRadius: Layout.borderRadius.sm,
-    borderWidth: 1, borderColor: Colors.error + '30',
+    flexDirection: 'row', alignItems: 'center', gap: theme.spacing.xs,
+    backgroundColor: theme.colors.dangerLight, margin: theme.spacing.m,
+    padding: theme.spacing.s, borderRadius: theme.radius.m,
+    borderWidth: 1, borderColor: theme.colors.danger + '30',
   },
-  errorText: { fontSize: 13, color: Colors.error, flex: 1 },
-  emptyTitle: { fontSize: 17, fontWeight: '600', color: Colors.textSecondary, marginTop: Spacing.md },
-  emptySubtitle: { fontSize: 14, color: Colors.textTertiary, textAlign: 'center', marginTop: Spacing.sm },
+  errorText: { ...theme.typography.bodySmall, color: theme.colors.danger, flex: 1 },
+  sectionHeader: {
+    flexDirection: 'row', alignItems: 'center',
+    marginBottom: theme.spacing.s, marginTop: theme.spacing.s,
+  },
+  sectionTitle: { ...theme.typography.overline, color: theme.colors.text[700] },
+  sectionCount: {
+    marginLeft: theme.spacing.s, backgroundColor: theme.colors.backgroundSecondary,
+    paddingHorizontal: 7, paddingVertical: 1, borderRadius: 10,
+    borderWidth: 1, borderColor: theme.colors.border,
+  },
+  sectionCountText: { ...theme.typography.caption, fontWeight: '700', color: theme.colors.text[500] },
+  listContent: { padding: theme.spacing.m, paddingTop: 0, flexGrow: 1, paddingBottom: 80 },
 });

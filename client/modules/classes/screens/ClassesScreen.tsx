@@ -1,38 +1,37 @@
 import React, { useEffect, useState } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
-  ActivityIndicator,
-  SafeAreaView,
-  RefreshControl,
-  TouchableOpacity,
-  Alert,
-} from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, RefreshControl } from "react-native";
 import { useRouter } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
 import { useClasses } from "../hooks/useClasses";
 import { usePermissions } from "@/modules/permissions/hooks/usePermissions";
 import { useAcademicYearContext } from "@/modules/academics/context/AcademicYearContext";
 import * as PERMS from "@/modules/permissions/constants/permissions";
 import { CreateClassModal } from "../components/CreateClassModal";
-import { Colors } from "@/common/constants/colors";
-import { Spacing, Layout } from "@/common/constants/spacing";
 import { ClassItem, CreateClassDTO } from "../types";
+import {
+  ScreenContainer,
+  Header,
+  ResourceList,
+  LoadingState,
+  EmptyState,
+  FloatingActionButton,
+} from "@/src/components/ui";
+import { useToast } from "@/src/components/ui/Toast";
+import { theme } from "@/src/design-system/theme";
+import { Icons } from "@/src/design-system/icons";
 
 export default function ClassesScreen() {
   const router = useRouter();
   const { classes, loading, fetchClasses, createClass } = useClasses();
   const { hasPermission } = usePermissions();
   const { selectedAcademicYearId } = useAcademicYearContext();
+  const toast = useToast();
 
   const canCreate = hasPermission(PERMS.CLASS_CREATE);
   const [modalVisible, setModalVisible] = useState(false);
 
   useEffect(() => {
     fetchClasses({ academic_year_id: selectedAcademicYearId || undefined });
-  }, [selectedAcademicYearId, fetchClasses]);
+  }, [selectedAcademicYearId]);
 
   const handleClassPress = (cls: ClassItem) => {
     router.push(`/classes/${cls.id}` as any);
@@ -42,77 +41,71 @@ export default function ClassesScreen() {
     try {
       await createClass(data);
       setModalVisible(false);
-      Alert.alert("Success", "Class created successfully");
+      toast.success("Class created successfully");
       fetchClasses();
     } catch (error: any) {
       throw error;
     }
   };
 
-  const renderClassItem = ({ item }: { item: ClassItem }) => (
+  if (loading && classes.length === 0) {
+    return (
+      <ScreenContainer>
+        <Header title="Classes" />
+        <LoadingState message="Loading classes..." />
+      </ScreenContainer>
+    );
+  }
+
+  const renderItem = ({ item }: { item: ClassItem }) => (
     <TouchableOpacity
-      style={styles.classCard}
+      style={styles.card}
       onPress={() => handleClassPress(item)}
       activeOpacity={0.7}
     >
-      <View style={styles.classIcon}>
-        <Ionicons name="school" size={24} color={Colors.primary} />
+      <View style={styles.cardIconBg}>
+        <Icons.Class size={22} color={theme.colors.primary[500]} />
       </View>
-      <View style={styles.classInfo}>
-        <Text style={styles.className}>
-          {item.name} - {item.section}
-        </Text>
-        <Text style={styles.classDetail}>{item.academic_year}</Text>
-        <View style={styles.statsRow}>
-          <View style={styles.stat}>
-            <Ionicons name="people-outline" size={14} color={Colors.textSecondary} />
-            <Text style={styles.statText}>{item.student_count || 0} students</Text>
+      <View style={styles.cardInfo}>
+        <Text style={styles.cardTitle}>{item.name} – {item.section}</Text>
+        <Text style={styles.cardDetail}>{item.academic_year}</Text>
+        <View style={styles.cardStats}>
+          <View style={styles.cardStat}>
+            <Icons.Student size={12} color={theme.colors.text[500]} />
+            <Text style={styles.cardStatText}>{item.student_count || 0} students</Text>
           </View>
-          <View style={styles.stat}>
-            <Ionicons name="person-outline" size={14} color={Colors.textSecondary} />
-            <Text style={styles.statText}>{item.teacher_count || 0} teachers</Text>
+          <Text style={styles.cardStatDot}>·</Text>
+          <View style={styles.cardStat}>
+            <Icons.Users size={12} color={theme.colors.text[500]} />
+            <Text style={styles.cardStatText}>{item.teacher_count || 0} teachers</Text>
           </View>
         </View>
       </View>
-      <Ionicons name="chevron-forward" size={20} color={Colors.textTertiary} />
+      <Icons.ChevronRight size={18} color={theme.colors.text[400]} />
     </TouchableOpacity>
   );
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Classes</Text>
-        {canCreate && (
-          <TouchableOpacity
-            style={styles.addButton}
-            onPress={() => setModalVisible(true)}
-          >
-            <Ionicons name="add" size={24} color={Colors.primary} />
-          </TouchableOpacity>
-        )}
-      </View>
-
-      {loading && classes.length === 0 ? (
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color={Colors.primary} />
-        </View>
-      ) : (
-        <FlatList
-          data={classes}
-          keyExtractor={(item) => item.id}
-          renderItem={renderClassItem}
-          contentContainerStyle={styles.listContent}
-          refreshControl={
-            <RefreshControl refreshing={loading} onRefresh={() => fetchClasses()} />
-          }
-          ListEmptyComponent={
-            <View style={styles.center}>
-              <Text style={styles.emptyText}>No classes found.</Text>
-            </View>
-          }
-        />
+    <ScreenContainer>
+      <ResourceList
+        title="Classes"
+        data={classes}
+        renderItem={renderItem}
+        keyExtractor={(item) => item.id}
+        onRefresh={() => fetchClasses({ academic_year_id: selectedAcademicYearId || undefined })}
+        refreshing={loading}
+        emptyState={
+          <EmptyState
+            icon={<Icons.Class size={32} color={theme.colors.primary[400]} />}
+            title="No classes yet"
+            description="Create your first class to get started."
+            action={canCreate ? { label: "Create Class", onPress: () => setModalVisible(true) } : undefined}
+          />
+        }
+      />
+      {canCreate && (
+        <FloatingActionButton onPress={() => setModalVisible(true)} />
       )}
-
       {canCreate && (
         <CreateClassModal
           visible={modalVisible}
@@ -120,52 +113,60 @@ export default function ClassesScreen() {
           onSubmit={handleCreateClass}
         />
       )}
-    </SafeAreaView>
+    </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
-  center: { flex: 1, justifyContent: "center", alignItems: "center", padding: Spacing.xl },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: Spacing.lg,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
-  },
-  headerTitle: { fontSize: 24, fontWeight: "bold", color: Colors.text },
-  addButton: {
-    padding: Spacing.sm,
-    backgroundColor: Colors.backgroundSecondary,
-    borderRadius: Layout.borderRadius.md,
-  },
-  listContent: { padding: Spacing.md },
-  classCard: {
+  card: {
     flexDirection: "row",
     alignItems: "center",
-    padding: Spacing.md,
-    backgroundColor: Colors.background,
-    borderRadius: Layout.borderRadius.md,
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radius.xl,
+    padding: theme.spacing.m,
     borderWidth: 1,
-    borderColor: Colors.borderLight,
-    marginBottom: Spacing.sm,
+    borderColor: theme.colors.border,
+    marginBottom: theme.spacing.s,
+    ...theme.shadows.sm,
   },
-  classIcon: {
+  cardIconBg: {
     width: 48,
     height: 48,
-    borderRadius: Layout.borderRadius.md,
-    backgroundColor: Colors.backgroundSecondary,
+    borderRadius: theme.radius.l,
+    backgroundColor: theme.colors.primary[50],
     alignItems: "center",
     justifyContent: "center",
-    marginRight: Spacing.md,
+    marginRight: theme.spacing.m,
+    flexShrink: 0,
   },
-  classInfo: { flex: 1 },
-  className: { fontSize: 16, fontWeight: "600", color: Colors.text },
-  classDetail: { fontSize: 13, color: Colors.textSecondary, marginTop: 2 },
-  statsRow: { flexDirection: "row", marginTop: Spacing.xs, gap: Spacing.md },
-  stat: { flexDirection: "row", alignItems: "center", gap: 4 },
-  statText: { fontSize: 12, color: Colors.textSecondary },
-  emptyText: { fontSize: 16, color: Colors.textSecondary },
+  cardInfo: { flex: 1 },
+  cardTitle: {
+    ...theme.typography.body,
+    fontWeight: "600",
+    color: theme.colors.text[900],
+  },
+  cardDetail: {
+    ...theme.typography.caption,
+    color: theme.colors.text[500],
+    marginTop: 2,
+  },
+  cardStats: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing.xs,
+    marginTop: theme.spacing.xs,
+  },
+  cardStat: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+  },
+  cardStatText: {
+    ...theme.typography.caption,
+    color: theme.colors.text[500],
+  },
+  cardStatDot: {
+    ...theme.typography.caption,
+    color: theme.colors.text[300],
+  },
 });

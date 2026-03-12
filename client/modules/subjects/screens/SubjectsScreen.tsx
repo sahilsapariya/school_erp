@@ -1,41 +1,32 @@
 import React, { useEffect, useState, useMemo } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
-  ActivityIndicator,
-  SafeAreaView,
-  RefreshControl,
-  TouchableOpacity,
-  Alert,
-  TextInput,
-} from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { View, FlatList, RefreshControl, TouchableOpacity } from "react-native";
 import { useSubjects } from "../hooks/useSubjects";
 import { CreateSubjectModal } from "../components/CreateSubjectModal";
 import { usePermissions } from "@/modules/permissions/hooks/usePermissions";
 import * as PERMS from "@/modules/permissions/constants/permissions";
-import { Colors } from "@/common/constants/colors";
-import { Spacing, Layout } from "@/common/constants/spacing";
 import { Subject, CreateSubjectDTO } from "../types";
-
-function useDebounce<T>(value: T, delay: number): T {
-  const [debouncedValue, setDebouncedValue] = useState<T>(value);
-  useEffect(() => {
-    const handler = setTimeout(() => setDebouncedValue(value), delay);
-    return () => clearTimeout(handler);
-  }, [value, delay]);
-  return debouncedValue;
-}
+import { ScreenContainer } from "@/src/components/ui/ScreenContainer";
+import { Header } from "@/src/components/ui/Header";
+import { SearchBar } from "@/src/components/ui/SearchBar";
+import { DataRow } from "@/src/components/ui/DataRow";
+import { LoadingState } from "@/src/components/ui/LoadingState";
+import { EmptyState } from "@/src/components/ui/EmptyState";
+import { FloatingActionButton } from "@/src/components/ui/FloatingActionButton";
+import { ConfirmationDialog } from "@/src/components/ui/ConfirmationDialog";
+import { useToast } from "@/src/components/ui/Toast";
+import { useDebounce } from "@/src/hooks/useDebounce";
+import { theme } from "@/src/design-system/theme";
+import { Icons } from "@/src/design-system/icons";
 
 export default function SubjectsScreen() {
-  const { subjects, loading, fetchSubjects, createSubject, updateSubject, deleteSubject } =
-    useSubjects();
+  const { subjects, loading, fetchSubjects, createSubject, updateSubject, deleteSubject } = useSubjects();
   const { hasPermission } = usePermissions();
+  const toast = useToast();
 
   const [modalVisible, setModalVisible] = useState(false);
   const [editingSubject, setEditingSubject] = useState<Subject | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Subject | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const debouncedSearch = useDebounce(searchQuery, 300);
 
@@ -43,45 +34,27 @@ export default function SubjectsScreen() {
   const canUpdate = hasPermission(PERMS.SUBJECT_UPDATE);
   const canDelete = hasPermission(PERMS.SUBJECT_DELETE);
 
-  useEffect(() => {
-    fetchSubjects();
-  }, [fetchSubjects]);
+  useEffect(() => { fetchSubjects(); }, [fetchSubjects]);
 
   const filteredSubjects = useMemo(() => {
     if (!debouncedSearch.trim()) return subjects;
     const q = debouncedSearch.toLowerCase().trim();
     return subjects.filter(
-      (s) =>
-        s.name.toLowerCase().includes(q) ||
-        (s.code?.toLowerCase().includes(q) ?? false) ||
-        (s.description?.toLowerCase().includes(q) ?? false)
+      (s) => s.name.toLowerCase().includes(q) || (s.code?.toLowerCase().includes(q) ?? false) || (s.description?.toLowerCase().includes(q) ?? false)
     );
   }, [subjects, debouncedSearch]);
 
-  const handleCreate = () => {
-    setEditingSubject(null);
-    setModalVisible(true);
-  };
-
-  const handleEdit = (subject: Subject) => {
-    setEditingSubject(subject);
-    setModalVisible(true);
-  };
-
-  const handleModalClose = () => {
-    setModalVisible(false);
-    setEditingSubject(null);
-  };
+  const handleCreate = () => { setEditingSubject(null); setModalVisible(true); };
+  const handleEdit = (subject: Subject) => { setEditingSubject(subject); setModalVisible(true); };
+  const handleModalClose = () => { setModalVisible(false); setEditingSubject(null); };
 
   const handleCreateSubject = async (data: CreateSubjectDTO) => {
     try {
       await createSubject(data);
       handleModalClose();
-      Alert.alert("Success", "Subject created successfully");
+      toast.success("Subject created successfully");
       fetchSubjects();
-    } catch (error: any) {
-      throw error;
-    }
+    } catch (error: any) { throw error; }
   };
 
   const handleUpdateSubject = async (data: CreateSubjectDTO) => {
@@ -89,127 +62,88 @@ export default function SubjectsScreen() {
     try {
       await updateSubject(editingSubject.id, data);
       handleModalClose();
-      Alert.alert("Success", "Subject updated successfully");
+      toast.success("Subject updated successfully");
+      fetchSubjects();
+    } catch (error: any) { throw error; }
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await deleteSubject(deleteTarget.id);
+      toast.success("Subject deleted");
       fetchSubjects();
     } catch (error: any) {
-      throw error;
+      toast.error("Delete failed", error.message || "Failed to delete subject");
+    } finally {
+      setDeleting(false);
+      setDeleteTarget(null);
     }
   };
 
   const handleSubmit = editingSubject ? handleUpdateSubject : handleCreateSubject;
 
-  const handleDelete = (subject: Subject) => {
-    Alert.alert(
-      "Delete Subject",
-      `Are you sure you want to delete "${subject.name}"?`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await deleteSubject(subject.id);
-              Alert.alert("Success", "Subject deleted successfully");
-              fetchSubjects();
-            } catch (error: any) {
-              Alert.alert("Error", error.message || "Failed to delete subject");
-            }
-          },
-        },
-      ]
+  if (loading && subjects.length === 0) {
+    return (
+      <ScreenContainer>
+        <Header title="Subjects" />
+        <LoadingState message="Loading subjects..." />
+      </ScreenContainer>
     );
-  };
-
-  const renderSubjectCard = ({ item }: { item: Subject }) => (
-    <View style={styles.card}>
-      <View style={styles.cardContent}>
-        <View style={styles.cardIcon}>
-          <Ionicons name="book" size={24} color={Colors.primary} />
-        </View>
-        <View style={styles.cardInfo}>
-          <Text style={styles.cardName}>{item.name}</Text>
-          {item.code && (
-            <Text style={styles.cardCode}>Code: {item.code}</Text>
-          )}
-          {item.description ? (
-            <Text style={styles.cardDescription} numberOfLines={2}>
-              {item.description}
-            </Text>
-          ) : null}
-        </View>
-      </View>
-      <View style={styles.cardActions}>
-        {canUpdate && (
-          <TouchableOpacity
-            style={styles.actionButton}
-            onPress={() => handleEdit(item)}
-          >
-            <Ionicons name="pencil" size={20} color={Colors.primary} />
-          </TouchableOpacity>
-        )}
-        {canDelete && (
-          <TouchableOpacity
-            style={styles.actionButton}
-            onPress={() => handleDelete(item)}
-          >
-            <Ionicons name="trash-outline" size={20} color={Colors.error} />
-          </TouchableOpacity>
-        )}
-      </View>
-    </View>
-  );
+  }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Subjects</Text>
-        {canCreate && (
-          <TouchableOpacity style={styles.addButton} onPress={handleCreate}>
-            <Ionicons name="add" size={24} color={Colors.primary} />
-          </TouchableOpacity>
-        )}
-      </View>
+    <ScreenContainer>
+      <Header
+        title="Subjects"
+        rightAction={
+          canCreate ? (
+            <TouchableOpacity style={{ width: 36, height: 36, borderRadius: theme.radius.m, backgroundColor: theme.colors.primary[50], alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: theme.colors.primary[200] }} onPress={handleCreate}>
+              <Icons.Add size={22} color={theme.colors.primary[500]} />
+            </TouchableOpacity>
+          ) : undefined
+        }
+      />
+      <SearchBar value={searchQuery} onChangeText={setSearchQuery} placeholder="Search by name, code…" style={{ marginHorizontal: theme.spacing.m, marginBottom: theme.spacing.s }} />
 
-      {/* Search */}
-      <View style={styles.searchContainer}>
-        <Ionicons name="search" size={20} color={Colors.textSecondary} style={styles.searchIcon} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Search by name, code, or description..."
-          placeholderTextColor={Colors.textSecondary}
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-        />
-        {searchQuery.length > 0 && (
-          <TouchableOpacity onPress={() => setSearchQuery("")}>
-            <Ionicons name="close-circle" size={20} color={Colors.textSecondary} />
-          </TouchableOpacity>
+      <FlatList
+        data={filteredSubjects}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={{ padding: theme.spacing.m, paddingBottom: 100 }}
+        refreshControl={<RefreshControl refreshing={loading} onRefresh={() => fetchSubjects()} tintColor={theme.colors.primary[500]} />}
+        renderItem={({ item }) => (
+          <DataRow
+            title={item.name}
+            subtitle={item.code ? `Code: ${item.code}${item.description ? ` • ${item.description}` : ""}` : item.description}
+            leftIcon={<Icons.FileText size={20} color={theme.colors.primary[500]} />}
+            rightComponent={
+              <View style={{ flexDirection: "row", gap: theme.spacing.xs }}>
+                {canUpdate && (
+                  <TouchableOpacity onPress={() => handleEdit(item)} style={{ padding: 6 }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <Icons.Edit size={18} color={theme.colors.primary[500]} />
+                  </TouchableOpacity>
+                )}
+                {canDelete && (
+                  <TouchableOpacity onPress={() => setDeleteTarget(item)} style={{ padding: 6 }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <Icons.Delete size={18} color={theme.colors.danger} />
+                  </TouchableOpacity>
+                )}
+              </View>
+            }
+          />
         )}
-      </View>
+        ListEmptyComponent={
+          <EmptyState
+            icon={<Icons.FileText size={32} color={theme.colors.primary[300]} />}
+            title={searchQuery ? "No subjects found" : "No subjects yet"}
+            description={searchQuery ? "Try a different search term." : "Create your first subject."}
+            action={canCreate && !searchQuery ? { label: "Create Subject", onPress: handleCreate } : undefined}
+          />
+        }
+      />
 
-      {loading && subjects.length === 0 ? (
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color={Colors.primary} />
-        </View>
-      ) : (
-        <FlatList
-          data={filteredSubjects}
-          keyExtractor={(item) => item.id}
-          renderItem={renderSubjectCard}
-          contentContainerStyle={styles.listContent}
-          refreshControl={
-            <RefreshControl refreshing={loading} onRefresh={() => fetchSubjects()} />
-          }
-          ListEmptyComponent={
-            <View style={styles.center}>
-              <Text style={styles.emptyText}>
-                {searchQuery ? "No subjects found." : "No subjects yet."}
-              </Text>
-            </View>
-          }
-        />
-      )}
+      {canCreate && <FloatingActionButton onPress={handleCreate} />}
 
       {(canCreate || canUpdate) && (
         <CreateSubjectModal
@@ -220,67 +154,17 @@ export default function SubjectsScreen() {
           mode={editingSubject ? "edit" : "create"}
         />
       )}
-    </SafeAreaView>
+
+      <ConfirmationDialog
+        visible={!!deleteTarget}
+        title="Delete Subject"
+        message={deleteTarget ? `Delete "${deleteTarget.name}"? This cannot be undone.` : ""}
+        confirmLabel="Delete"
+        onConfirm={handleDeleteConfirm}
+        onCancel={() => setDeleteTarget(null)}
+        loading={deleting}
+        destructive
+      />
+    </ScreenContainer>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
-  center: { flex: 1, justifyContent: "center", alignItems: "center", padding: Spacing.xl },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: Spacing.lg,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
-  },
-  headerTitle: { fontSize: 24, fontWeight: "bold", color: Colors.text },
-  addButton: {
-    padding: Spacing.sm,
-    backgroundColor: Colors.backgroundSecondary,
-    borderRadius: Layout.borderRadius.md,
-  },
-  searchContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: Colors.backgroundSecondary,
-    borderRadius: Layout.borderRadius.md,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    margin: Spacing.md,
-    borderWidth: 1,
-    borderColor: Colors.borderLight,
-  },
-  searchIcon: { marginRight: Spacing.sm },
-  searchInput: { flex: 1, fontSize: 16, color: Colors.text, padding: Spacing.sm },
-  listContent: { padding: Spacing.md },
-  card: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: Spacing.md,
-    backgroundColor: Colors.background,
-    borderRadius: Layout.borderRadius.md,
-    borderWidth: 1,
-    borderColor: Colors.borderLight,
-    marginBottom: Spacing.sm,
-  },
-  cardContent: { flexDirection: "row", alignItems: "center", flex: 1 },
-  cardIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: Layout.borderRadius.md,
-    backgroundColor: Colors.backgroundSecondary,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: Spacing.md,
-  },
-  cardInfo: { flex: 1 },
-  cardName: { fontSize: 16, fontWeight: "600", color: Colors.text },
-  cardCode: { fontSize: 13, color: Colors.textSecondary, marginTop: 2 },
-  cardDescription: { fontSize: 13, color: Colors.textTertiary, marginTop: 4 },
-  cardActions: { flexDirection: "row", gap: Spacing.sm },
-  actionButton: { padding: Spacing.sm },
-  emptyText: { fontSize: 16, color: Colors.textSecondary },
-});

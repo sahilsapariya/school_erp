@@ -4,18 +4,22 @@ import {
   Text,
   StyleSheet,
   FlatList,
-  ActivityIndicator,
-  SafeAreaView,
   TouchableOpacity,
-  TextInput,
 } from "react-native";
 import { useRouter } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
 import { useAttendance } from "../hooks/useAttendance";
 import { useClasses } from "@/modules/classes/hooks/useClasses";
-import { Colors } from "@/common/constants/colors";
-import { Spacing, Layout } from "@/common/constants/spacing";
 import { ClassItem } from "@/modules/classes/types";
+import { ScreenContainer } from "@/src/components/ui/ScreenContainer";
+import { Header } from "@/src/components/ui/Header";
+import { SurfaceCard } from "@/src/components/ui/SurfaceCard";
+import { LoadingState } from "@/src/components/ui/LoadingState";
+import { EmptyState } from "@/src/components/ui/EmptyState";
+import { StatusBadge } from "@/src/components/ui/StatusBadge";
+import { SearchBar } from "@/src/components/ui/SearchBar";
+import { theme } from "@/src/design-system/theme";
+import { Icons } from "@/src/design-system/icons";
+import { useDebounce } from "@/src/hooks/useDebounce";
 
 export default function AdminAttendanceScreen() {
   const router = useRouter();
@@ -23,8 +27,10 @@ export default function AdminAttendanceScreen() {
   const { classes, fetchClasses, loading: classesLoading } = useClasses();
 
   const today = new Date().toISOString().split("T")[0];
-  const [selectedDate, setSelectedDate] = useState(today);
+  const [selectedDate] = useState(today);
   const [selectedClass, setSelectedClass] = useState<ClassItem | null>(null);
+  const [classSearch, setClassSearch] = useState("");
+  const debouncedSearch = useDebounce(classSearch, 300);
 
   useEffect(() => {
     fetchClasses();
@@ -35,220 +41,283 @@ export default function AdminAttendanceScreen() {
     fetchClassAttendance(cls.id, selectedDate);
   };
 
-  const handleDateChange = (date: string) => {
-    setSelectedDate(date);
-    if (selectedClass) {
-      fetchClassAttendance(selectedClass.id, date);
-    }
-  };
+  const filteredClasses = debouncedSearch
+    ? classes.filter((c) =>
+        `${c.name} ${c.section}`.toLowerCase().includes(debouncedSearch.toLowerCase())
+      )
+    : classes;
 
-  const getStatusColor = (status: string) => {
+  const getStatusBadgeType = (status: string): "success" | "danger" | "warning" | "info" => {
     switch (status) {
-      case "present": return Colors.success;
-      case "absent": return Colors.error;
-      case "late": return Colors.warning;
-      default: return Colors.textTertiary;
+      case "present": return "success";
+      case "absent": return "danger";
+      case "late": return "warning";
+      default: return "info";
     }
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backIcon}>
-          <Ionicons name="arrow-back" size={24} color={Colors.text} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Attendance Overview</Text>
-      </View>
+    <ScreenContainer>
+      <Header title="Attendance Overview" onBack={() => router.back()} compact />
 
-      {/* Date Picker */}
-      <View style={styles.dateRow}>
-        <Ionicons name="calendar-outline" size={20} color={Colors.textSecondary} />
-        <TextInput
-          style={styles.dateInput}
-          value={selectedDate}
-          onChangeText={handleDateChange}
-          placeholder="YYYY-MM-DD"
-          placeholderTextColor={Colors.textTertiary}
-        />
-      </View>
-
-      {/* Class Selector */}
       {!selectedClass ? (
         <>
-          <Text style={styles.sectionLabel}>Select a class:</Text>
-          {classesLoading ? (
-            <View style={styles.center}>
-              <ActivityIndicator size="large" color={Colors.primary} />
-            </View>
+          <View style={styles.searchWrap}>
+            <SearchBar
+              value={classSearch}
+              onChangeText={setClassSearch}
+              placeholder="Search classes..."
+            />
+          </View>
+          {classesLoading && classes.length === 0 ? (
+            <LoadingState message="Loading classes..." />
           ) : (
             <FlatList
-              data={classes}
+              data={filteredClasses}
               keyExtractor={(item) => item.id}
               contentContainerStyle={styles.listContent}
+              showsVerticalScrollIndicator={false}
               renderItem={({ item }) => (
                 <TouchableOpacity
-                  style={styles.classItem}
+                  style={styles.classCard}
                   onPress={() => handleClassSelect(item)}
+                  activeOpacity={0.7}
                 >
-                  <Text style={styles.classItemName}>
-                    {item.name} - {item.section}
-                  </Text>
-                  <Text style={styles.classItemDetail}>{item.academic_year}</Text>
+                  <View style={styles.classIconBg}>
+                    <Icons.Class size={22} color={theme.colors.primary[500]} />
+                  </View>
+                  <View style={styles.classInfo}>
+                    <Text style={styles.className}>
+                      {item.name} - {item.section}
+                    </Text>
+                    <Text style={styles.classDetail}>{item.academic_year}</Text>
+                  </View>
+                  <Icons.ChevronRight size={18} color={theme.colors.text[400]} />
                 </TouchableOpacity>
               )}
+              ListEmptyComponent={
+                <EmptyState title="No classes found" description="Try adjusting your search." />
+              }
             />
           )}
         </>
       ) : (
         <>
-          {/* Selected Class Header */}
           <TouchableOpacity
-            style={styles.selectedClass}
+            style={styles.selectedClassBanner}
             onPress={() => setSelectedClass(null)}
           >
-            <Text style={styles.selectedClassName}>
-              {selectedClass.name} - {selectedClass.section}
-            </Text>
+            <View style={styles.selectedClassInfo}>
+              <Icons.Class size={18} color={theme.colors.primary[500]} />
+              <Text style={styles.selectedClassName}>
+                {selectedClass.name} - {selectedClass.section}
+              </Text>
+            </View>
             <Text style={styles.changeText}>Change</Text>
           </TouchableOpacity>
 
-          {/* Summary */}
+          <View style={styles.dateInfo}>
+            <Icons.Calendar size={14} color={theme.colors.text[500]} />
+            <Text style={styles.dateText}>{selectedDate}</Text>
+          </View>
+
           {classAttendance && (
-            <View style={styles.summaryBar}>
-              <View style={styles.summaryItem}>
-                <Text style={styles.summaryNum}>{classAttendance.total_students}</Text>
-                <Text style={styles.summaryLabel}>Total</Text>
-              </View>
-              <View style={styles.summaryItem}>
-                <Text style={[styles.summaryNum, { color: Colors.success }]}>
-                  {classAttendance.present_count}
-                </Text>
-                <Text style={styles.summaryLabel}>Present</Text>
-              </View>
-              <View style={styles.summaryItem}>
-                <Text style={[styles.summaryNum, { color: Colors.error }]}>
-                  {classAttendance.absent_count}
-                </Text>
-                <Text style={styles.summaryLabel}>Absent</Text>
-              </View>
-              <View style={styles.summaryItem}>
-                <Text style={[styles.summaryNum, { color: Colors.warning }]}>
-                  {classAttendance.late_count}
-                </Text>
-                <Text style={styles.summaryLabel}>Late</Text>
-              </View>
+            <View style={styles.statsRow}>
+              <StatBox
+                label="Total"
+                value={classAttendance.total_students}
+                color={theme.colors.text[700]}
+              />
+              <StatBox
+                label="Present"
+                value={classAttendance.present_count ?? 0}
+                color={theme.colors.success}
+              />
+              <StatBox
+                label="Absent"
+                value={classAttendance.absent_count ?? 0}
+                color={theme.colors.danger}
+              />
+              <StatBox
+                label="Late"
+                value={classAttendance.late_count ?? 0}
+                color={theme.colors.warning}
+              />
             </View>
           )}
 
-          {/* Attendance Records */}
           {attLoading ? (
-            <View style={styles.center}>
-              <ActivityIndicator size="large" color={Colors.primary} />
-            </View>
+            <LoadingState message="Loading attendance..." />
           ) : (
             <FlatList
               data={classAttendance?.attendance || []}
               keyExtractor={(item) => item.student_id}
               contentContainerStyle={styles.listContent}
+              showsVerticalScrollIndicator={false}
               renderItem={({ item }) => (
                 <View style={styles.recordRow}>
                   <View style={styles.recordInfo}>
                     <Text style={styles.recordName}>{item.student_name}</Text>
-                    <Text style={styles.recordDetail}>{item.admission_number}</Text>
+                    <Text style={styles.recordAdm}>{item.admission_number}</Text>
                   </View>
-                  <Text
-                    style={[
-                      styles.recordStatus,
-                      { color: getStatusColor(item.status || "unmarked") },
-                    ]}
-                  >
-                    {item.marked ? item.status : "Not marked"}
-                  </Text>
+                  {item.marked ? (
+                    <StatusBadge
+                      status={getStatusBadgeType(item.status || "")}
+                      label={item.status || "—"}
+                    />
+                  ) : (
+                    <StatusBadge status="info" label="Not Marked" />
+                  )}
                 </View>
               )}
               ListEmptyComponent={
-                <View style={styles.center}>
-                  <Text style={styles.emptyText}>No attendance data for this date</Text>
-                </View>
+                <EmptyState
+                  title="No attendance data"
+                  description="No attendance recorded for this date."
+                />
               }
             />
           )}
         </>
       )}
-    </SafeAreaView>
+    </ScreenContainer>
   );
 }
 
+const StatBox = ({
+  label,
+  value,
+  color,
+}: {
+  label: string;
+  value: number;
+  color: string;
+}) => (
+  <View style={styles.statBox}>
+    <Text style={[styles.statValue, { color }]}>{value}</Text>
+    <Text style={styles.statLabel}>{label}</Text>
+  </View>
+);
+
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
-  center: { flex: 1, justifyContent: "center", alignItems: "center", padding: Spacing.xl },
-  header: {
+  searchWrap: {
+    paddingHorizontal: theme.spacing.m,
+    paddingTop: theme.spacing.s,
+    paddingBottom: theme.spacing.s,
+  },
+  listContent: {
+    paddingHorizontal: theme.spacing.m,
+    paddingBottom: theme.spacing.xxl,
+  },
+  classCard: {
     flexDirection: "row",
     alignItems: "center",
-    padding: Spacing.lg,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radius.xl,
+    padding: theme.spacing.m,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    marginBottom: theme.spacing.s,
+    ...theme.shadows.sm,
   },
-  backIcon: { padding: Spacing.sm },
-  headerTitle: { flex: 1, fontSize: 20, fontWeight: "bold", color: Colors.text, marginLeft: Spacing.md },
-  dateRow: {
-    flexDirection: "row",
+  classIconBg: {
+    width: 44,
+    height: 44,
+    borderRadius: theme.radius.l,
+    backgroundColor: theme.colors.primary[50],
     alignItems: "center",
-    margin: Spacing.md,
-    padding: Spacing.md,
-    backgroundColor: Colors.backgroundSecondary,
-    borderRadius: Layout.borderRadius.md,
-    gap: Spacing.sm,
+    justifyContent: "center",
+    marginRight: theme.spacing.m,
+    flexShrink: 0,
   },
-  dateInput: { flex: 1, fontSize: 16, color: Colors.text },
-  sectionLabel: {
-    fontSize: 16,
+  classInfo: { flex: 1 },
+  className: {
+    ...theme.typography.body,
     fontWeight: "600",
-    color: Colors.text,
-    paddingHorizontal: Spacing.md,
-    paddingTop: Spacing.sm,
+    color: theme.colors.text[900],
   },
-  listContent: { padding: Spacing.md },
-  classItem: {
-    padding: Spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
+  classDetail: {
+    ...theme.typography.caption,
+    color: theme.colors.text[500],
+    marginTop: 2,
   },
-  classItemName: { fontSize: 16, fontWeight: "500", color: Colors.text },
-  classItemDetail: { fontSize: 13, color: Colors.textSecondary, marginTop: 2 },
-  selectedClass: {
+  selectedClassBanner: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    margin: Spacing.md,
-    padding: Spacing.md,
-    backgroundColor: Colors.backgroundSecondary,
-    borderRadius: Layout.borderRadius.md,
+    justifyContent: "space-between",
+    backgroundColor: theme.colors.primary[50],
+    marginHorizontal: theme.spacing.m,
+    marginTop: theme.spacing.s,
+    marginBottom: theme.spacing.xs,
+    padding: theme.spacing.m,
+    borderRadius: theme.radius.xl,
+    borderWidth: 1,
+    borderColor: theme.colors.primary[200],
   },
-  selectedClassName: { fontSize: 16, fontWeight: "600", color: Colors.text },
-  changeText: { fontSize: 14, color: Colors.primary, fontWeight: "500" },
-  summaryBar: {
+  selectedClassInfo: {
     flexDirection: "row",
-    justifyContent: "space-around",
-    paddingVertical: Spacing.md,
-    backgroundColor: Colors.backgroundSecondary,
-    marginHorizontal: Spacing.md,
-    borderRadius: Layout.borderRadius.md,
-    marginBottom: Spacing.sm,
+    alignItems: "center",
+    gap: theme.spacing.s,
   },
-  summaryItem: { alignItems: "center" },
-  summaryNum: { fontSize: 18, fontWeight: "700", color: Colors.text },
-  summaryLabel: { fontSize: 12, color: Colors.textSecondary, marginTop: 2 },
+  selectedClassName: {
+    ...theme.typography.body,
+    fontWeight: "600",
+    color: theme.colors.primary[600],
+  },
+  changeText: {
+    ...theme.typography.label,
+    color: theme.colors.primary[500],
+    fontWeight: "600",
+  },
+  dateInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing.xs,
+    paddingHorizontal: theme.spacing.m,
+    paddingBottom: theme.spacing.s,
+  },
+  dateText: {
+    ...theme.typography.caption,
+    color: theme.colors.text[500],
+  },
+  statsRow: {
+    flexDirection: "row",
+    backgroundColor: theme.colors.surface,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: theme.colors.border,
+    marginBottom: theme.spacing.s,
+  },
+  statBox: {
+    flex: 1,
+    alignItems: "center",
+    paddingVertical: theme.spacing.m,
+  },
+  statValue: {
+    fontSize: 20,
+    fontWeight: "700",
+  },
+  statLabel: {
+    ...theme.typography.caption,
+    color: theme.colors.text[500],
+    marginTop: 2,
+  },
   recordRow: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: Spacing.md,
+    paddingVertical: theme.spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
+    borderBottomColor: theme.colors.border,
   },
   recordInfo: { flex: 1 },
-  recordName: { fontSize: 15, fontWeight: "500", color: Colors.text },
-  recordDetail: { fontSize: 13, color: Colors.textSecondary },
-  recordStatus: { fontSize: 14, fontWeight: "600", textTransform: "capitalize" },
-  emptyText: { fontSize: 16, color: Colors.textSecondary },
+  recordName: {
+    ...theme.typography.body,
+    fontWeight: "500",
+    color: theme.colors.text[900],
+  },
+  recordAdm: {
+    ...theme.typography.caption,
+    color: theme.colors.text[500],
+    marginTop: 2,
+  },
 });

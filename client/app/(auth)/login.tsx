@@ -9,12 +9,14 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { Link, router } from "expo-router";
-import SafeScreenWrapper from "@/common/components/SafeScreenWrapper";
-import AuthInput from "@/common/components/AuthInput";
-import AuthButton from "@/common/components/AuthButton";
 import { useLogin } from "@/modules/auth/hooks/useLogin";
 import { useAuth } from "@/modules/auth/hooks/useAuth";
-import { Colors } from "@/common/constants/colors";
+import { ScreenContainer } from "@/src/components/ui/ScreenContainer";
+import { FormInput } from "@/src/components/ui/FormInput";
+import { PrimaryButton } from "@/src/components/ui/PrimaryButton";
+import { useToast } from "@/src/components/ui/Toast";
+import { theme } from "@/src/design-system/theme";
+import { Icons } from "@/src/design-system/icons";
 
 const loginIcon = require("@/assets/images/auth/login.jpg");
 
@@ -27,10 +29,11 @@ export default function LoginScreen() {
 
   const { login, loading, error } = useLogin();
   const { isAuthenticated, pendingTenantChoice, loginWithTenant, clearPendingTenantChoice } = useAuth();
+  const toast = useToast();
 
   useEffect(() => {
     if (isAuthenticated) {
-      router.replace("/(protected)/home");
+      router.replace("/(protected)/dashboard");
     }
   }, [isAuthenticated]);
 
@@ -38,14 +41,25 @@ export default function LoginScreen() {
     setEmailError("");
     setPasswordError("");
 
+    if (!email.trim()) {
+      setEmailError("Email is required");
+      return;
+    }
+    if (!password) {
+      setPasswordError("Password is required");
+      return;
+    }
+
     try {
       await login(email, password);
     } catch (err: any) {
       const message = err?.message || "";
-      if (message.includes("email")) {
+      if (message.toLowerCase().includes("email")) {
         setEmailError(message);
-      } else if (message.includes("password")) {
+      } else if (message.toLowerCase().includes("password")) {
         setPasswordError(message);
+      } else {
+        toast.error("Sign in failed", message || "Please check your credentials and try again.");
       }
     }
   };
@@ -54,9 +68,9 @@ export default function LoginScreen() {
     setChoosingTenant(true);
     try {
       await loginWithTenant(tenantId);
-      router.replace("/(protected)/home");
-    } catch (_) {
-      // Error surfaced by auth
+      router.replace("/(protected)/dashboard");
+    } catch (err: any) {
+      toast.error("Error", err?.message || "Failed to select school.");
     } finally {
       setChoosingTenant(false);
     }
@@ -64,28 +78,36 @@ export default function LoginScreen() {
 
   if (pendingTenantChoice?.tenants?.length) {
     return (
-      <SafeScreenWrapper backgroundColor={Colors.background}>
+      <ScreenContainer keyboardAvoiding edges={["top", "bottom"]}>
         <ScrollView
-          style={styles.container}
+          style={styles.scroll}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.content}>
-            <View style={styles.header}>
-              <Text style={styles.title}>Which school?</Text>
+            <View style={styles.schoolPickerHeader}>
+              <View style={styles.schoolIconBg}>
+                <Icons.Building size={28} color={theme.colors.primary[500]} />
+              </View>
+              <Text style={styles.title}>Select School</Text>
               <Text style={styles.subtitle}>
                 Your account is linked to more than one school. Choose one to continue.
               </Text>
             </View>
+
             <TouchableOpacity
               style={styles.backLink}
               onPress={clearPendingTenantChoice}
               disabled={choosingTenant}
             >
-              <Text style={styles.forgotPasswordText}>← Back to login</Text>
+              <Icons.ArrowLeft size={16} color={theme.colors.primary[500]} />
+              <Text style={styles.backLinkText}>Back to sign in</Text>
             </TouchableOpacity>
+
             {choosingTenant ? (
-              <ActivityIndicator size="large" style={styles.tenantLoader} color={Colors.primary} />
+              <View style={styles.tenantLoader}>
+                <ActivityIndicator size="large" color={theme.colors.primary[500]} />
+              </View>
             ) : (
               <View style={styles.tenantList}>
                 {pendingTenantChoice.tenants.map((t) => (
@@ -95,24 +117,34 @@ export default function LoginScreen() {
                     onPress={() => handleChooseSchool(t.id)}
                     activeOpacity={0.7}
                   >
-                    <Text style={styles.tenantName}>{t.name}</Text>
-                    {t.subdomain ? (
-                      <Text style={styles.tenantSubdomain}>{t.subdomain}</Text>
-                    ) : null}
+                    <View style={styles.tenantItemLeft}>
+                      <View style={styles.tenantAvatar}>
+                        <Text style={styles.tenantAvatarText}>
+                          {t.name.charAt(0).toUpperCase()}
+                        </Text>
+                      </View>
+                      <View>
+                        <Text style={styles.tenantName}>{t.name}</Text>
+                        {t.subdomain ? (
+                          <Text style={styles.tenantSubdomain}>{t.subdomain}</Text>
+                        ) : null}
+                      </View>
+                    </View>
+                    <Icons.ChevronRight size={18} color={theme.colors.text[400]} />
                   </TouchableOpacity>
                 ))}
               </View>
             )}
           </View>
         </ScrollView>
-      </SafeScreenWrapper>
+      </ScreenContainer>
     );
   }
 
   return (
-    <SafeScreenWrapper backgroundColor={Colors.background}>
+    <ScreenContainer keyboardAvoiding edges={["top", "bottom"]}>
       <ScrollView
-        style={styles.container}
+        style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
@@ -127,51 +159,54 @@ export default function LoginScreen() {
           </View>
 
           <View style={styles.header}>
-            <Text style={styles.title}>Welcome Back</Text>
+            <Text style={styles.title}>Welcome back</Text>
             <Text style={styles.subtitle}>
-              Sign in to continue to your account
+              Sign in to continue to your school account
             </Text>
           </View>
 
           <View style={styles.form}>
-            <AuthInput
+            <FormInput
               label="Email"
               placeholder="Enter your email"
               value={email}
-              onChangeText={setEmail}
+              onChangeText={(t) => { setEmail(t); setEmailError(""); }}
               keyboardType="email-address"
               autoCapitalize="none"
               autoComplete="email"
-              icon="mail-outline"
               error={emailError}
+              leftIcon={<Icons.Mail size={18} color={theme.colors.text[400]} />}
             />
 
-            <AuthInput
+            <FormInput
               label="Password"
               placeholder="Enter your password"
               value={password}
-              onChangeText={setPassword}
+              onChangeText={(t) => { setPassword(t); setPasswordError(""); }}
               secureTextEntry
               showPasswordToggle
               autoCapitalize="none"
               autoComplete="password"
-              icon="lock-closed-outline"
               error={passwordError}
+              leftIcon={<Icons.Lock size={18} color={theme.colors.text[400]} />}
             />
 
             <View style={styles.forgotPasswordContainer}>
               <Link href="/(auth)/forgot-password" asChild>
-                <TouchableOpacity>
-                  <Text style={styles.forgotPasswordText}>
-                    Forgot Password?
-                  </Text>
+                <TouchableOpacity hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
                 </TouchableOpacity>
               </Link>
             </View>
 
-            {error && <Text style={styles.errorText}>{error}</Text>}
+            {error && !emailError && !passwordError && (
+              <View style={styles.errorBanner}>
+                <Icons.AlertCircle size={16} color={theme.colors.danger} />
+                <Text style={styles.errorText}>{error}</Text>
+              </View>
+            )}
 
-            <AuthButton
+            <PrimaryButton
               title="Sign In"
               onPress={handleLogin}
               loading={loading}
@@ -179,9 +214,7 @@ export default function LoginScreen() {
             />
 
             <View style={styles.footer}>
-              <Text style={styles.footerText}>
-                Don&apos;t have an account?{" "}
-              </Text>
+              <Text style={styles.footerText}>Don&apos;t have an account? </Text>
               <Link href="/(auth)/register" asChild>
                 <TouchableOpacity>
                   <Text style={styles.linkText}>Sign Up</Text>
@@ -191,105 +224,147 @@ export default function LoginScreen() {
           </View>
         </View>
       </ScrollView>
-    </SafeScreenWrapper>
+    </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    paddingBottom: 100,
-  },
+  scroll: { flex: 1 },
+  scrollContent: { flexGrow: 1, paddingBottom: 40 },
   content: {
-    paddingHorizontal: 24,
-    paddingTop: 40,
-    paddingBottom: 32,
+    paddingHorizontal: theme.spacing.l,
+    paddingTop: theme.spacing.l,
   },
   illustrationContainer: {
     alignItems: "center",
-    marginBottom: 32,
+    marginBottom: theme.spacing.l,
   },
   illustration: {
-    width: 200,
-    height: 200,
+    width: theme.wp(55),
+    height: theme.wp(55),
+    maxWidth: 240,
+    maxHeight: 240,
   },
   header: {
-    marginBottom: 32,
+    marginBottom: theme.spacing.l,
   },
   title: {
-    fontSize: 32,
-    fontWeight: "700",
-    color: Colors.text,
-    marginBottom: 8,
+    ...theme.typography.h1,
+    color: theme.colors.text[900],
+    marginBottom: theme.spacing.s,
   },
   subtitle: {
-    fontSize: 16,
-    color: Colors.textSecondary,
+    ...theme.typography.body,
+    color: theme.colors.text[500],
+    lineHeight: 22,
   },
-  form: {
-    flex: 1,
-  },
+  form: {},
   forgotPasswordContainer: {
     alignItems: "flex-end",
-    marginBottom: 24,
+    marginBottom: theme.spacing.m,
+    marginTop: -theme.spacing.s,
   },
   forgotPasswordText: {
-    fontSize: 14,
-    color: Colors.primary,
+    ...theme.typography.label,
+    color: theme.colors.primary[500],
     fontWeight: "600",
   },
-  loginButton: {
-    marginTop: 8,
+  errorBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing.s,
+    backgroundColor: theme.colors.dangerLight,
+    borderRadius: theme.radius.l,
+    padding: theme.spacing.m,
+    marginBottom: theme.spacing.m,
   },
   errorText: {
-    fontSize: 14,
-    color: Colors.error,
-    marginBottom: 16,
-    textAlign: "center",
+    flex: 1,
+    ...theme.typography.bodySmall,
+    color: theme.colors.danger,
+  },
+  loginButton: {
+    marginTop: theme.spacing.xs,
   },
   footer: {
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
-    marginTop: 24,
+    marginTop: theme.spacing.l,
   },
   footerText: {
-    fontSize: 14,
-    color: Colors.textSecondary,
+    ...theme.typography.body,
+    color: theme.colors.text[500],
   },
   linkText: {
-    fontSize: 14,
-    color: Colors.primary,
+    ...theme.typography.body,
+    color: theme.colors.primary[500],
     fontWeight: "600",
+  },
+  schoolPickerHeader: {
+    alignItems: "center",
+    marginBottom: theme.spacing.l,
+    paddingTop: theme.spacing.xl,
+  },
+  schoolIconBg: {
+    width: 72,
+    height: 72,
+    borderRadius: theme.radius.xxl,
+    backgroundColor: theme.colors.primary[50],
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: theme.spacing.m,
   },
   backLink: {
-    marginBottom: 24,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing.xs,
+    marginBottom: theme.spacing.l,
   },
-  tenantList: {
-    gap: 12,
+  backLinkText: {
+    ...theme.typography.label,
+    color: theme.colors.primary[500],
+    fontWeight: "600",
   },
+  tenantList: { gap: theme.spacing.s },
   tenantItem: {
-    backgroundColor: Colors.backgroundSecondary,
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    borderRadius: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: theme.colors.surface,
+    paddingVertical: theme.spacing.m,
+    paddingHorizontal: theme.spacing.m,
+    borderRadius: theme.radius.xl,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: theme.colors.border,
+    ...theme.shadows.sm,
+  },
+  tenantItemLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing.m,
+  },
+  tenantAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: theme.radius.full,
+    backgroundColor: theme.colors.primary[100],
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  tenantAvatarText: {
+    ...theme.typography.h3,
+    color: theme.colors.primary[600],
   },
   tenantName: {
-    fontSize: 17,
+    ...theme.typography.label,
     fontWeight: "600",
-    color: Colors.text,
+    color: theme.colors.text[900],
   },
   tenantSubdomain: {
-    fontSize: 13,
-    color: Colors.textSecondary,
-    marginTop: 4,
+    ...theme.typography.caption,
+    color: theme.colors.text[500],
+    marginTop: 2,
   },
-  tenantLoader: {
-    marginTop: 24,
-  },
+  tenantLoader: { marginTop: theme.spacing.xl, alignItems: "center" },
 });

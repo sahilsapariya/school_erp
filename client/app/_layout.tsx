@@ -3,22 +3,16 @@ import { useFonts } from "expo-font";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AuthProvider } from "@/modules/auth/context/AuthContext";
+import { ToastProvider } from "@/src/components/ui/Toast";
 
 const queryClient = new QueryClient();
 
-// Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
-  const [fontsLoaded, fontError] = useFonts({
-    // SF Pro fonts - using system fonts as fallback
-    // If you have SF Pro font files, add them here:
-    // 'SF-Pro-Display-Regular': require('@/assets/fonts/SF-Pro-Display-Regular.otf'),
-    // 'SF-Pro-Display-Medium': require('@/assets/fonts/SF-Pro-Display-Medium.otf'),
-    // 'SF-Pro-Display-Semibold': require('@/assets/fonts/SF-Pro-Display-Semibold.otf'),
-    // 'SF-Pro-Display-Bold': require('@/assets/fonts/SF-Pro-Display-Bold.otf'),
-  });
+  const [fontsLoaded, fontError] = useFonts({});
 
   useEffect(() => {
     if (fontsLoaded || fontError) {
@@ -31,14 +25,18 @@ export default function RootLayout() {
   }
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="index" />
-        <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-        <Stack.Screen name="(protected)" options={{ headerShown: false }} />
-      </Stack>
-      </AuthProvider>
-    </QueryClientProvider>
+    <SafeAreaProvider>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <ToastProvider>
+            <Stack screenOptions={{ headerShown: false }}>
+              <Stack.Screen name="index" />
+              <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+              <Stack.Screen name="(protected)" options={{ headerShown: false }} />
+            </Stack>
+          </ToastProvider>
+        </AuthProvider>
+      </QueryClientProvider>
+    </SafeAreaProvider>
   );
 }

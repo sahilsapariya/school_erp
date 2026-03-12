@@ -2,7 +2,7 @@ import React, { useEffect } from "react";
 import { View, ActivityIndicator, StyleSheet } from "react-native";
 import { useRouter, useSegments } from "expo-router";
 import { useAuth } from "@/modules/auth/hooks/useAuth";
-import { Colors } from "@/common/constants/colors";
+import { theme } from "@/src/design-system/theme";
 
 export default function Index() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -18,14 +18,14 @@ export default function Index() {
     if (!isAuthenticated && !inAuthGroup) {
       router.replace("/(auth)/login");
     } else if (isAuthenticated && !inProtectedGroup) {
-      router.replace("/(protected)/home");
+      router.replace("/(protected)/dashboard");
     }
   }, [isAuthenticated, isLoading, segments, router]);
 
   if (isLoading) {
     return (
       <View style={styles.container}>
-        <ActivityIndicator size="large" color={Colors.primary} />
+        <ActivityIndicator size="large" color={theme.colors.primary[500]} />
       </View>
     );
   }
@@ -38,6 +38,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: Colors.background,
+    backgroundColor: theme.colors.background,
   },
 });

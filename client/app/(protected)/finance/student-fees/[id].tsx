@@ -1,67 +1,41 @@
 import React, { useState } from "react";
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Pressable,
-  ActivityIndicator,
-  RefreshControl,
-  TextInput,
-  Modal,
-  Alert,
-  SafeAreaView,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity,
+  Pressable, RefreshControl, TextInput, Modal,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
 import {
-  useStudentFee,
-  useRecordPayment,
-  useRefundPayment,
-  useDeleteStudentFee,
+  useStudentFee, useRecordPayment, useRefundPayment, useDeleteStudentFee,
 } from "@/modules/finance/hooks/useFinance";
 import type { RecordPaymentInput } from "@/modules/finance/types";
-import { Colors } from "@/common/constants/colors";
-import { Spacing, Layout } from "@/common/constants/spacing";
+import { ScreenContainer } from "@/src/components/ui/ScreenContainer";
+import { Header } from "@/src/components/ui/Header";
+import { SurfaceCard } from "@/src/components/ui/SurfaceCard";
+import { DataRow } from "@/src/components/ui/DataRow";
+import { LoadingState } from "@/src/components/ui/LoadingState";
+import { EmptyState } from "@/src/components/ui/EmptyState";
+import { PrimaryButton } from "@/src/components/ui/PrimaryButton";
+import { ConfirmationDialog } from "@/src/components/ui/ConfirmationDialog";
+import { useToast } from "@/src/components/ui/Toast";
+import { theme } from "@/src/design-system/theme";
+import { Icons } from "@/src/design-system/icons";
 
-function formatCurrency(n: number) {
-  return `₹${n.toLocaleString("en-IN")}`;
-}
+function formatCurrency(n: number) { return `₹${n.toLocaleString("en-IN")}`; }
+function formatDate(s: string) { try { return new Date(s).toLocaleDateString("en-IN"); } catch { return s; } }
 
-function formatDate(s: string) {
-  try {
-    return new Date(s).toLocaleDateString("en-IN");
-  } catch {
-    return s;
-  }
-}
+const PAYMENT_STATUS_COLORS: Record<string, string> = {
+  success: theme.colors.success,
+  refunded: theme.colors.text[400],
+  failed: theme.colors.danger,
+};
 
-function getItemStatus(amount: number, paidAmount: number): "paid" | "partial" | "unpaid" {
-  if (paidAmount >= amount) return "paid";
-  if (paidAmount > 0) return "partial";
-  return "unpaid";
-}
-
-function ItemStatusBadge({ status }: { status: "paid" | "partial" | "unpaid" }) {
-  const colors: Record<string, string> = {
-    paid: Colors.success,
-    partial: Colors.warning,
-    unpaid: Colors.textSecondary,
-  };
-  return (
-    <View style={[styles.itemStatusBadge, { backgroundColor: colors[status] }]}>
-      <Text style={styles.itemStatusText}>{status}</Text>
-    </View>
-  );
-}
-
-// Allocation state: { item_id: amount_string }
 type AllocationState = Record<string, string>;
 
 export default function StudentFeeDetailPage() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const toast = useToast();
+
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [amount, setAmount] = useState("");
   const [method, setMethod] = useState("cash");
@@ -71,6 +45,7 @@ export default function StudentFeeDetailPage() {
   const [refundModalOpen, setRefundModalOpen] = useState(false);
   const [refundPaymentId, setRefundPaymentId] = useState<string | null>(null);
   const [refundReason, setRefundReason] = useState("");
+  const [removeDialogOpen, setRemoveDialogOpen] = useState(false);
 
   const { data, isLoading, error, refetch, isRefetching } = useStudentFee(id);
   const recordMut = useRecordPayment();
@@ -78,28 +53,15 @@ export default function StudentFeeDetailPage() {
   const deleteFeeMut = useDeleteStudentFee();
 
   const remaining = (data?.total_amount ?? 0) - (data?.paid_amount ?? 0);
-  const itemsWithRemaining = (data?.items ?? []).filter(
-    (item) => (item.amount ?? 0) - (item.paid_amount ?? 0) > 0
-  );
-
+  const itemsWithRemaining = (data?.items ?? []).filter((item) => (item.amount ?? 0) - (item.paid_amount ?? 0) > 0);
   const amountNum = parseFloat(amount) || 0;
   const amountExceedsRemaining = amountNum > remaining && amount.trim() !== "";
-  const allocationSum = itemsWithRemaining.reduce(
-    (sum, item) => sum + (parseFloat(allocations[item.id] ?? "0") || 0),
-    0
-  );
+  const allocationSum = itemsWithRemaining.reduce((sum, item) => sum + (parseFloat(allocations[item.id] ?? "0") || 0), 0);
   const useAllocations = allocationSum > 0;
   const allocationMismatch = useAllocations && Math.abs(allocationSum - amountNum) > 0.01;
-  const canSubmitPayment =
-    !recordMut.isPending &&
-    amountNum > 0 &&
-    amountNum <= remaining &&
-    (!useAllocations || !allocationMismatch);
+  const canSubmitPayment = !recordMut.isPending && amountNum > 0 && amountNum <= remaining && (!useAllocations || !allocationMismatch);
 
-  const handleQuickAmount = (ratio: number) => {
-    const amt = Math.round(remaining * ratio);
-    setAmount(String(amt));
-  };
+  const handleQuickAmount = (ratio: number) => setAmount(String(Math.round(remaining * ratio)));
 
   const handlePayFullForItem = (item: { id: string; amount?: number; paid_amount?: number }) => {
     const itemRemaining = (item.amount ?? 0) - (item.paid_amount ?? 0);
@@ -128,397 +90,218 @@ export default function StudentFeeDetailPage() {
     setAllocations(newAllocations);
   };
 
-  const clearAllocations = () => setAllocations({});
-
   const handleRecordPayment = async () => {
     const amt = parseFloat(amount);
     if (!id || isNaN(amt) || amt <= 0) {
-      Alert.alert("Error", "Enter a valid amount");
+      toast.warning("Invalid amount", "Enter a valid payment amount.");
       return;
     }
-    if (amt > remaining) {
-      return; // Handled by disabled state and inline error
-    }
     if (useAllocations && allocationMismatch) {
-      Alert.alert("Error", "Allocation amounts must sum to the total payment amount");
+      toast.warning("Allocation mismatch", "Allocation amounts must sum to the total payment amount.");
       return;
     }
     try {
       const payload: RecordPaymentInput = {
-        student_fee_id: id,
-        amount: amt,
-        method,
-        reference_number: referenceNumber || undefined,
-        notes: notes || undefined,
+        student_fee_id: id, amount: amt, method,
+        reference_number: referenceNumber || undefined, notes: notes || undefined,
       };
       if (useAllocations) {
         payload.allocations = itemsWithRemaining
           .filter((item) => parseFloat(allocations[item.id] ?? "0") > 0)
-          .map((item) => ({
-            item_id: item.id,
-            amount: parseFloat(allocations[item.id] ?? "0") || 0,
-          }));
+          .map((item) => ({ item_id: item.id, amount: parseFloat(allocations[item.id] ?? "0") || 0 }));
       }
       await recordMut.mutateAsync(payload);
       setPaymentModalOpen(false);
-      setAmount("");
-      setReferenceNumber("");
-      setNotes("");
-      setAllocations({});
+      setAmount(""); setReferenceNumber(""); setNotes(""); setAllocations({});
+      toast.success("Payment recorded", `${formatCurrency(amt)} recorded successfully.`);
     } catch (e: any) {
-      Alert.alert("Error", e?.message ?? "Failed to record payment");
+      toast.error("Error", e?.message ?? "Failed to record payment");
     }
-  };
-
-  const openRefundModal = (paymentId: string) => {
-    setRefundPaymentId(paymentId);
-    setRefundReason("");
-    setRefundModalOpen(true);
   };
 
   const handleRefund = async () => {
     if (!refundPaymentId) return;
     try {
-      await refundMut.mutateAsync({
-        paymentId: refundPaymentId,
-        notes: refundReason.trim() || undefined,
-      });
-      setRefundModalOpen(false);
-      setRefundPaymentId(null);
-      setRefundReason("");
+      await refundMut.mutateAsync({ paymentId: refundPaymentId, notes: refundReason.trim() || undefined });
+      setRefundModalOpen(false); setRefundPaymentId(null); setRefundReason("");
+      toast.success("Payment refunded");
     } catch (e: any) {
-      Alert.alert("Error", e?.message ?? "Failed to refund");
+      toast.error("Error", e?.message ?? "Failed to refund");
     }
   };
 
-  const handleRemoveFromStructure = async () => {
+  const handleRemoveConfirm = async () => {
     if (!id) return;
-    Alert.alert(
-      "Remove from Fee Structure",
-      "This will remove this student from the fee structure as long as there are no successful payments recorded. Continue?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Remove",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await deleteFeeMut.mutateAsync(id);
-              Alert.alert(
-                "Success",
-                "Student removed from fee structure.",
-                [
-                  {
-                    text: "OK",
-                    onPress: () =>
-                      router.replace("/(protected)/finance/student-fees" as any),
-                  },
-                ],
-                { cancelable: false }
-              );
-            } catch (e: any) {
-              Alert.alert("Error", e?.message ?? "Failed to remove student from fee structure");
-            }
-          },
-        },
-      ]
-    );
+    try {
+      await deleteFeeMut.mutateAsync(id);
+      toast.success("Removed from fee structure");
+      router.replace("/(protected)/finance/student-fees" as any);
+    } catch (e: any) {
+      toast.error("Error", e?.message ?? "Failed to remove student from fee structure");
+    } finally {
+      setRemoveDialogOpen(false);
+    }
+  };
+
+  const statusColor = (s: string) => {
+    if (s === "paid") return theme.colors.success;
+    if (s === "overdue") return theme.colors.danger;
+    if (s === "partial") return theme.colors.warning;
+    return theme.colors.text[400];
+  };
+  const itemStatusColor = (s: "paid" | "partial" | "unpaid") => {
+    if (s === "paid") return theme.colors.success;
+    if (s === "partial") return theme.colors.warning;
+    return theme.colors.text[400];
   };
 
   if (error) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.center}>
-          <Text style={styles.errorText}>
-            {error instanceof Error ? error.message : "Failed to load"}
-          </Text>
-        </View>
-      </SafeAreaView>
+      <ScreenContainer>
+        <Header title="Fee Detail" onBack={() => router.back()} compact />
+        <EmptyState icon={<Icons.AlertCircle size={32} color={theme.colors.danger} />} title="Failed to load" description={error instanceof Error ? error.message : "Could not load fee detail."} action={{ label: "Try again", onPress: () => refetch() }} />
+      </ScreenContainer>
     );
   }
-
   if (isLoading && !data) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color={Colors.primary} />
-        </View>
-      </SafeAreaView>
-    );
+    return (<ScreenContainer><Header title="Fee Detail" onBack={() => router.back()} compact /><LoadingState message="Loading fee detail…" /></ScreenContainer>);
   }
-
   if (!data) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.center}>
-          <Text style={styles.errorText}>Not found</Text>
-        </View>
-      </SafeAreaView>
-    );
+    return (<ScreenContainer><Header title="Fee Detail" onBack={() => router.back()} compact /><EmptyState title="Not found" description="This fee record could not be found." action={{ label: "Go back", onPress: () => router.back() }} /></ScreenContainer>);
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backIcon}>
-          <Ionicons name="arrow-back" size={24} color={Colors.text} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Fee Detail</Text>
-      </View>
+    <ScreenContainer>
+      <Header title="Fee Detail" onBack={() => router.back()} compact />
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={theme.colors.primary[500]} />}>
 
-      <ScrollView
-        style={styles.content}
-        contentContainerStyle={styles.contentContainer}
-        refreshControl={
-          <RefreshControl refreshing={isRefetching} onRefresh={refetch} />
-        }
-      >
-      {/* Summary card */}
-      <View style={styles.section}>
-        <View style={styles.summaryHeaderRow}>
-          <Text style={styles.sectionTitle}>Summary</Text>
-          <TouchableOpacity
-            onPress={handleRemoveFromStructure}
-            style={styles.removeFeeBtn}
-          >
-            <Ionicons name="trash-outline" size={18} color={Colors.error} />
-            <Text style={styles.removeFeeBtnText}>Remove from structure</Text>
-          </TouchableOpacity>
-        </View>
-      <View style={styles.card}>
-        <Text style={styles.summaryName}>{data.student_name ?? "—"}</Text>
-        <Text style={styles.summaryStructure}>{data.fee_structure_name ?? "—"}</Text>
-        <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>Total</Text>
-          <Text style={[styles.summaryValue, styles.summaryValueFlex]}>
-            {formatCurrency(data.total_amount)}
-          </Text>
-        </View>
-        <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>Paid</Text>
-          <Text style={[styles.summaryValue, { color: Colors.success }, styles.summaryValueFlex]}>
-            {formatCurrency(data.paid_amount)}
-          </Text>
-        </View>
-        <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>Remaining</Text>
-          <Text style={[styles.summaryValue, { color: Colors.warning }, styles.summaryValueFlex]}>
-            {formatCurrency(remaining)}
-          </Text>
-        </View>
-        <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>Status</Text>
-          <View
-            style={[
-              styles.statusBadge,
-              {
-                backgroundColor:
-                  data.status === "paid"
-                    ? Colors.success
-                    : data.status === "overdue"
-                      ? Colors.error
-                      : data.status === "partial"
-                        ? Colors.warning
-                        : Colors.textSecondary,
-              },
-            ]}
-          >
-            <Text style={styles.statusText}>{data.status}</Text>
+        {/* Summary */}
+        <SurfaceCard
+          title="Summary"
+          rightAction={
+            <TouchableOpacity style={styles.removeBtn} onPress={() => setRemoveDialogOpen(true)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Icons.Delete size={15} color={theme.colors.danger} />
+              <Text style={styles.removeBtnText}>Remove</Text>
+            </TouchableOpacity>
+          }
+          style={styles.section}
+        >
+          <Text style={styles.summaryName}>{data.student_name ?? "—"}</Text>
+          <Text style={styles.summaryStructure}>{data.fee_structure_name ?? "—"}</Text>
+          <DataRow title="Total" subtitle={formatCurrency(data.total_amount)} noBorder />
+          <DataRow title="Paid" subtitle={formatCurrency(data.paid_amount)} rightComponent={<Text style={[styles.amtVal, { color: theme.colors.success }]}>{formatCurrency(data.paid_amount)}</Text>} />
+          <DataRow title="Remaining" subtitle={formatCurrency(remaining)} rightComponent={<Text style={[styles.amtVal, { color: theme.colors.warning }]}>{formatCurrency(remaining)}</Text>} />
+          <View style={styles.statusRow}>
+            <Text style={styles.statusLabel}>Status</Text>
+            <View style={[styles.statusBadge, { backgroundColor: statusColor(data.status) + '20', borderColor: statusColor(data.status) + '50' }]}>
+              <Text style={[styles.statusText, { color: statusColor(data.status) }]}>{data.status}</Text>
+            </View>
           </View>
-        </View>
-        {remaining > 0 && (
-          <TouchableOpacity
-            style={styles.recordBtn}
-            onPress={() => setPaymentModalOpen(true)}
-          >
-            <Ionicons name="card-outline" size={20} color={Colors.background} />
-            <Text style={styles.recordBtnText}>Record Payment</Text>
-          </TouchableOpacity>
-        )}
-      </View>
-      </View>
+          {remaining > 0 && (
+            <PrimaryButton title="Record Payment" onPress={() => setPaymentModalOpen(true)} style={styles.recordBtn} leftIcon={<Icons.Finance size={18} color="#fff" />} />
+          )}
+        </SurfaceCard>
 
-      {/* Fee items table */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Fee Items</Text>
-        {(data.items ?? []).map((item) => {
-          const itemAmount = item.amount ?? 0;
-          const itemPaid = item.paid_amount ?? 0;
-          const itemRemaining = itemAmount - itemPaid;
-          const itemStatus: "paid" | "partial" | "unpaid" =
-            itemPaid >= itemAmount ? "paid" : itemPaid > 0 ? "partial" : "unpaid";
-          return (
-            <View key={item.id} style={styles.itemRow}>
-              <View style={styles.itemMain}>
-                <Text style={styles.itemName}>{item.component_name ?? "—"}</Text>
-                <Text style={styles.itemMeta}>
-                  {formatCurrency(item.amount)} • Paid {formatCurrency(item.paid_amount)}
-                </Text>
-              </View>
-              <View style={styles.itemRight}>
-                <Text style={styles.itemRemaining}>
-                  {formatCurrency(itemRemaining)} left
-                </Text>
-                <View
-                  style={[
-                    styles.itemStatusBadge,
-                    {
-                      backgroundColor:
-                        itemStatus === "paid"
-                          ? Colors.success
-                          : itemStatus === "partial"
-                            ? Colors.warning
-                            : Colors.textSecondary,
-                    },
-                  ]}
-                >
-                  <Text style={styles.itemStatusText}>{itemStatus}</Text>
+        {/* Fee Items */}
+        <SurfaceCard title="Fee Items" style={styles.section} padded={false}>
+          {(data.items ?? []).length === 0 ? (
+            <View style={styles.emptySection}><Text style={styles.emptyText}>No fee items</Text></View>
+          ) : (
+            (data.items ?? []).map((item) => {
+              const itemAmt = item.amount ?? 0, itemPaid = item.paid_amount ?? 0, itemRemaining = itemAmt - itemPaid;
+              const itemStatus: "paid" | "partial" | "unpaid" = itemPaid >= itemAmt ? "paid" : itemPaid > 0 ? "partial" : "unpaid";
+              return (
+                <View key={item.id} style={styles.itemRow}>
+                  <View style={styles.itemInfo}>
+                    <Text style={styles.itemName}>{item.component_name ?? "—"}</Text>
+                    <Text style={styles.itemMeta}>{formatCurrency(item.amount)} • Paid {formatCurrency(item.paid_amount)}</Text>
+                  </View>
+                  <View style={styles.itemRight}>
+                    <Text style={[styles.itemRemaining, { color: itemRemaining > 0 ? theme.colors.warning : theme.colors.success }]}>{formatCurrency(itemRemaining)} left</Text>
+                    <View style={[styles.itemBadge, { backgroundColor: itemStatusColor(itemStatus) }]}>
+                      <Text style={styles.itemBadgeText}>{itemStatus}</Text>
+                    </View>
+                  </View>
+                </View>
+              );
+            })
+          )}
+        </SurfaceCard>
+
+        {/* Payment History */}
+        <SurfaceCard title="Payment History" style={styles.section} padded={false}>
+          {(data.payments ?? []).length === 0 ? (
+            <View style={styles.emptySection}><Text style={styles.emptyText}>No payments yet</Text></View>
+          ) : (
+            (data.payments ?? []).map((p) => (
+              <View key={p.id} style={styles.paymentRow}>
+                <View style={styles.paymentInfo}>
+                  <Text style={styles.paymentAmount}>{formatCurrency(p.amount)}</Text>
+                  <Text style={styles.paymentMeta}>{p.method} • {formatDate(p.created_at)}{p.reference_number ? ` • ${p.reference_number}` : ""}</Text>
+                </View>
+                <View style={styles.paymentRight}>
+                  <View style={[styles.paymentBadge, { backgroundColor: PAYMENT_STATUS_COLORS[p.status] ?? theme.colors.text[400] }]}>
+                    <Text style={styles.paymentBadgeText}>{p.status}</Text>
+                  </View>
+                  {p.status === "success" && (
+                    <TouchableOpacity onPress={() => { setRefundPaymentId(p.id); setRefundReason(""); setRefundModalOpen(true); }} style={styles.refundChip}>
+                      <Icons.Refresh size={13} color={theme.colors.danger} />
+                      <Text style={styles.refundChipText}>Refund</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
               </View>
-            </View>
-          );
-        })}
-        {(data.items ?? []).length === 0 && (
-          <Text style={styles.emptyText}>No fee items</Text>
-        )}
-      </View>
-
-      {/* Payment history */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Payment History</Text>
-        {(data.payments ?? []).map((p) => (
-          <View key={p.id} style={styles.paymentRow}>
-            <View style={styles.paymentMain}>
-              <Text style={styles.paymentAmount}>{formatCurrency(p.amount)}</Text>
-              <Text style={styles.paymentMeta}>
-                {p.method} • {formatDate(p.created_at)}
-                {p.reference_number ? ` • ${p.reference_number}` : ""}
-              </Text>
-            </View>
-            <View style={styles.paymentRight}>
-              <View
-                style={[
-                  styles.paymentStatus,
-                  {
-                    backgroundColor:
-                      p.status === "success"
-                        ? Colors.success
-                        : p.status === "refunded"
-                          ? Colors.textSecondary
-                          : Colors.error,
-                  },
-                ]}
-              >
-                <Text style={styles.paymentStatusText}>{p.status}</Text>
-              </View>
-              {p.status === "success" && (
-                <TouchableOpacity
-                  onPress={() => openRefundModal(p.id)}
-                  style={styles.refundBtn}
-                >
-                  <Ionicons name="arrow-undo-outline" size={18} color={Colors.error} />
-                  <Text style={styles.refundBtnText}>Refund</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          </View>
-        ))}
-        {(data.payments ?? []).length === 0 && (
-          <Text style={styles.emptyText}>No payments yet</Text>
-        )}
-      </View>
+            ))
+          )}
+        </SurfaceCard>
+      </ScrollView>
 
       {/* Record Payment Modal */}
-      <Modal visible={paymentModalOpen} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Record Payment</Text>
-              <TouchableOpacity
-                onPress={() => {
-                  setPaymentModalOpen(false);
-                  setAllocations({});
-                }}
-              >
-                <Ionicons name="close" size={24} color={Colors.text} />
+      <Modal visible={paymentModalOpen} animationType="slide" transparent onRequestClose={() => { setPaymentModalOpen(false); setAllocations({}); }}>
+        <View style={styles.overlay}>
+          <View style={styles.sheet}>
+            <View style={styles.sheetHeader}>
+              <Text style={styles.sheetTitle}>Record Payment</Text>
+              <TouchableOpacity style={styles.sheetClose} onPress={() => { setPaymentModalOpen(false); setAllocations({}); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Icons.Close size={20} color={theme.colors.text[700]} />
               </TouchableOpacity>
             </View>
-            <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
-              <View style={styles.remainingCard}>
-                <Text style={styles.remainingLabel}>Remaining balance</Text>
-                <Text style={styles.remainingAmount}>{formatCurrency(remaining)}</Text>
+            <ScrollView style={styles.sheetForm} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+              <View style={styles.balanceCard}>
+                <Text style={styles.balanceLabel}>Remaining balance</Text>
+                <Text style={styles.balanceAmount}>{formatCurrency(remaining)}</Text>
               </View>
-              <Text style={styles.inputLabel}>Amount</Text>
-              <View style={styles.quickAmountRow}>
-                <Pressable
-                  style={({ pressed }) => [
-                    styles.quickAmountBtn,
-                    pressed && styles.quickAmountBtnPressed,
-                  ]}
-                  onPress={() => handleQuickAmount(1)}
-                >
-                  <Text style={styles.quickAmountBtnText}>Full</Text>
-                  <Text style={styles.quickAmountBtnSub}>{formatCurrency(remaining)}</Text>
-                </Pressable>
-                <Pressable
-                  style={({ pressed }) => [
-                    styles.quickAmountBtn,
-                    pressed && styles.quickAmountBtnPressed,
-                  ]}
-                  onPress={() => handleQuickAmount(0.5)}
-                >
-                  <Text style={styles.quickAmountBtnText}>Half</Text>
-                  <Text style={styles.quickAmountBtnSub}>
-                    {formatCurrency(Math.round(remaining * 0.5))}
-                  </Text>
-                </Pressable>
-                <Pressable
-                  style={({ pressed }) => [
-                    styles.quickAmountBtn,
-                    pressed && styles.quickAmountBtnPressed,
-                  ]}
-                  onPress={() => handleQuickAmount(0.25)}
-                >
-                  <Text style={styles.quickAmountBtnText}>Quarter</Text>
-                  <Text style={styles.quickAmountBtnSub}>
-                    {formatCurrency(Math.round(remaining * 0.25))}
-                  </Text>
-                </Pressable>
+              <Text style={styles.fieldLabel}>Quick Amount</Text>
+              <View style={styles.quickRow}>
+                {[{ label: "Full", ratio: 1 }, { label: "Half", ratio: 0.5 }, { label: "¼", ratio: 0.25 }].map((q) => (
+                  <Pressable key={q.label} style={({ pressed }) => [styles.quickBtn, pressed && { opacity: 0.8 }]} onPress={() => handleQuickAmount(q.ratio)}>
+                    <Text style={styles.quickBtnLabel}>{q.label}</Text>
+                    <Text style={styles.quickBtnAmt}>{formatCurrency(Math.round(remaining * q.ratio))}</Text>
+                  </Pressable>
+                ))}
               </View>
+              <Text style={styles.fieldLabel}>Amount *</Text>
               <TextInput
-                style={[
-                  styles.input,
-                  amountExceedsRemaining && styles.inputError,
-                ]}
-                value={amount}
-                onChangeText={setAmount}
-                placeholder={`Or enter custom amount (max ${formatCurrency(remaining)})`}
-                keyboardType="decimal-pad"
+                style={[styles.input, amountExceedsRemaining && styles.inputError]}
+                value={amount} onChangeText={setAmount}
+                placeholder={`Max ${formatCurrency(remaining)}`}
+                placeholderTextColor={theme.colors.text[400]} keyboardType="decimal-pad"
               />
-              {amountExceedsRemaining && (
-                <Text style={styles.validationError}>
-                  Amount cannot exceed remaining balance
-                </Text>
-              )}
+              {amountExceedsRemaining && <Text style={styles.fieldError}>Amount cannot exceed remaining balance</Text>}
+
               {itemsWithRemaining.length > 0 && amountNum > 0 && (
                 <>
-                  <View style={styles.allocationHeader}>
-                    <Text style={styles.inputLabel}>Split by component (optional)</Text>
-                    <Text style={styles.allocationHint}>
-                      Specify how much goes to each fee item
-                    </Text>
-                    <View style={styles.allocationActions}>
-                      <TouchableOpacity
-                        onPress={handleAutoAllocate}
-                        style={styles.allocationLink}
-                      >
-                        <Ionicons name="flash-outline" size={16} color={Colors.primary} />
-                        <Text style={styles.linkText}>Auto-fill</Text>
+                  <View style={styles.allocHeader}>
+                    <Text style={styles.fieldLabel}>Split by component (optional)</Text>
+                    <View style={styles.allocActions}>
+                      <TouchableOpacity style={styles.allocLink} onPress={handleAutoAllocate}>
+                        <Icons.TrendingUp size={14} color={theme.colors.primary[500]} />
+                        <Text style={styles.allocLinkText}>Auto-fill</Text>
                       </TouchableOpacity>
                       {Object.keys(allocations).length > 0 && (
-                        <TouchableOpacity onPress={clearAllocations} style={styles.allocationLink}>
-                          <Ionicons name="close-circle-outline" size={16} color={Colors.textSecondary} />
-                          <Text style={styles.linkTextSecondary}>Clear</Text>
+                        <TouchableOpacity style={styles.allocLink} onPress={() => setAllocations({})}>
+                          <Icons.Close size={14} color={theme.colors.text[500]} />
+                          <Text style={[styles.allocLinkText, { color: theme.colors.text[500] }]}>Clear</Text>
                         </TouchableOpacity>
                       )}
                     </View>
@@ -526,429 +309,209 @@ export default function StudentFeeDetailPage() {
                   {itemsWithRemaining.map((item) => {
                     const itemRemaining = (item.amount ?? 0) - (item.paid_amount ?? 0);
                     return (
-                      <View key={item.id} style={styles.allocationItemRow}>
-                        <View style={styles.allocationItemLeft}>
-                          <Text style={styles.allocationItemName} numberOfLines={1}>
-                            {item.component_name ?? "—"}
-                          </Text>
-                          <Text style={styles.allocationItemMeta}>
-                            {formatCurrency(itemRemaining)} left
-                          </Text>
+                      <View key={item.id} style={styles.allocItemRow}>
+                        <View style={styles.allocItemInfo}>
+                          <Text style={styles.allocItemName} numberOfLines={1}>{item.component_name ?? "—"}</Text>
+                          <Text style={styles.allocItemMeta}>{formatCurrency(itemRemaining)} left</Text>
                         </View>
-                        <View style={styles.allocationItemRight}>
+                        <View style={styles.allocItemRight}>
                           <TextInput
-                            style={styles.allocationInput}
+                            style={styles.allocInput}
                             value={allocations[item.id] ?? ""}
-                            onChangeText={(v) =>
-                              setAllocations((prev) => ({ ...prev, [item.id]: v }))
-                            }
-                            placeholder="0"
-                            keyboardType="decimal-pad"
+                            onChangeText={(v) => setAllocations((prev) => ({ ...prev, [item.id]: v }))}
+                            placeholder="0" placeholderTextColor={theme.colors.text[400]} keyboardType="decimal-pad"
                           />
-                          <TouchableOpacity
-                            style={styles.payFullBtn}
-                            onPress={() => handlePayFullForItem(item)}
-                          >
-                            <Text style={styles.payFullBtnText}>Pay full</Text>
+                          <TouchableOpacity style={styles.payFullBtn} onPress={() => handlePayFullForItem(item)}>
+                            <Text style={styles.payFullBtnText}>Full</Text>
                           </TouchableOpacity>
                         </View>
                       </View>
                     );
                   })}
                   {useAllocations && allocationMismatch && (
-                    <Text style={styles.validationError}>
-                      Allocation sum ({formatCurrency(allocationSum)}) must equal total ({formatCurrency(amountNum)})
-                    </Text>
+                    <Text style={styles.fieldError}>Allocation sum ({formatCurrency(allocationSum)}) must equal total ({formatCurrency(amountNum)})</Text>
                   )}
                 </>
               )}
-              <Text style={styles.inputLabel}>Payment method</Text>
+
+              <Text style={styles.fieldLabel}>Payment Method</Text>
               <View style={styles.methodRow}>
-                {[
-                  { id: "cash", label: "Cash", icon: "cash-outline" },
-                  { id: "online", label: "Online", icon: "phone-portrait-outline" },
-                  { id: "bank_transfer", label: "Bank", icon: "business-outline" },
-                ].map((m) => (
-                  <TouchableOpacity
-                    key={m.id}
-                    style={[styles.methodChip, method === m.id && styles.methodChipActive]}
-                    onPress={() => setMethod(m.id)}
-                  >
-                    <Ionicons
-                      name={m.icon as any}
-                      size={18}
-                      color={method === m.id ? "#fff" : Colors.textSecondary}
-                    />
-                    <Text
-                      style={[
-                        styles.methodChipText,
-                        method === m.id && styles.methodChipTextActive,
-                      ]}
-                    >
-                      {m.label}
-                    </Text>
+                {[{ id: "cash", label: "Cash" }, { id: "online", label: "Online" }, { id: "bank_transfer", label: "Bank" }].map((m) => (
+                  <TouchableOpacity key={m.id} style={[styles.methodChip, method === m.id && styles.methodChipActive]} onPress={() => setMethod(m.id)}>
+                    <Text style={[styles.methodChipText, method === m.id && styles.methodChipTextActive]}>{m.label}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
-              <Text style={styles.inputLabel}>Reference (optional)</Text>
-              <TextInput
-                style={styles.input}
-                value={referenceNumber}
-                onChangeText={setReferenceNumber}
-                placeholder="Transaction ID or receipt number"
-              />
-              <Text style={styles.inputLabel}>Notes (optional)</Text>
-              <TextInput
-                style={[styles.input, styles.notesInput]}
-                value={notes}
-                onChangeText={setNotes}
-                placeholder="Add a note for your records"
-              />
+
+              <Text style={styles.fieldLabel}>Reference (optional)</Text>
+              <TextInput style={styles.input} value={referenceNumber} onChangeText={setReferenceNumber} placeholder="Transaction ID or receipt number" placeholderTextColor={theme.colors.text[400]} />
+              <Text style={styles.fieldLabel}>Notes (optional)</Text>
+              <TextInput style={[styles.input, { minHeight: 60 }]} value={notes} onChangeText={setNotes} placeholder="Add a note for your records" placeholderTextColor={theme.colors.text[400]} multiline textAlignVertical="top" />
+              <View style={{ height: theme.spacing.xxl }} />
             </ScrollView>
-            <View style={styles.modalFooter}>
-              <TouchableOpacity
-                style={styles.cancelBtn}
-                onPress={() => {
-                  setPaymentModalOpen(false);
-                  setAllocations({});
-                }}
-              >
-                <Text style={styles.cancelBtnText}>Cancel</Text>
+            <View style={styles.sheetFooter}>
+              <TouchableOpacity style={styles.cancelBtn} onPress={() => { setPaymentModalOpen(false); setAllocations({}); }}>
+                <Text style={styles.cancelText}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.submitBtn,
-                  (!canSubmitPayment || recordMut.isPending) && styles.submitBtnDisabled,
-                ]}
-                onPress={handleRecordPayment}
-                disabled={!canSubmitPayment || recordMut.isPending}
-              >
-                {recordMut.isPending ? (
-                  <ActivityIndicator size="small" color={Colors.background} />
-                ) : (
-                  <Text style={styles.submitBtnText}>Record</Text>
-                )}
-              </TouchableOpacity>
+              <PrimaryButton title="Record" onPress={handleRecordPayment} loading={recordMut.isPending} style={[styles.submitBtn, !canSubmitPayment && { opacity: 0.5 }]} />
             </View>
           </View>
         </View>
       </Modal>
 
-      {/* Refund Confirmation Modal */}
-      <Modal visible={refundModalOpen} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Refund Payment</Text>
-              <TouchableOpacity
-                onPress={() => {
-                  setRefundModalOpen(false);
-                  setRefundPaymentId(null);
-                }}
-              >
-                <Ionicons name="close" size={24} color={Colors.text} />
+      {/* Refund Modal */}
+      <Modal visible={refundModalOpen} animationType="slide" transparent onRequestClose={() => { setRefundModalOpen(false); setRefundPaymentId(null); }}>
+        <View style={styles.overlay}>
+          <View style={styles.sheet}>
+            <View style={styles.sheetHeader}>
+              <Text style={styles.sheetTitle}>Refund Payment</Text>
+              <TouchableOpacity style={styles.sheetClose} onPress={() => { setRefundModalOpen(false); setRefundPaymentId(null); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Icons.Close size={20} color={theme.colors.text[700]} />
               </TouchableOpacity>
             </View>
-            <View style={styles.modalBody}>
+            <View style={styles.sheetForm}>
               <View style={styles.refundWarning}>
-                <Ionicons name="warning" size={32} color={Colors.error} />
-                <Text style={styles.refundWarningText}>
-                  This action cannot be undone. The payment will be marked as refunded and the
-                  student fee balance will be adjusted.
-                </Text>
+                <Icons.AlertCircle size={28} color={theme.colors.danger} />
+                <Text style={styles.refundWarningText}>This action cannot be undone. The payment will be marked as refunded and the student fee balance will be adjusted.</Text>
               </View>
-              <Text style={styles.inputLabel}>Reason (optional)</Text>
-              <TextInput
-                style={styles.input}
-                value={refundReason}
-                onChangeText={setRefundReason}
-                placeholder="e.g. Duplicate payment, Wrong amount"
-                multiline
-              />
+              <Text style={styles.fieldLabel}>Reason (optional)</Text>
+              <TextInput style={[styles.input, { minHeight: 60 }]} value={refundReason} onChangeText={setRefundReason} placeholder="e.g. Duplicate payment, Wrong amount" placeholderTextColor={theme.colors.text[400]} multiline textAlignVertical="top" />
             </View>
-            <View style={styles.modalFooter}>
-              <TouchableOpacity
-                style={styles.cancelBtn}
-                onPress={() => {
-                  setRefundModalOpen(false);
-                  setRefundPaymentId(null);
-                }}
-              >
-                <Text style={styles.cancelBtnText}>Cancel</Text>
+            <View style={styles.sheetFooter}>
+              <TouchableOpacity style={styles.cancelBtn} onPress={() => { setRefundModalOpen(false); setRefundPaymentId(null); }}>
+                <Text style={styles.cancelText}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.refundSubmitBtn,
-                  refundMut.isPending && styles.submitBtnDisabled,
-                ]}
-                onPress={handleRefund}
-                disabled={refundMut.isPending}
-              >
-                {refundMut.isPending ? (
-                  <ActivityIndicator size="small" color={Colors.background} />
-                ) : (
-                  <Text style={styles.refundSubmitBtnText}>Confirm Refund</Text>
-                )}
-              </TouchableOpacity>
+              <PrimaryButton title="Confirm Refund" onPress={handleRefund} loading={refundMut.isPending} style={[styles.submitBtn, styles.dangerBtn]} />
             </View>
           </View>
         </View>
       </Modal>
-      </ScrollView>
-    </SafeAreaView>
+
+      {/* Remove from structure */}
+      <ConfirmationDialog
+        visible={removeDialogOpen}
+        title="Remove from Fee Structure"
+        message="This will remove this student from the fee structure as long as there are no successful payments recorded. Continue?"
+        confirmLabel="Remove"
+        onConfirm={handleRemoveConfirm}
+        onCancel={() => setRemoveDialogOpen(false)}
+        loading={deleteFeeMut.isPending}
+        destructive
+      />
+    </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
-  content: { flex: 1 },
-  contentContainer: { paddingBottom: Spacing.xxl },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
+  content: { padding: theme.spacing.m, paddingBottom: theme.spacing.xxl },
+  section: { marginBottom: theme.spacing.m },
+  summaryName: { ...theme.typography.h2, color: theme.colors.text[900], marginBottom: 2 },
+  summaryStructure: { ...theme.typography.body, color: theme.colors.text[500], marginBottom: theme.spacing.m },
+  amtVal: { ...theme.typography.body, fontWeight: "600" },
+  statusRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: theme.spacing.s },
+  statusLabel: { ...theme.typography.body, color: theme.colors.text[500] },
+  statusBadge: { paddingHorizontal: theme.spacing.s, paddingVertical: 3, borderRadius: theme.radius.full, borderWidth: 1 },
+  statusText: { ...theme.typography.caption, fontWeight: "700", textTransform: "capitalize" },
+  recordBtn: { marginTop: theme.spacing.l },
+  removeBtn: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    backgroundColor: theme.colors.dangerLight, paddingHorizontal: theme.spacing.s,
+    paddingVertical: theme.spacing.xs, borderRadius: theme.radius.m,
+    borderWidth: 1, borderColor: theme.colors.danger + '30',
   },
-  backIcon: { padding: Spacing.sm, marginRight: Spacing.sm },
-  headerTitle: { fontSize: 24, fontWeight: "bold", color: Colors.text },
-  section: { padding: Spacing.lg },
-  sectionTitle: { fontSize: 20, fontWeight: "600", color: Colors.text, marginBottom: Spacing.md },
-  summaryHeaderRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: Spacing.md,
-  },
-  card: {
-    padding: Spacing.lg,
-    backgroundColor: Colors.background,
-    borderRadius: Layout.borderRadius.md,
-    borderWidth: 1,
-    borderColor: Colors.borderLight,
-  },
-  summaryName: { fontSize: 20, fontWeight: "700", color: Colors.text },
-  summaryStructure: { fontSize: 14, color: Colors.textSecondary, marginTop: 2 },
-  summaryRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginTop: Spacing.md,
-  },
-  summaryLabel: { fontSize: 15, color: Colors.textSecondary },
-  summaryValue: { fontSize: 15, fontWeight: "600", color: Colors.text },
-  summaryValueFlex: { flex: 1, marginLeft: Spacing.sm, textAlign: "right" },
-  statusBadge: {
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 2,
-    borderRadius: Layout.borderRadius.sm,
-  },
-  statusText: { fontSize: 12, fontWeight: "600", color: Colors.background },
-  recordBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: Colors.primary,
-    padding: Spacing.md,
-    borderRadius: Layout.borderRadius.md,
-    marginTop: Spacing.lg,
-  },
-  recordBtnText: { fontSize: 16, fontWeight: "600", color: Colors.background, marginLeft: Spacing.sm },
-  removeFeeBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.xs,
-    borderRadius: Layout.borderRadius.sm,
-  },
-  removeFeeBtnText: {
-    marginLeft: Spacing.xs,
-    fontSize: 13,
-    color: Colors.error,
-    fontWeight: "500",
-  },
+  removeBtnText: { ...theme.typography.caption, color: theme.colors.danger, fontWeight: "600" },
+  emptySection: { padding: theme.spacing.m },
+  emptyText: { ...theme.typography.body, color: theme.colors.text[400], fontStyle: "italic" },
   itemRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: Spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
+    flexDirection: "row", justifyContent: "space-between", alignItems: "center",
+    paddingVertical: theme.spacing.sm, paddingHorizontal: theme.spacing.m,
+    borderBottomWidth: 1, borderBottomColor: theme.colors.border,
   },
-  itemMain: {},
-  itemName: { fontSize: 15, fontWeight: "500", color: Colors.text },
-  itemMeta: { fontSize: 12, color: Colors.textSecondary },
-  itemRemaining: { fontSize: 14, color: Colors.warning },
+  itemInfo: { flex: 1 },
+  itemName: { ...theme.typography.body, fontWeight: "500", color: theme.colors.text[900] },
+  itemMeta: { ...theme.typography.caption, color: theme.colors.text[500] },
+  itemRight: { alignItems: "flex-end", gap: 4 },
+  itemRemaining: { ...theme.typography.caption, fontWeight: "600" },
+  itemBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: theme.radius.full },
+  itemBadgeText: { ...theme.typography.caption, fontWeight: "600", color: "#fff", fontSize: 10 },
   paymentRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: Spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
+    flexDirection: "row", alignItems: "center", paddingVertical: theme.spacing.m,
+    paddingHorizontal: theme.spacing.m, borderBottomWidth: 1, borderBottomColor: theme.colors.border,
   },
-  paymentMain: {},
-  paymentAmount: { fontSize: 16, fontWeight: "600", color: Colors.text },
-  paymentMeta: { fontSize: 12, color: Colors.textSecondary },
-  paymentRight: { alignItems: "flex-end" },
-  paymentStatus: {
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 2,
-    borderRadius: Layout.borderRadius.sm,
-    marginBottom: Spacing.xs,
+  paymentInfo: { flex: 1 },
+  paymentAmount: { ...theme.typography.body, fontWeight: "600", color: theme.colors.text[900] },
+  paymentMeta: { ...theme.typography.caption, color: theme.colors.text[500] },
+  paymentRight: { alignItems: "flex-end", gap: theme.spacing.xs },
+  paymentBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: theme.radius.full },
+  paymentBadgeText: { ...theme.typography.caption, fontWeight: "600", color: "#fff", fontSize: 10 },
+  refundChip: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    backgroundColor: theme.colors.dangerLight, paddingHorizontal: theme.spacing.s,
+    paddingVertical: 3, borderRadius: theme.radius.full,
+    borderWidth: 1, borderColor: theme.colors.danger + '30',
   },
-  paymentStatusText: { fontSize: 11, fontWeight: "600", color: Colors.background },
-  refundBtn: { flexDirection: "row", alignItems: "center" },
-  refundBtnText: { fontSize: 13, color: Colors.error, marginLeft: Spacing.xs },
-  emptyText: { color: Colors.textSecondary, fontSize: 14 },
-  center: { flex: 1, justifyContent: "center", alignItems: "center" },
-  errorText: { color: Colors.error, fontSize: 16 },
-
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "flex-end",
+  refundChipText: { ...theme.typography.caption, color: theme.colors.danger, fontWeight: "500" },
+  // Sheet modals
+  overlay: { flex: 1, backgroundColor: theme.colors.overlay, justifyContent: "flex-end" },
+  sheet: { backgroundColor: theme.colors.surface, borderTopLeftRadius: theme.radius.xxl, borderTopRightRadius: theme.radius.xxl, maxHeight: "90%" },
+  sheetHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: theme.spacing.l, borderBottomWidth: 1, borderBottomColor: theme.colors.border },
+  sheetTitle: { ...theme.typography.h3, color: theme.colors.text[900] },
+  sheetClose: { width: 32, height: 32, borderRadius: theme.radius.m, backgroundColor: theme.colors.backgroundSecondary, alignItems: "center", justifyContent: "center" },
+  sheetForm: { padding: theme.spacing.l, maxHeight: 440 },
+  sheetFooter: { flexDirection: "row", gap: theme.spacing.m, padding: theme.spacing.l, borderTopWidth: 1, borderTopColor: theme.colors.border, alignItems: "center" },
+  cancelBtn: { paddingVertical: theme.spacing.m, paddingHorizontal: theme.spacing.m },
+  cancelText: { ...theme.typography.body, color: theme.colors.text[500], fontWeight: "600" },
+  submitBtn: { flex: 1 },
+  dangerBtn: { backgroundColor: theme.colors.danger } as any,
+  balanceCard: { backgroundColor: theme.colors.backgroundSecondary, borderRadius: theme.radius.l, padding: theme.spacing.m, marginBottom: theme.spacing.l },
+  balanceLabel: { ...theme.typography.caption, color: theme.colors.text[500] },
+  balanceAmount: { ...theme.typography.h2, color: theme.colors.warning, marginTop: 4 },
+  quickRow: { flexDirection: "row", gap: theme.spacing.s, marginBottom: theme.spacing.m },
+  quickBtn: {
+    flex: 1, backgroundColor: theme.colors.backgroundSecondary, borderRadius: theme.radius.l,
+    padding: theme.spacing.m, alignItems: "center", borderWidth: 1, borderColor: theme.colors.border,
   },
-  modalContent: {
-    backgroundColor: Colors.background,
-    borderTopLeftRadius: Layout.borderRadius.xl,
-    borderTopRightRadius: Layout.borderRadius.xl,
-  },
-  modalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: Spacing.lg,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
-  },
-  modalTitle: { fontSize: 18, fontWeight: "700", color: Colors.text },
-  modalBody: { padding: Spacing.lg, maxHeight: 420 },
-  modalFooter: {
-    flexDirection: "row",
-    gap: Spacing.md,
-    padding: Spacing.lg,
-    borderTopWidth: 1,
-    borderTopColor: Colors.borderLight,
-  },
-  remainingCard: {
-    backgroundColor: Colors.backgroundSecondary,
-    borderRadius: Layout.borderRadius.md,
-    padding: Spacing.md,
-    marginBottom: Spacing.lg,
-  },
-  remainingLabel: { fontSize: 13, color: Colors.textSecondary },
-  remainingAmount: { fontSize: 22, fontWeight: "700", color: Colors.warning, marginTop: 2 },
-  quickAmountRow: {
-    flexDirection: "row",
-    gap: Spacing.sm,
-    marginBottom: Spacing.md,
-  },
-  quickAmountBtn: {
-    flex: 1,
-    backgroundColor: Colors.backgroundSecondary,
-    borderRadius: Layout.borderRadius.md,
-    paddingVertical: Spacing.md,
-    paddingHorizontal: Spacing.sm,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: Colors.borderLight,
-  },
-  quickAmountBtnPressed: { opacity: 0.8 },
-  quickAmountBtnText: { fontSize: 14, fontWeight: "600", color: Colors.text },
-  quickAmountBtnSub: { fontSize: 11, color: Colors.textSecondary, marginTop: 2 },
-  notesInput: { minHeight: 60 },
-  validationError: { fontSize: 13, color: Colors.error, marginTop: -Spacing.sm, marginBottom: Spacing.md },
-  inputError: { borderColor: Colors.error },
-  inputLabel: { fontSize: 14, fontWeight: "600", color: Colors.text, marginBottom: Spacing.sm },
-  allocationHeader: { marginTop: Spacing.md, marginBottom: Spacing.sm },
-  allocationHint: { fontSize: 12, color: Colors.textSecondary, marginTop: 2, marginBottom: Spacing.xs },
-  allocationActions: { flexDirection: "row", gap: Spacing.md, marginTop: Spacing.xs },
-  allocationLink: { flexDirection: "row", alignItems: "center", gap: 4 },
-  linkText: { fontSize: 14, color: Colors.primary, fontWeight: "600" },
-  linkTextSecondary: { fontSize: 14, color: Colors.textSecondary },
-  allocationItemRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: Spacing.xs,
-    marginBottom: Spacing.sm,
-  },
-  allocationItemLeft: { flex: 1 },
-  allocationItemName: { fontSize: 14, fontWeight: "500", color: Colors.text },
-  allocationItemMeta: { fontSize: 12, color: Colors.textSecondary },
-  allocationItemRight: { flexDirection: "row", alignItems: "center", gap: Spacing.sm },
-  allocationInput: {
-    width: 70,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: Layout.borderRadius.sm,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.xs,
-    fontSize: 14,
-    color: Colors.text,
-  },
-  payFullBtn: {
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.xs,
-    backgroundColor: Colors.primary,
-    borderRadius: Layout.borderRadius.sm,
-  },
-  payFullBtnText: { fontSize: 12, fontWeight: "600", color: Colors.background },
+  quickBtnLabel: { ...theme.typography.label, fontWeight: "600", color: theme.colors.text[900] },
+  quickBtnAmt: { ...theme.typography.caption, color: theme.colors.text[500], marginTop: 2 },
+  fieldLabel: { ...theme.typography.label, color: theme.colors.text[700], marginBottom: theme.spacing.xs, marginTop: theme.spacing.m },
+  fieldError: { ...theme.typography.caption, color: theme.colors.danger, marginBottom: theme.spacing.s },
   input: {
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: Layout.borderRadius.md,
-    padding: Spacing.md,
-    fontSize: 16,
-    marginBottom: Spacing.md,
+    borderWidth: 1.5, borderColor: theme.colors.border, borderRadius: theme.radius.l,
+    paddingHorizontal: theme.spacing.m, paddingVertical: theme.spacing.sm,
+    ...theme.typography.body, color: theme.colors.text[900], backgroundColor: theme.colors.surface,
+    marginBottom: theme.spacing.s,
   },
-  methodRow: { flexDirection: "row", gap: Spacing.sm, marginBottom: Spacing.md },
+  inputError: { borderColor: theme.colors.danger },
+  allocHeader: { marginTop: theme.spacing.s },
+  allocActions: { flexDirection: "row", gap: theme.spacing.m, marginTop: theme.spacing.xs, marginBottom: theme.spacing.s },
+  allocLink: { flexDirection: "row", alignItems: "center", gap: 4 },
+  allocLinkText: { ...theme.typography.caption, color: theme.colors.primary[500], fontWeight: "600" },
+  allocItemRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: theme.spacing.s },
+  allocItemInfo: { flex: 1 },
+  allocItemName: { ...theme.typography.body, fontWeight: "500", color: theme.colors.text[900] },
+  allocItemMeta: { ...theme.typography.caption, color: theme.colors.text[500] },
+  allocItemRight: { flexDirection: "row", alignItems: "center", gap: theme.spacing.s },
+  allocInput: {
+    width: 70, borderWidth: 1.5, borderColor: theme.colors.border, borderRadius: theme.radius.m,
+    paddingHorizontal: theme.spacing.s, paddingVertical: theme.spacing.xs,
+    ...theme.typography.label, color: theme.colors.text[900], textAlign: "center",
+  },
+  payFullBtn: { paddingHorizontal: theme.spacing.s, paddingVertical: theme.spacing.xs, backgroundColor: theme.colors.primary[500], borderRadius: theme.radius.m },
+  payFullBtnText: { ...theme.typography.caption, fontWeight: "600", color: "#fff" },
+  methodRow: { flexDirection: "row", gap: theme.spacing.s, marginBottom: theme.spacing.s },
   methodChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: Layout.borderRadius.md,
-    backgroundColor: Colors.backgroundSecondary,
+    flexDirection: "row", alignItems: "center", gap: 6,
+    paddingHorizontal: theme.spacing.m, paddingVertical: theme.spacing.s,
+    borderRadius: theme.radius.l, borderWidth: 1.5, borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surface,
   },
-  methodChipActive: { backgroundColor: Colors.primary },
-  methodChipText: { fontSize: 14, color: Colors.text },
-  methodChipTextActive: { fontSize: 14, color: Colors.background, fontWeight: "600" },
-  cancelBtn: { flex: 1, padding: Spacing.md, alignItems: "center" },
-  cancelBtnText: { fontSize: 16, color: Colors.textSecondary },
-  submitBtn: {
-    flex: 1,
-    backgroundColor: Colors.primary,
-    padding: Spacing.md,
-    borderRadius: Layout.borderRadius.md,
-    alignItems: "center",
-  },
-  submitBtnDisabled: { opacity: 0.7 },
-  submitBtnText: { fontSize: 16, fontWeight: "600", color: Colors.background },
+  methodChipActive: { borderColor: theme.colors.primary[500], backgroundColor: theme.colors.primary[500] },
+  methodChipText: { ...theme.typography.caption, fontWeight: "600", color: theme.colors.text[700] },
+  methodChipTextActive: { color: "#fff" },
   refundWarning: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    backgroundColor: "rgba(255,59,48,0.1)",
-    padding: Spacing.md,
-    borderRadius: Layout.borderRadius.md,
-    marginBottom: Spacing.lg,
+    flexDirection: "row", alignItems: "flex-start", gap: theme.spacing.m,
+    backgroundColor: theme.colors.dangerLight, padding: theme.spacing.m,
+    borderRadius: theme.radius.l, marginBottom: theme.spacing.l,
   },
-  refundWarningText: {
-    flex: 1,
-    marginLeft: Spacing.md,
-    fontSize: 14,
-    color: Colors.text,
-    lineHeight: 20,
-  },
-  refundSubmitBtn: {
-    flex: 1,
-    backgroundColor: Colors.error,
-    padding: Spacing.md,
-    borderRadius: Layout.borderRadius.md,
-    alignItems: "center",
-  },
-  refundSubmitBtnText: { fontSize: 16, fontWeight: "600", color: Colors.background },
+  refundWarningText: { ...theme.typography.body, color: theme.colors.text[900], flex: 1, lineHeight: 20 },
 });

@@ -1,16 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, Modal, TextInput,
-  TouchableOpacity, ScrollView, KeyboardAvoidingView,
-  Platform, Switch,
+  TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '@/common/constants/colors';
-import { Spacing, Layout } from '@/common/constants/spacing';
+import { theme } from '@/src/design-system/theme';
+import { Icons } from '@/src/design-system/icons';
 import { Holiday, CreateHolidayDTO, HolidayType, HOLIDAY_TYPE_LABELS, DAY_NAMES } from '../types';
 import { validateHolidayData } from '../validation/schemas';
 import { useAcademicYears } from '@/modules/academics/hooks/useAcademicYears';
 import { useAcademicYearContext } from '@/modules/academics/context/AcademicYearContext';
+import { PrimaryButton } from '@/src/components/ui/PrimaryButton';
 
 interface HolidayFormModalProps {
   visible: boolean;
@@ -21,25 +20,14 @@ interface HolidayFormModalProps {
 }
 
 const HOLIDAY_TYPES: HolidayType[] = ['public', 'school', 'regional', 'optional', 'weekly_off'];
-const TYPE_ICONS: Record<HolidayType, keyof typeof import('@expo/vector-icons').Ionicons['glyphMap']> = {
-  public:    'flag-outline',
-  school:    'school-outline',
-  regional:  'map-outline',
-  optional:  'star-outline',
-  weekly_off: 'repeat-outline',
-};
 
 type HolidayMode = 'single' | 'range' | 'recurring';
 
-function getDefaultForm(): {
-  name: string; description: string; holiday_type: HolidayType;
-  start_date: string; end_date: string; academic_year_id: string;
-  is_recurring: boolean; recurring_day_of_week: number | null;
-} {
+function getDefaultForm() {
   return {
-    name: '', description: '', holiday_type: 'school',
+    name: '', description: '', holiday_type: 'school' as HolidayType,
     start_date: '', end_date: '', academic_year_id: '',
-    is_recurring: false, recurring_day_of_week: null,
+    is_recurring: false, recurring_day_of_week: null as number | null,
   };
 }
 
@@ -55,7 +43,6 @@ export const HolidayFormModal: React.FC<HolidayFormModalProps> = ({
   const { data: academicYears = [] } = useAcademicYears(false);
   const { selectedAcademicYearId } = useAcademicYearContext();
 
-  // Populate form when editing
   useEffect(() => {
     if (!visible) return;
     if (mode === 'edit' && initialData) {
@@ -69,13 +56,9 @@ export const HolidayFormModal: React.FC<HolidayFormModalProps> = ({
         is_recurring: initialData.is_recurring,
         recurring_day_of_week: initialData.recurring_day_of_week ?? null,
       });
-      if (initialData.is_recurring) {
-        setHolidayMode('recurring');
-      } else if (initialData.start_date && initialData.end_date && initialData.start_date !== initialData.end_date) {
-        setHolidayMode('range');
-      } else {
-        setHolidayMode('single');
-      }
+      if (initialData.is_recurring) setHolidayMode('recurring');
+      else if (initialData.start_date && initialData.end_date && initialData.start_date !== initialData.end_date) setHolidayMode('range');
+      else setHolidayMode('single');
     } else {
       setForm({ ...getDefaultForm(), academic_year_id: selectedAcademicYearId ?? '' });
       setHolidayMode('single');
@@ -84,43 +67,34 @@ export const HolidayFormModal: React.FC<HolidayFormModalProps> = ({
     setSubmitError(null);
   }, [visible, mode, initialData, selectedAcademicYearId]);
 
-  const setField = <K extends keyof typeof form>(key: K, value: typeof form[K]) => {
+  const setField = <K extends keyof ReturnType<typeof getDefaultForm>>(key: K, value: ReturnType<typeof getDefaultForm>[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
-    if (fieldErrors[key]) {
-      setFieldErrors((prev) => { const n = { ...prev }; delete n[key]; return n; });
-    }
+    if (fieldErrors[key]) setFieldErrors((prev) => { const n = { ...prev }; delete n[key]; return n; });
   };
 
   const handleModeChange = (m: HolidayMode) => {
     setHolidayMode(m);
     setFieldErrors({});
     setSubmitError(null);
-    if (m === 'recurring') {
-      setForm((prev) => ({ ...prev, is_recurring: true, start_date: '', end_date: '' }));
-    } else {
+    if (m === 'recurring') setForm((prev) => ({ ...prev, is_recurring: true, start_date: '', end_date: '' }));
+    else {
       setForm((prev) => ({ ...prev, is_recurring: false, recurring_day_of_week: null }));
-      if (m === 'single') {
-        setForm((prev) => ({ ...prev, end_date: '' }));
-      }
+      if (m === 'single') setForm((prev) => ({ ...prev, end_date: '' }));
     }
   };
 
   const buildPayload = (): CreateHolidayDTO => {
     if (holidayMode === 'recurring') {
       return {
-        name: form.name.trim(),
-        description: form.description.trim() || undefined,
-        holiday_type: form.holiday_type,
-        is_recurring: true,
+        name: form.name.trim(), description: form.description.trim() || undefined,
+        holiday_type: form.holiday_type, is_recurring: true,
         recurring_day_of_week: form.recurring_day_of_week!,
         academic_year_id: form.academic_year_id || undefined,
       };
     }
     return {
-      name: form.name.trim(),
-      description: form.description.trim() || undefined,
-      holiday_type: form.holiday_type,
-      is_recurring: false,
+      name: form.name.trim(), description: form.description.trim() || undefined,
+      holiday_type: form.holiday_type, is_recurring: false,
       start_date: form.start_date.trim(),
       end_date: holidayMode === 'range' ? (form.end_date.trim() || undefined) : undefined,
       academic_year_id: form.academic_year_id || undefined,
@@ -135,7 +109,6 @@ export const HolidayFormModal: React.FC<HolidayFormModalProps> = ({
       setSubmitError('Please fix the errors below.');
       return;
     }
-
     setLoading(true);
     setSubmitError(null);
     setFieldErrors({});
@@ -148,75 +121,70 @@ export const HolidayFormModal: React.FC<HolidayFormModalProps> = ({
     }
   };
 
+  const MODE_OPTIONS: { key: HolidayMode; label: string }[] = [
+    { key: 'single', label: 'Single Day' },
+    { key: 'range', label: 'Date Range' },
+    { key: 'recurring', label: 'Recurring' },
+  ];
+
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.overlay}
-      >
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.overlay}>
         <View style={styles.sheet}>
           {/* Header */}
           <View style={styles.header}>
-            <Text style={styles.title}>
-              {mode === 'edit' ? 'Edit Holiday' : 'Add Holiday'}
-            </Text>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-              <Ionicons name="close" size={24} color={Colors.text} />
+            <Text style={styles.title}>{mode === 'edit' ? 'Edit Holiday' : 'Add Holiday'}</Text>
+            <TouchableOpacity onPress={onClose} style={styles.closeBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Icons.Close size={22} color={theme.colors.text[700]} />
             </TouchableOpacity>
           </View>
 
           {/* Error banner */}
           {submitError && (
             <View style={styles.errorBanner}>
-              <Ionicons name="alert-circle-outline" size={16} color={Colors.error} />
+              <Icons.AlertCircle size={15} color={theme.colors.danger} />
               <Text style={styles.errorBannerText}>{submitError}</Text>
             </View>
           )}
 
           <ScrollView style={styles.form} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-
-            {/* ─── Holiday Mode Tabs ─────────────────────────────── */}
-            <Text style={styles.sectionLabel}>Holiday Type</Text>
+            {/* Mode selector */}
+            <Text style={styles.sectionLabel}>Type</Text>
             <View style={styles.modeTabs}>
-              {(['single', 'range', 'recurring'] as HolidayMode[]).map((m) => (
+              {MODE_OPTIONS.map((m) => (
                 <TouchableOpacity
-                  key={m}
-                  style={[styles.modeTab, holidayMode === m && styles.modeTabActive]}
-                  onPress={() => handleModeChange(m)}
+                  key={m.key}
+                  style={[styles.modeTab, holidayMode === m.key && styles.modeTabActive]}
+                  onPress={() => handleModeChange(m.key)}
                 >
-                  <Ionicons
-                    name={m === 'single' ? 'today-outline' : m === 'range' ? 'calendar-outline' : 'repeat-outline'}
-                    size={15}
-                    color={holidayMode === m ? Colors.background : Colors.textSecondary}
-                  />
-                  <Text style={[styles.modeTabText, holidayMode === m && styles.modeTabTextActive]}>
-                    {m === 'single' ? 'Single Day' : m === 'range' ? 'Date Range' : 'Recurring'}
+                  <Text style={[styles.modeTabText, holidayMode === m.key && styles.modeTabTextActive]}>
+                    {m.label}
                   </Text>
                 </TouchableOpacity>
               ))}
             </View>
 
-            {/* ─── Name ─────────────────────────────────────────── */}
+            {/* Name */}
             <Text style={styles.label}>Name *</Text>
             <TextInput
               style={[styles.input, fieldErrors.name && styles.inputError]}
               value={form.name}
               onChangeText={(v) => setField('name', v)}
-              placeholder="e.g. Diwali, Summer Vacation, Sunday Off"
-              placeholderTextColor={Colors.textSecondary}
+              placeholder="e.g. Diwali, Summer Vacation"
+              placeholderTextColor={theme.colors.text[400]}
             />
             {fieldErrors.name && <Text style={styles.fieldError}>{fieldErrors.name}</Text>}
 
-            {/* ─── Date inputs ──────────────────────────────────── */}
+            {/* Single date */}
             {holidayMode === 'single' && (
               <>
-                <Text style={styles.label}>Date *</Text>
+                <Text style={styles.label}>Date * (YYYY-MM-DD)</Text>
                 <TextInput
                   style={[styles.input, fieldErrors.start_date && styles.inputError]}
                   value={form.start_date}
                   onChangeText={(v) => setField('start_date', v)}
-                  placeholder="YYYY-MM-DD"
-                  placeholderTextColor={Colors.textSecondary}
+                  placeholder="2026-01-26"
+                  placeholderTextColor={theme.colors.text[400]}
                   keyboardType="numbers-and-punctuation"
                   maxLength={10}
                 />
@@ -224,29 +192,30 @@ export const HolidayFormModal: React.FC<HolidayFormModalProps> = ({
               </>
             )}
 
+            {/* Range dates */}
             {holidayMode === 'range' && (
               <View style={styles.row}>
                 <View style={styles.col}>
-                  <Text style={styles.label}>Start Date *</Text>
+                  <Text style={styles.label}>Start *</Text>
                   <TextInput
                     style={[styles.input, fieldErrors.start_date && styles.inputError]}
                     value={form.start_date}
                     onChangeText={(v) => setField('start_date', v)}
                     placeholder="YYYY-MM-DD"
-                    placeholderTextColor={Colors.textSecondary}
+                    placeholderTextColor={theme.colors.text[400]}
                     keyboardType="numbers-and-punctuation"
                     maxLength={10}
                   />
                   {fieldErrors.start_date && <Text style={styles.fieldError}>{fieldErrors.start_date}</Text>}
                 </View>
-                <View style={[styles.col, { marginLeft: Spacing.md }]}>
-                  <Text style={styles.label}>End Date *</Text>
+                <View style={[styles.col, { marginLeft: theme.spacing.m }]}>
+                  <Text style={styles.label}>End *</Text>
                   <TextInput
                     style={[styles.input, fieldErrors.end_date && styles.inputError]}
                     value={form.end_date}
                     onChangeText={(v) => setField('end_date', v)}
                     placeholder="YYYY-MM-DD"
-                    placeholderTextColor={Colors.textSecondary}
+                    placeholderTextColor={theme.colors.text[400]}
                     keyboardType="numbers-and-punctuation"
                     maxLength={10}
                   />
@@ -255,6 +224,7 @@ export const HolidayFormModal: React.FC<HolidayFormModalProps> = ({
               </View>
             )}
 
+            {/* Recurring day picker */}
             {holidayMode === 'recurring' && (
               <>
                 <Text style={styles.label}>Repeats Every *</Text>
@@ -268,9 +238,7 @@ export const HolidayFormModal: React.FC<HolidayFormModalProps> = ({
                         style={[styles.dayChip, active && styles.dayChipActive]}
                         onPress={() => {
                           setField('recurring_day_of_week', dow);
-                          if (fieldErrors.recurring_day_of_week) {
-                            setFieldErrors((p) => { const n = { ...p }; delete n.recurring_day_of_week; return n; });
-                          }
+                          if (fieldErrors.recurring_day_of_week) setFieldErrors((p) => { const n = { ...p }; delete n.recurring_day_of_week; return n; });
                         }}
                       >
                         <Text style={[styles.dayChipText, active && styles.dayChipTextActive]}>
@@ -280,21 +248,17 @@ export const HolidayFormModal: React.FC<HolidayFormModalProps> = ({
                     );
                   })}
                 </View>
-                {fieldErrors.recurring_day_of_week && (
-                  <Text style={styles.fieldError}>{fieldErrors.recurring_day_of_week}</Text>
-                )}
+                {fieldErrors.recurring_day_of_week && <Text style={styles.fieldError}>{fieldErrors.recurring_day_of_week}</Text>}
                 <View style={styles.infoBox}>
-                  <Ionicons name="information-circle-outline" size={14} color={Colors.textSecondary} />
+                  <Icons.Info size={13} color={theme.colors.text[500]} />
                   <Text style={styles.infoText}>
-                    Recurring holidays (e.g. every Sunday) apply across all weeks. They count
-                    as weekly-off days — any public holiday that also falls on this day will show
-                    a "Falls on Sunday" warning.
+                    Recurring holidays apply as weekly-off days across all weeks.
                   </Text>
                 </View>
               </>
             )}
 
-            {/* ─── Holiday Category ─────────────────────────────── */}
+            {/* Category */}
             <Text style={styles.label}>Category</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.typeRow}>
               {HOLIDAY_TYPES.map((t) => (
@@ -303,21 +267,14 @@ export const HolidayFormModal: React.FC<HolidayFormModalProps> = ({
                   style={[styles.typeChip, form.holiday_type === t && styles.typeChipActive]}
                   onPress={() => setField('holiday_type', t)}
                 >
-                  <Ionicons
-                    name={TYPE_ICONS[t]}
-                    size={14}
-                    color={form.holiday_type === t ? Colors.background : Colors.textSecondary}
-                    style={{ marginRight: 4 }}
-                  />
                   <Text style={[styles.typeChipText, form.holiday_type === t && styles.typeChipTextActive]}>
                     {HOLIDAY_TYPE_LABELS[t]}
                   </Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>
-            {fieldErrors.holiday_type && <Text style={styles.fieldError}>{fieldErrors.holiday_type}</Text>}
 
-            {/* ─── Academic Year ────────────────────────────────── */}
+            {/* Academic Year */}
             {academicYears.length > 0 && (
               <>
                 <Text style={styles.label}>Academic Year</Text>
@@ -326,11 +283,9 @@ export const HolidayFormModal: React.FC<HolidayFormModalProps> = ({
                     style={[styles.typeChip, !form.academic_year_id && styles.typeChipActive]}
                     onPress={() => setField('academic_year_id', '')}
                   >
-                    <Text style={[styles.typeChipText, !form.academic_year_id && styles.typeChipTextActive]}>
-                      All Years
-                    </Text>
+                    <Text style={[styles.typeChipText, !form.academic_year_id && styles.typeChipTextActive]}>All Years</Text>
                   </TouchableOpacity>
-                  {academicYears.map((ay: any) => (
+                  {(academicYears as any[]).map((ay) => (
                     <TouchableOpacity
                       key={ay.id}
                       style={[styles.typeChip, form.academic_year_id === ay.id && styles.typeChipActive]}
@@ -345,21 +300,20 @@ export const HolidayFormModal: React.FC<HolidayFormModalProps> = ({
               </>
             )}
 
-            {/* ─── Description ─────────────────────────────────── */}
+            {/* Description */}
             <Text style={styles.label}>Description (optional)</Text>
             <TextInput
               style={[styles.input, styles.textArea, fieldErrors.description && styles.inputError]}
               value={form.description}
               onChangeText={(v) => setField('description', v)}
-              placeholder="Additional details about this holiday…"
-              placeholderTextColor={Colors.textSecondary}
+              placeholder="Additional details…"
+              placeholderTextColor={theme.colors.text[400]}
               multiline
               numberOfLines={3}
               textAlignVertical="top"
             />
-            {fieldErrors.description && <Text style={styles.fieldError}>{fieldErrors.description}</Text>}
 
-            <View style={{ height: Spacing.xl }} />
+            <View style={{ height: theme.spacing.xl }} />
           </ScrollView>
 
           {/* Footer */}
@@ -367,17 +321,12 @@ export const HolidayFormModal: React.FC<HolidayFormModalProps> = ({
             <TouchableOpacity style={styles.cancelBtn} onPress={onClose}>
               <Text style={styles.cancelText}>Cancel</Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.submitBtn, loading && styles.disabledBtn]}
+            <PrimaryButton
+              title={loading ? (mode === 'edit' ? 'Saving…' : 'Adding…') : (mode === 'edit' ? 'Save Changes' : 'Add Holiday')}
               onPress={handleSubmit}
-              disabled={loading}
-            >
-              <Text style={styles.submitText}>
-                {loading
-                  ? (mode === 'edit' ? 'Saving…' : 'Adding…')
-                  : (mode === 'edit' ? 'Save Changes' : 'Add Holiday')}
-              </Text>
-            </TouchableOpacity>
+              loading={loading}
+              style={styles.submitBtn}
+            />
           </View>
         </View>
       </KeyboardAvoidingView>
@@ -386,148 +335,93 @@ export const HolidayFormModal: React.FC<HolidayFormModalProps> = ({
 };
 
 const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
-  },
+  overlay: { flex: 1, backgroundColor: theme.colors.overlay, justifyContent: 'flex-end' },
   sheet: {
-    backgroundColor: Colors.background,
-    borderTopLeftRadius: Layout.borderRadius.xl,
-    borderTopRightRadius: Layout.borderRadius.xl,
+    backgroundColor: theme.colors.surface,
+    borderTopLeftRadius: theme.radius.xxl,
+    borderTopRightRadius: theme.radius.xxl,
     height: '90%',
-    padding: Spacing.lg,
+    padding: theme.spacing.l,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: Spacing.md,
+    marginBottom: theme.spacing.m,
   },
-  title: { fontSize: 20, fontWeight: 'bold', color: Colors.text },
-  closeBtn: { padding: Spacing.xs },
+  title: { ...theme.typography.h2, color: theme.colors.text[900] },
+  closeBtn: {
+    width: 36, height: 36, borderRadius: theme.radius.m,
+    backgroundColor: theme.colors.backgroundSecondary,
+    alignItems: 'center', justifyContent: 'center',
+  },
   errorBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.xs,
-    backgroundColor: '#FFF0F0',
-    padding: Spacing.sm,
-    borderRadius: Layout.borderRadius.sm,
-    marginBottom: Spacing.sm,
-    borderWidth: 1,
-    borderColor: Colors.error + '30',
+    flexDirection: 'row', alignItems: 'center', gap: theme.spacing.xs,
+    backgroundColor: theme.colors.dangerLight, padding: theme.spacing.s,
+    borderRadius: theme.radius.m, marginBottom: theme.spacing.s,
+    borderWidth: 1, borderColor: theme.colors.danger + '30',
   },
-  errorBannerText: { fontSize: 13, color: Colors.error, flex: 1 },
+  errorBannerText: { ...theme.typography.bodySmall, color: theme.colors.danger, flex: 1 },
   form: { flex: 1 },
-  sectionLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: Colors.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: Spacing.sm,
-  },
-  // Mode tabs
+  sectionLabel: { ...theme.typography.overline, color: theme.colors.text[500], marginBottom: theme.spacing.s },
   modeTabs: {
     flexDirection: 'row',
-    backgroundColor: Colors.backgroundSecondary,
-    borderRadius: Layout.borderRadius.md,
+    backgroundColor: theme.colors.backgroundSecondary,
+    borderRadius: theme.radius.l,
     padding: 3,
-    marginBottom: Spacing.lg,
+    marginBottom: theme.spacing.l,
   },
   modeTab: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: Spacing.sm,
-    borderRadius: Layout.borderRadius.sm,
-    gap: 4,
+    flex: 1, alignItems: 'center', justifyContent: 'center',
+    paddingVertical: theme.spacing.s, borderRadius: theme.radius.m,
   },
-  modeTabActive: { backgroundColor: Colors.primary },
-  modeTabText: { fontSize: 13, fontWeight: '600', color: Colors.textSecondary },
-  modeTabTextActive: { color: Colors.background },
-  // Fields
-  label: {
-    fontSize: 14, fontWeight: '500', color: Colors.text,
-    marginBottom: Spacing.xs, marginTop: Spacing.sm,
-  },
+  modeTabActive: { backgroundColor: theme.colors.primary[500] },
+  modeTabText: { ...theme.typography.caption, fontWeight: '600', color: theme.colors.text[500] },
+  modeTabTextActive: { color: '#fff' },
+  label: { ...theme.typography.label, color: theme.colors.text[700], marginBottom: theme.spacing.xs, marginTop: theme.spacing.m },
   input: {
-    backgroundColor: Colors.backgroundSecondary,
-    borderWidth: 1,
-    borderColor: Colors.borderLight,
-    borderRadius: Layout.borderRadius.md,
-    padding: Spacing.md,
-    color: Colors.text,
-    fontSize: 16,
+    borderWidth: 1.5, borderColor: theme.colors.border,
+    borderRadius: theme.radius.l, paddingHorizontal: theme.spacing.m,
+    paddingVertical: theme.spacing.sm, ...theme.typography.body,
+    color: theme.colors.text[900], backgroundColor: theme.colors.surface,
   },
-  inputError: { borderColor: Colors.error, borderWidth: 2 },
-  textArea: { minHeight: 80, paddingTop: Spacing.sm },
-  fieldError: { color: Colors.error, fontSize: 12, marginTop: 3, marginBottom: 4 },
+  inputError: { borderColor: theme.colors.danger },
+  textArea: { minHeight: 80, paddingTop: theme.spacing.sm, textAlignVertical: 'top' },
+  fieldError: { ...theme.typography.caption, color: theme.colors.danger, marginTop: 3 },
   row: { flexDirection: 'row' },
   col: { flex: 1 },
-  // Day grid (recurring)
-  dayGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.sm,
-    marginBottom: Spacing.xs,
-  },
+  dayGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.s, marginBottom: theme.spacing.xs },
   dayChip: {
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-    borderRadius: Layout.borderRadius.sm,
-    borderWidth: 1,
-    borderColor: Colors.borderLight,
-    backgroundColor: Colors.backgroundSecondary,
+    paddingVertical: theme.spacing.s, paddingHorizontal: theme.spacing.m,
+    borderRadius: theme.radius.m, borderWidth: 1, borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surface,
   },
-  dayChipActive: { borderColor: Colors.primary, backgroundColor: Colors.primary },
-  dayChipText: { fontSize: 13, fontWeight: '600', color: Colors.text },
-  dayChipTextActive: { color: Colors.background },
-  // Type chips
-  typeRow: { marginBottom: Spacing.xs },
+  dayChipActive: { borderColor: theme.colors.primary[500], backgroundColor: theme.colors.primary[500] },
+  dayChipText: { ...theme.typography.caption, fontWeight: '600', color: theme.colors.text[700] },
+  dayChipTextActive: { color: '#fff' },
+  typeRow: { marginBottom: theme.spacing.xs },
   typeChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-    marginRight: Spacing.sm,
-    borderRadius: Layout.borderRadius.sm,
-    borderWidth: 1,
-    borderColor: Colors.borderLight,
-    backgroundColor: Colors.backgroundSecondary,
+    flexDirection: 'row', alignItems: 'center', paddingVertical: theme.spacing.s,
+    paddingHorizontal: theme.spacing.m, marginRight: theme.spacing.s,
+    borderRadius: theme.radius.m, borderWidth: 1, borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surface,
   },
-  typeChipActive: { borderColor: Colors.primary, backgroundColor: Colors.primary },
-  typeChipText: { fontSize: 13, fontWeight: '600', color: Colors.text },
-  typeChipTextActive: { color: Colors.background },
-  // Info box
+  typeChipActive: { borderColor: theme.colors.primary[500], backgroundColor: theme.colors.primary[500] },
+  typeChipText: { ...theme.typography.caption, fontWeight: '600', color: theme.colors.text[700] },
+  typeChipTextActive: { color: '#fff' },
   infoBox: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: Spacing.xs,
-    backgroundColor: Colors.backgroundSecondary,
-    padding: Spacing.sm,
-    borderRadius: Layout.borderRadius.sm,
-    marginTop: Spacing.xs,
-    borderWidth: 1,
-    borderColor: Colors.borderLight,
+    flexDirection: 'row', alignItems: 'flex-start', gap: theme.spacing.xs,
+    backgroundColor: theme.colors.infoLight, padding: theme.spacing.s,
+    borderRadius: theme.radius.m, marginTop: theme.spacing.xs,
+    borderWidth: 1, borderColor: theme.colors.info + '30',
   },
-  infoText: { fontSize: 12, color: Colors.textSecondary, flex: 1, lineHeight: 18 },
-  // Footer
+  infoText: { ...theme.typography.caption, color: theme.colors.text[700], flex: 1, lineHeight: 18 },
   footer: {
-    flexDirection: 'row',
-    paddingTop: Spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: Colors.borderLight,
+    flexDirection: 'row', paddingTop: theme.spacing.m,
+    borderTopWidth: 1, borderTopColor: theme.colors.border,
+    gap: theme.spacing.m, alignItems: 'center',
   },
-  cancelBtn: {
-    flex: 1, padding: Spacing.md, alignItems: 'center', marginRight: Spacing.md,
-  },
-  cancelText: { fontSize: 16, color: Colors.textSecondary, fontWeight: '600' },
-  submitBtn: {
-    flex: 2, backgroundColor: Colors.primary, padding: Spacing.md,
-    borderRadius: Layout.borderRadius.md, alignItems: 'center',
-  },
-  disabledBtn: { opacity: 0.65 },
-  submitText: { fontSize: 16, color: '#FFFFFF', fontWeight: '600' },
+  cancelBtn: { paddingVertical: theme.spacing.m, paddingHorizontal: theme.spacing.m },
+  cancelText: { ...theme.typography.body, color: theme.colors.text[500], fontWeight: '600' },
+  submitBtn: { flex: 1 },
 });

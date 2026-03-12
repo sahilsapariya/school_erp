@@ -1,21 +1,41 @@
 import React from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  ActivityIndicator,
-} from "react-native";
-import { Colors } from "@/common/constants/colors";
-import { Spacing, Layout } from "@/common/constants/spacing";
-import { Ionicons } from "@expo/vector-icons";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from "react-native";
+import { useRouter } from "expo-router";
 import { Protected } from "@/modules/permissions/components/Protected";
 import { usePermissions } from "@/modules/permissions/hooks/usePermissions";
 import { useAuth } from "@/modules/auth/hooks/useAuth";
-import { useRouter } from "expo-router";
 import * as PERMS from "@/modules/permissions/constants/permissions";
 import { useAcademicsOverview } from "@/modules/academics/hooks/useAcademicsOverview";
+import { ScreenContainer } from "@/src/components/ui/ScreenContainer";
+import { Header } from "@/src/components/ui/Header";
+import { SurfaceCard } from "@/src/components/ui/SurfaceCard";
+import { theme } from "@/src/design-system/theme";
+import { Icons } from "@/src/design-system/icons";
+
+interface NavCardProps {
+  icon: React.ReactNode;
+  title: string;
+  subtitle: string;
+  onPress?: () => void;
+  primary?: boolean;
+}
+
+function NavCard({ icon, title, subtitle, onPress, primary }: NavCardProps) {
+  return (
+    <TouchableOpacity
+      style={[styles.navCard, primary && styles.navCardPrimary]}
+      onPress={onPress}
+      activeOpacity={0.75}
+    >
+      <View style={[styles.navCardIcon, primary && styles.navCardIconPrimary]}>{icon}</View>
+      <View style={styles.navCardText}>
+        <Text style={[styles.navCardTitle, primary && styles.navCardTitlePrimary]}>{title}</Text>
+        <Text style={[styles.navCardSubtitle, primary && styles.navCardSubtitlePrimary]}>{subtitle}</Text>
+      </View>
+      <Icons.ChevronRight size={18} color={primary ? "rgba(255,255,255,0.7)" : theme.colors.text[400]} />
+    </TouchableOpacity>
+  );
+}
 
 export default function AcademicsScreen() {
   const { hasAnyPermission } = usePermissions();
@@ -24,58 +44,41 @@ export default function AcademicsScreen() {
   const isAdmin = hasAnyPermission([PERMS.SYSTEM_MANAGE, PERMS.USER_MANAGE]);
   const { data: overview, isLoading: overviewLoading } = useAcademicsOverview(isAdmin);
 
-  const isTeacher = hasAnyPermission([
-    PERMS.ATTENDANCE_MARK,
-    PERMS.GRADE_CREATE,
-  ]);
-  const isStudent = hasAnyPermission([
-    PERMS.GRADE_READ_SELF,
-    PERMS.ATTENDANCE_READ_SELF,
-  ]);
+  const isTeacher = hasAnyPermission([PERMS.ATTENDANCE_MARK, PERMS.GRADE_CREATE]);
+  const isStudent = hasAnyPermission([PERMS.GRADE_READ_SELF, PERMS.ATTENDANCE_READ_SELF]);
   const isParent = hasAnyPermission([PERMS.GRADE_READ_CHILD]);
 
-  return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.contentContainer}
-      showsVerticalScrollIndicator={false}
-    >
-      <View style={styles.header}>
-        <Text style={styles.title}>Academics</Text>
-        <Text style={styles.subtitle}>
-          {isAdmin && "Manage academic operations"}
-          {isTeacher && "My teaching & classes"}
-          {isStudent && "My learning & progress"}
-          {isParent && "Child&apos;s academic progress"}
-        </Text>
-      </View>
+  const push = (p: string) => router.push(p as any);
 
-      <View style={styles.content}>
+  const subtitle = isAdmin ? "Manage academic operations"
+    : isTeacher ? "My teaching & classes"
+    : isStudent ? "My learning & progress"
+    : isParent ? "Child's academic progress"
+    : "Academic resources";
+
+  return (
+    <ScreenContainer>
+      <Header title="Academics" subtitle={subtitle} />
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+
+        {/* Admin Overview Stats */}
         <Protected anyPermissions={[PERMS.SYSTEM_MANAGE, PERMS.USER_MANAGE]}>
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Overview</Text>
-            <View style={styles.statsGrid}>
+            <View style={styles.statsRow}>
               <View style={styles.statCard}>
-                <Ionicons
-                  name="school-outline"
-                  size={32}
-                  color={Colors.primary}
-                />
+                <Icons.Class size={26} color={theme.colors.primary[500]} />
                 {overviewLoading ? (
-                  <ActivityIndicator size="small" color={Colors.primary} style={{ marginTop: Spacing.sm }} />
+                  <ActivityIndicator size="small" color={theme.colors.primary[500]} style={{ marginTop: 8 }} />
                 ) : (
                   <Text style={styles.statValue}>{overview?.total_classes ?? 0}</Text>
                 )}
                 <Text style={styles.statLabel}>Classes</Text>
               </View>
               <View style={styles.statCard}>
-                <Ionicons
-                  name="book-outline"
-                  size={32}
-                  color={Colors.primary}
-                />
+                <Icons.FileText size={26} color={theme.colors.primary[500]} />
                 {overviewLoading ? (
-                  <ActivityIndicator size="small" color={Colors.primary} style={{ marginTop: Spacing.sm }} />
+                  <ActivityIndicator size="small" color={theme.colors.primary[500]} style={{ marginTop: 8 }} />
                 ) : (
                   <Text style={styles.statValue}>{overview?.total_subjects ?? 0}</Text>
                 )}
@@ -85,458 +88,160 @@ export default function AcademicsScreen() {
           </View>
         </Protected>
 
-        {/* Classes Section - Visible to All */}
+        {/* Classes */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>
-            {isAdmin && "All Classes"}
-            {isTeacher && "My Classes"}
-            {(isStudent || isParent) && "Classes"}
+            {isAdmin ? "All Classes" : isTeacher ? "My Classes" : "Classes"}
           </Text>
-
-          <TouchableOpacity
-            style={styles.actionCard}
-            onPress={() => router.push("/(protected)/classes" as any)}
-          >
-            <View style={styles.cardContent}>
-              <View style={styles.cardIcon}>
-                <Ionicons
-                  name="people-outline"
-                  size={24}
-                  color={Colors.primary}
-                />
-              </View>
-              <View style={styles.cardText}>
-                <Text style={styles.cardTitle}>View Classes</Text>
-                <Text style={styles.cardSubtitle}>See all class schedules</Text>
-              </View>
-            </View>
-            <Ionicons
-              name="chevron-forward"
-              size={20}
-              color={Colors.textSecondary}
-            />
-          </TouchableOpacity>
+          <NavCard
+            icon={<Icons.Class size={22} color={theme.colors.primary[500]} />}
+            title="View Classes"
+            subtitle="See all class schedules"
+            onPress={() => push("/(protected)/classes")}
+          />
         </View>
 
-        {/* Attendance Section - only when plan has attendance feature enabled */}
+        {/* Attendance */}
         {isFeatureEnabled("attendance") && (
-          <Protected
-            anyPermissions={[
-              PERMS.ATTENDANCE_MARK,
-              PERMS.ATTENDANCE_READ_SELF,
-              PERMS.ATTENDANCE_READ_CLASS,
-              PERMS.ATTENDANCE_READ_ALL,
-            ]}
-          >
+          <Protected anyPermissions={[
+            PERMS.ATTENDANCE_MARK, PERMS.ATTENDANCE_READ_SELF,
+            PERMS.ATTENDANCE_READ_CLASS, PERMS.ATTENDANCE_READ_ALL,
+          ]}>
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Attendance</Text>
-
-            {/* Teacher: Mark Attendance (not admin) */}
-            <Protected permission={PERMS.ATTENDANCE_MARK}>
-              {!isAdmin && (
-                <TouchableOpacity
-                  style={[styles.actionCard, styles.primaryCard]}
-                  onPress={() => router.push("/(protected)/attendance/my-classes" as any)}
-                >
-                  <View style={styles.cardContent}>
-                    <View style={[styles.cardIcon, styles.primaryIcon]}>
-                      <Ionicons
-                        name="checkbox-outline"
-                        size={24}
-                        color={Colors.background}
-                      />
-                    </View>
-                    <View style={styles.cardText}>
-                      <Text style={[styles.cardTitle, styles.primaryText]}>
-                        Mark Attendance
-                      </Text>
-                      <Text style={[styles.cardSubtitle, styles.primarySubtext]}>
-                        Take attendance for your classes
-                      </Text>
-                    </View>
-                  </View>
-                  <Ionicons
-                    name="chevron-forward"
-                    size={20}
-                    color={Colors.background}
+              <Protected permission={PERMS.ATTENDANCE_MARK}>
+                {!isAdmin && (
+                  <NavCard
+                    icon={<Icons.CheckMark size={22} color="#fff" />}
+                    title="Mark Attendance"
+                    subtitle="Take attendance for your classes"
+                    onPress={() => push("/(protected)/attendance/my-classes")}
+                    primary
                   />
-                </TouchableOpacity>
-              )}
-            </Protected>
-
-            {/* View Attendance (Student/Parent, not admin) */}
-            <Protected anyPermissions={[PERMS.ATTENDANCE_READ_SELF]}>
-              {!isAdmin && (
-                <TouchableOpacity
-                  style={styles.actionCard}
-                  onPress={() => router.push("/(protected)/attendance/my-attendance" as any)}
-                >
-                  <View style={styles.cardContent}>
-                    <View style={styles.cardIcon}>
-                      <Ionicons
-                        name="calendar-outline"
-                        size={24}
-                        color={Colors.primary}
-                      />
-                    </View>
-                    <View style={styles.cardText}>
-                      <Text style={styles.cardTitle}>My Attendance</Text>
-                      <Text style={styles.cardSubtitle}>
-                        View attendance history and percentage
-                      </Text>
-                    </View>
-                  </View>
-                  <Ionicons
-                    name="chevron-forward"
-                    size={20}
-                    color={Colors.textSecondary}
+                )}
+              </Protected>
+              <Protected anyPermissions={[PERMS.ATTENDANCE_READ_SELF]}>
+                {!isAdmin && (
+                  <NavCard
+                    icon={<Icons.Calendar size={22} color={theme.colors.primary[500]} />}
+                    title="My Attendance"
+                    subtitle="View attendance history and percentage"
+                    onPress={() => push("/(protected)/attendance/my-attendance")}
                   />
-                </TouchableOpacity>
-              )}
-            </Protected>
-
-            {/* View Attendance (Admin) */}
-            <Protected permission={PERMS.ATTENDANCE_READ_ALL}>
-              <TouchableOpacity
-                style={styles.actionCard}
-                onPress={() => router.push("/(protected)/attendance/overview" as any)}
-              >
-                <View style={styles.cardContent}>
-                  <View style={styles.cardIcon}>
-                    <Ionicons
-                      name="stats-chart-outline"
-                      size={24}
-                      color={Colors.primary}
-                    />
-                  </View>
-                  <View style={styles.cardText}>
-                    <Text style={styles.cardTitle}>Attendance Overview</Text>
-                    <Text style={styles.cardSubtitle}>
-                      View all attendance records by class and date
-                    </Text>
-                  </View>
-                </View>
-                <Ionicons
-                  name="chevron-forward"
-                  size={20}
-                  color={Colors.textSecondary}
+                )}
+              </Protected>
+              <Protected permission={PERMS.ATTENDANCE_READ_ALL}>
+                <NavCard
+                  icon={<Icons.BarChart size={22} color={theme.colors.primary[500]} />}
+                  title="Attendance Overview"
+                  subtitle="View all attendance records by class and date"
+                  onPress={() => push("/(protected)/attendance/overview")}
                 />
-              </TouchableOpacity>
-            </Protected>
-          </View>
-        </Protected>
+              </Protected>
+            </View>
+          </Protected>
         )}
 
-        {/* Grades Section */}
-        <Protected
-          anyPermissions={[
-            PERMS.GRADE_CREATE,
-            PERMS.GRADE_READ_SELF,
-            PERMS.GRADE_READ_CLASS,
-            PERMS.GRADE_MANAGE,
-          ]}
-        >
+        {/* Grades */}
+        <Protected anyPermissions={[
+          PERMS.GRADE_CREATE, PERMS.GRADE_READ_SELF, PERMS.GRADE_READ_CLASS, PERMS.GRADE_MANAGE,
+        ]}>
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Grades & Marks</Text>
-
-            {/* Teacher: Enter Grades */}
-            <Protected
-              anyPermissions={[PERMS.GRADE_CREATE, PERMS.GRADE_UPDATE]}
-            >
-              <TouchableOpacity style={styles.actionCard}>
-                <View style={styles.cardContent}>
-                  <View style={styles.cardIcon}>
-                    <Ionicons
-                      name="create-outline"
-                      size={24}
-                      color={Colors.primary}
-                    />
-                  </View>
-                  <View style={styles.cardText}>
-                    <Text style={styles.cardTitle}>Enter Grades</Text>
-                    <Text style={styles.cardSubtitle}>
-                      Add or update student grades
-                    </Text>
-                  </View>
-                </View>
-                <Ionicons
-                  name="chevron-forward"
-                  size={20}
-                  color={Colors.textSecondary}
-                />
-              </TouchableOpacity>
-            </Protected>
-
-            {/* View Grades */}
-            <TouchableOpacity style={styles.actionCard}>
-              <View style={styles.cardContent}>
-                <View style={styles.cardIcon}>
-                  <Ionicons
-                    name="ribbon-outline"
-                    size={24}
-                    color={Colors.primary}
-                  />
-                </View>
-                <View style={styles.cardText}>
-                  <Text style={styles.cardTitle}>View Grades</Text>
-                  <Text style={styles.cardSubtitle}>
-                    {isAdmin && "All grades and reports"}
-                    {isTeacher && "My class grades"}
-                    {(isStudent || isParent) && "Grades and report card"}
-                  </Text>
-                </View>
-              </View>
-              <Ionicons
-                name="chevron-forward"
-                size={20}
-                color={Colors.textSecondary}
+            <Protected anyPermissions={[PERMS.GRADE_CREATE, PERMS.GRADE_UPDATE]}>
+              <NavCard
+                icon={<Icons.Edit size={22} color={theme.colors.primary[500]} />}
+                title="Enter Grades"
+                subtitle="Add or update student grades"
               />
-            </TouchableOpacity>
+            </Protected>
+            <NavCard
+              icon={<Icons.Award size={22} color={theme.colors.primary[500]} />}
+              title="View Grades"
+              subtitle={isAdmin ? "All grades and reports" : isTeacher ? "My class grades" : "Grades and report card"}
+            />
           </View>
         </Protected>
 
-        {/* Assignments Section */}
-        <Protected
-          anyPermissions={[
-            PERMS.ASSIGNMENT_CREATE,
-            PERMS.ASSIGNMENT_READ_SELF,
-            PERMS.ASSIGNMENT_SUBMIT,
-            PERMS.ASSIGNMENT_MANAGE,
-          ]}
-        >
+        {/* Assignments */}
+        <Protected anyPermissions={[
+          PERMS.ASSIGNMENT_CREATE, PERMS.ASSIGNMENT_READ_SELF,
+          PERMS.ASSIGNMENT_SUBMIT, PERMS.ASSIGNMENT_MANAGE,
+        ]}>
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Assignments</Text>
-
-            {/* Teacher: Create Assignment */}
-            <Protected
-              anyPermissions={[
-                PERMS.ASSIGNMENT_CREATE,
-                PERMS.ASSIGNMENT_MANAGE,
-              ]}
-            >
-              <TouchableOpacity style={styles.actionCard}>
-                <View style={styles.cardContent}>
-                  <View style={styles.cardIcon}>
-                    <Ionicons
-                      name="add-circle-outline"
-                      size={24}
-                      color={Colors.primary}
-                    />
-                  </View>
-                  <View style={styles.cardText}>
-                    <Text style={styles.cardTitle}>Create Assignment</Text>
-                    <Text style={styles.cardSubtitle}>
-                      Add new assignment for class
-                    </Text>
-                  </View>
-                </View>
-                <Ionicons
-                  name="chevron-forward"
-                  size={20}
-                  color={Colors.textSecondary}
-                />
-              </TouchableOpacity>
-            </Protected>
-
-            {/* View/Submit Assignments */}
-            <TouchableOpacity style={styles.actionCard}>
-              <View style={styles.cardContent}>
-                <View style={styles.cardIcon}>
-                  <Ionicons
-                    name="document-text-outline"
-                    size={24}
-                    color={Colors.primary}
-                  />
-                </View>
-                <View style={styles.cardText}>
-                  <Text style={styles.cardTitle}>
-                    {isStudent || isParent
-                      ? "View & Submit"
-                      : "View Assignments"}
-                  </Text>
-                  <Text style={styles.cardSubtitle}>
-                    {isAdmin && "All assignments"}
-                    {isTeacher && "My class assignments"}
-                    {(isStudent || isParent) && "Pending and completed"}
-                  </Text>
-                </View>
-              </View>
-              <Ionicons
-                name="chevron-forward"
-                size={20}
-                color={Colors.textSecondary}
+            <Protected anyPermissions={[PERMS.ASSIGNMENT_CREATE, PERMS.ASSIGNMENT_MANAGE]}>
+              <NavCard
+                icon={<Icons.Add size={22} color={theme.colors.primary[500]} />}
+                title="Create Assignment"
+                subtitle="Add new assignment for class"
               />
-            </TouchableOpacity>
+            </Protected>
+            <NavCard
+              icon={<Icons.FileText size={22} color={theme.colors.primary[500]} />}
+              title={isStudent || isParent ? "View & Submit" : "View Assignments"}
+              subtitle={isAdmin ? "All assignments" : isTeacher ? "My class assignments" : "Pending and completed"}
+            />
           </View>
         </Protected>
 
-        {/* Lectures/Schedule Section */}
+        {/* Schedule */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Lectures & Schedule</Text>
-
-          <TouchableOpacity
-            style={styles.actionCard}
-            onPress={() => router.push("/(protected)/schedule/today" as any)}
-          >
-            <View style={styles.cardContent}>
-              <View style={styles.cardIcon}>
-                <Ionicons
-                  name="time-outline"
-                  size={24}
-                  color={Colors.primary}
-                />
-              </View>
-              <View style={styles.cardText}>
-                <Text style={styles.cardTitle}>Today&apos;s Schedule</Text>
-                <Text style={styles.cardSubtitle}>
-                  View lectures and timings
-                </Text>
-              </View>
-            </View>
-            <Ionicons
-              name="chevron-forward"
-              size={20}
-              color={Colors.textSecondary}
-            />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.actionCard}
-            onPress={() => router.push("/(protected)/timetable" as any)}
-          >
-            <View style={styles.cardContent}>
-              <View style={styles.cardIcon}>
-                <Ionicons
-                  name="calendar-outline"
-                  size={24}
-                  color={Colors.primary}
-                />
-              </View>
-              <View style={styles.cardText}>
-                <Text style={styles.cardTitle}>Weekly Timetable</Text>
-                <Text style={styles.cardSubtitle}>Full week schedule</Text>
-              </View>
-            </View>
-            <Ionicons
-              name="chevron-forward"
-              size={20}
-              color={Colors.textSecondary}
-            />
-          </TouchableOpacity>
+          <NavCard
+            icon={<Icons.Clock size={22} color={theme.colors.primary[500]} />}
+            title="Today's Schedule"
+            subtitle="View lectures and timings"
+            onPress={() => push("/(protected)/schedule/today")}
+          />
+          <NavCard
+            icon={<Icons.Calendar size={22} color={theme.colors.primary[500]} />}
+            title="Weekly Timetable"
+            subtitle="Full week schedule"
+            onPress={() => push("/(protected)/timetable")}
+          />
         </View>
-      </View>
-    </ScrollView>
+
+      </ScrollView>
+    </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  contentContainer: {
-    paddingBottom: Spacing.lg,
-  },
-  header: {
-    padding: Spacing.lg,
-    paddingBottom: Spacing.md,
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: "700",
-    color: Colors.text,
-    marginBottom: Spacing.xs,
-    fontFamily: "System",
-  },
-  subtitle: {
-    fontSize: 16,
-    color: Colors.textSecondary,
-    fontFamily: "System",
-  },
-  content: {
-    gap: Spacing.lg,
-  },
+  content: { paddingBottom: theme.spacing.xxl },
   section: {
-    paddingHorizontal: Spacing.lg,
+    paddingHorizontal: theme.spacing.m,
+    marginBottom: theme.spacing.l,
   },
   sectionTitle: {
-    fontSize: 20,
-    fontWeight: "600",
-    color: Colors.text,
-    marginBottom: Spacing.md,
-    fontFamily: "System",
+    ...theme.typography.overline,
+    color: theme.colors.text[500],
+    marginBottom: theme.spacing.m,
   },
-  statsGrid: {
-    flexDirection: "row",
-    gap: Spacing.md,
-  },
+  statsRow: { flexDirection: "row", gap: theme.spacing.m },
   statCard: {
-    flex: 1,
-    backgroundColor: Colors.backgroundSecondary,
-    borderRadius: Layout.borderRadius.lg,
-    padding: Spacing.lg,
-    alignItems: "center",
+    flex: 1, backgroundColor: theme.colors.surface, borderRadius: theme.radius.xl,
+    padding: theme.spacing.m, alignItems: "center",
+    borderWidth: 1, borderColor: theme.colors.border, ...theme.shadows.sm,
   },
-  statValue: {
-    fontSize: 28,
-    fontWeight: "700",
-    color: Colors.text,
-    marginTop: Spacing.sm,
-    fontFamily: "System",
+  statValue: { ...theme.typography.h1, color: theme.colors.text[900], marginTop: theme.spacing.s },
+  statLabel: { ...theme.typography.caption, color: theme.colors.text[500], marginTop: theme.spacing.xs },
+  navCard: {
+    flexDirection: "row", alignItems: "center",
+    backgroundColor: theme.colors.surface, borderRadius: theme.radius.xl,
+    padding: theme.spacing.m, marginBottom: theme.spacing.s,
+    borderWidth: 1, borderColor: theme.colors.border, ...theme.shadows.sm,
   },
-  statLabel: {
-    fontSize: 14,
-    color: Colors.textSecondary,
-    marginTop: Spacing.xs,
-    fontFamily: "System",
+  navCardPrimary: { backgroundColor: theme.colors.primary[500], borderColor: theme.colors.primary[600] },
+  navCardIcon: {
+    width: 46, height: 46, borderRadius: theme.radius.l,
+    backgroundColor: theme.colors.primary[50],
+    alignItems: "center", justifyContent: "center", marginRight: theme.spacing.m,
   },
-  actionCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: Colors.backgroundSecondary,
-    borderRadius: Layout.borderRadius.lg,
-    padding: Spacing.md,
-    marginBottom: Spacing.md,
-  },
-  primaryCard: {
-    backgroundColor: Colors.primary,
-  },
-  cardContent: {
-    flexDirection: "row",
-    alignItems: "center",
-    flex: 1,
-  },
-  cardIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: Layout.borderRadius.md,
-    backgroundColor: Colors.background,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: Spacing.md,
-  },
-  primaryIcon: {
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
-  },
-  cardText: {
-    flex: 1,
-  },
-  cardTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: Colors.text,
-    marginBottom: 2,
-    fontFamily: "System",
-  },
-  primaryText: {
-    color: Colors.background,
-  },
-  cardSubtitle: {
-    fontSize: 13,
-    color: Colors.textSecondary,
-    fontFamily: "System",
-  },
-  primarySubtext: {
-    color: "rgba(255, 255, 255, 0.8)",
-  },
+  navCardIconPrimary: { backgroundColor: "rgba(255,255,255,0.2)" },
+  navCardText: { flex: 1 },
+  navCardTitle: { ...theme.typography.body, fontWeight: "600", color: theme.colors.text[900] },
+  navCardTitlePrimary: { color: "#fff" },
+  navCardSubtitle: { ...theme.typography.caption, color: theme.colors.text[500], marginTop: 2 },
+  navCardSubtitlePrimary: { color: "rgba(255,255,255,0.8)" },
 });

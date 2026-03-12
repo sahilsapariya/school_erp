@@ -3,43 +3,45 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   FlatList,
   TouchableOpacity,
   Modal,
   TextInput,
-  Alert,
-  ActivityIndicator,
   RefreshControl,
 } from "react-native";
 import { useRouter } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
-import { Colors } from "@/common/constants/colors";
-import { Spacing, Layout } from "@/common/constants/spacing";
 import { useTeacherLeaves } from "@/modules/teachers/hooks/useTeacherLeaves";
-import { TeacherLeave, LeaveStatus } from "@/modules/teachers/types";
+import { TeacherLeave } from "@/modules/teachers/types";
+import { ScreenContainer } from "@/src/components/ui/ScreenContainer";
+import { Header } from "@/src/components/ui/Header";
+import { StatusBadge } from "@/src/components/ui/StatusBadge";
+import { PrimaryButton } from "@/src/components/ui/PrimaryButton";
+import { EmptyState } from "@/src/components/ui/EmptyState";
+import { LoadingState } from "@/src/components/ui/LoadingState";
+import { FloatingActionButton } from "@/src/components/ui/FloatingActionButton";
+import { useToast } from "@/src/components/ui/Toast";
+import { theme } from "@/src/design-system/theme";
+import { Icons } from "@/src/design-system/icons";
 
 const LEAVE_TYPES = ["casual", "sick", "emergency", "unpaid", "other"];
-const STATUS_FILTERS: { label: string; value: string }[] = [
+const STATUS_FILTERS = [
   { label: "All", value: "" },
   { label: "Pending", value: "pending" },
   { label: "Approved", value: "approved" },
   { label: "Rejected", value: "rejected" },
-  { label: "Cancelled", value: "cancelled" },
 ];
 
-function statusColor(status: string): string {
-  switch (status) {
-    case "approved": return Colors.success;
-    case "rejected": return Colors.error;
-    case "cancelled": return Colors.textSecondary;
-    default: return Colors.warning;
-  }
+function leaveStatusType(status: string): "success" | "danger" | "warning" | "info" {
+  if (status === "approved") return "success";
+  if (status === "rejected") return "danger";
+  if (status === "cancelled") return "info";
+  return "warning";
 }
 
 export default function MyLeavesScreen() {
   const router = useRouter();
+  const toast = useToast();
   const { leaves, loading, error, fetchMyLeaves, createLeave, cancelLeave } = useTeacherLeaves();
 
   const [statusFilter, setStatusFilter] = useState("");
@@ -61,76 +63,70 @@ export default function MyLeavesScreen() {
 
   const handleApply = async () => {
     if (!leaveStart || !leaveEnd) {
-      Alert.alert("Validation", "Start date and end date are required");
+      toast.warning("Required fields", "Start date and end date are required.");
       return;
     }
     try {
       setSubmitting(true);
       await createLeave({ start_date: leaveStart, end_date: leaveEnd, leave_type: leaveType, reason: leaveReason });
       setShowApplyModal(false);
-      setLeaveStart("");
-      setLeaveEnd("");
-      setLeaveType("casual");
-      setLeaveReason("");
+      setLeaveStart(""); setLeaveEnd(""); setLeaveType("casual"); setLeaveReason("");
+      toast.success("Leave applied", "Your leave request has been submitted.");
     } catch (e: any) {
-      Alert.alert("Error", e.message || "Failed to submit leave request");
+      toast.error("Failed to apply", e.message || "Please try again.");
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleCancel = (leave: TeacherLeave) => {
-    Alert.alert("Cancel Leave", "Are you sure you want to cancel this leave request?", [
-      { text: "No", style: "cancel" },
-      {
-        text: "Yes, Cancel",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            await cancelLeave(leave.id);
-          } catch (e: any) {
-            Alert.alert("Error", e.message || "Failed to cancel leave");
-          }
-        },
-      },
-    ]);
+  const handleCancel = async (leave: TeacherLeave) => {
+    try {
+      await cancelLeave(leave.id);
+      toast.success("Leave cancelled");
+    } catch (e: any) {
+      toast.error("Error", e.message || "Failed to cancel leave");
+    }
   };
+
+  if (loading && leaves.length === 0) {
+    return (
+      <ScreenContainer>
+        <Header title="My Leaves" onBack={() => router.back()} compact />
+        <LoadingState message="Loading leaves..." />
+      </ScreenContainer>
+    );
+  }
 
   const renderLeave = ({ item }: { item: TeacherLeave }) => (
     <View style={styles.card}>
-      <View style={styles.cardHeader}>
-        <Text style={styles.leaveType}>{item.leave_type.toUpperCase()}</Text>
-        <View style={[styles.statusBadge, { backgroundColor: statusColor(item.status) + "20" }]}>
-          <Text style={[styles.statusText, { color: statusColor(item.status) }]}>{item.status}</Text>
-        </View>
+      <View style={styles.cardTop}>
+        <Text style={styles.leaveTypeLbl}>{item.leave_type.toUpperCase()}</Text>
+        <StatusBadge status={leaveStatusType(item.status)} label={item.status} />
       </View>
-      <Text style={styles.leaveDates}>
-        <Ionicons name="calendar-outline" size={13} color={Colors.textSecondary} /> {item.start_date} → {item.end_date}
-      </Text>
-      {item.reason ? <Text style={styles.leaveReason}>{item.reason}</Text> : null}
-      <Text style={styles.leaveDate}>Applied: {item.created_at.slice(0, 10)}</Text>
+      <View style={styles.cardDetail}>
+        <Icons.Calendar size={14} color={theme.colors.text[500]} />
+        <Text style={styles.cardDetailText}>{item.start_date} → {item.end_date}</Text>
+      </View>
+      {item.reason ? (
+        <Text style={styles.cardReason}>{item.reason}</Text>
+      ) : null}
+      <Text style={styles.cardApplied}>Applied: {item.created_at.slice(0, 10)}</Text>
       {item.status === "pending" && (
-        <TouchableOpacity style={styles.cancelBtn} onPress={() => handleCancel(item)}>
-          <Ionicons name="close-circle-outline" size={15} color={Colors.error} />
-          <Text style={styles.cancelBtnText}>Cancel Request</Text>
+        <TouchableOpacity
+          style={styles.cancelChip}
+          onPress={() => handleCancel(item)}
+          activeOpacity={0.7}
+        >
+          <Icons.Close size={13} color={theme.colors.danger} />
+          <Text style={styles.cancelChipText}>Cancel Request</Text>
         </TouchableOpacity>
       )}
     </View>
   );
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backIcon}>
-          <Ionicons name="arrow-back" size={24} color={Colors.text} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>My Leaves</Text>
-        <TouchableOpacity style={styles.applyBtn} onPress={() => setShowApplyModal(true)}>
-          <Ionicons name="add" size={20} color="#fff" />
-          <Text style={styles.applyBtnText}>Apply</Text>
-        </TouchableOpacity>
-      </View>
+    <ScreenContainer>
+      <Header title="My Leaves" onBack={() => router.back()} compact />
 
       {/* Status filter chips */}
       <ScrollView
@@ -144,6 +140,7 @@ export default function MyLeavesScreen() {
             key={f.value}
             style={[styles.filterChip, statusFilter === f.value && styles.filterChipActive]}
             onPress={() => setStatusFilter(f.value)}
+            activeOpacity={0.7}
           >
             <Text style={[styles.filterChipText, statusFilter === f.value && styles.filterChipTextActive]}>
               {f.label}
@@ -152,233 +149,247 @@ export default function MyLeavesScreen() {
         ))}
       </ScrollView>
 
-      {/* Content */}
-      {error ? (
-        <View style={styles.center}>
-          <Ionicons name="alert-circle-outline" size={48} color={Colors.error} />
-          <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity style={styles.retryBtn} onPress={() => load(statusFilter)}>
-            <Text style={styles.retryBtnText}>Retry</Text>
-          </TouchableOpacity>
-        </View>
-      ) : (
-        <FlatList
-          data={leaves}
-          keyExtractor={(item) => item.id}
-          renderItem={renderLeave}
-          contentContainerStyle={leaves.length === 0 ? styles.emptyContainer : { padding: Spacing.md }}
-          refreshControl={<RefreshControl refreshing={loading} onRefresh={() => load(statusFilter)} colors={[Colors.primary]} />}
-          ListEmptyComponent={
-            !loading ? (
-              <View style={styles.center}>
-                <Ionicons name="document-text-outline" size={56} color={Colors.borderLight} />
-                <Text style={styles.emptyText}>No leave requests found.</Text>
-                <TouchableOpacity style={styles.applyEmptyBtn} onPress={() => setShowApplyModal(true)}>
-                  <Text style={styles.applyEmptyBtnText}>Apply for Leave</Text>
-                </TouchableOpacity>
-              </View>
-            ) : null
-          }
-        />
-      )}
+      <FlatList
+        data={leaves}
+        keyExtractor={(item) => item.id}
+        renderItem={renderLeave}
+        contentContainerStyle={styles.listContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={loading}
+            onRefresh={() => load(statusFilter)}
+            tintColor={theme.colors.primary[500]}
+          />
+        }
+        ListEmptyComponent={
+          error ? (
+            <EmptyState
+              icon={<Icons.AlertCircle size={32} color={theme.colors.danger} />}
+              title="Failed to load"
+              description={error}
+              action={{ label: "Retry", onPress: () => load(statusFilter) }}
+            />
+          ) : (
+            <EmptyState
+              icon={<Icons.FileText size={32} color={theme.colors.primary[300]} />}
+              title="No leave requests"
+              description="Apply for a leave using the button below."
+              action={{ label: "Apply for Leave", onPress: () => setShowApplyModal(true) }}
+            />
+          )
+        }
+      />
 
-      {/* Apply Leave Modal */}
+      <FloatingActionButton onPress={() => setShowApplyModal(true)} icon={<Icons.Add size={26} color="white" />} />
+
+      {/* Apply Modal */}
       <Modal visible={showApplyModal} animationType="slide" presentationStyle="formSheet">
-        <SafeAreaView style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Apply for Leave</Text>
-            <TouchableOpacity onPress={() => setShowApplyModal(false)}>
-              <Ionicons name="close" size={24} color={Colors.text} />
-            </TouchableOpacity>
-          </View>
-          <ScrollView style={{ padding: Spacing.lg }}>
+        <ScreenContainer keyboardAvoiding>
+          <Header title="Apply for Leave" onBack={() => setShowApplyModal(false)} compact />
+          <ScrollView contentContainerStyle={styles.modalForm} showsVerticalScrollIndicator={false}>
             <Text style={styles.fieldLabel}>Start Date (YYYY-MM-DD) *</Text>
             <TextInput
-              style={styles.input}
+              style={styles.fieldInput}
               value={leaveStart}
               onChangeText={setLeaveStart}
               placeholder="2026-03-10"
-              placeholderTextColor={Colors.textTertiary}
+              placeholderTextColor={theme.colors.text[400]}
             />
 
             <Text style={styles.fieldLabel}>End Date (YYYY-MM-DD) *</Text>
             <TextInput
-              style={styles.input}
+              style={styles.fieldInput}
               value={leaveEnd}
               onChangeText={setLeaveEnd}
               placeholder="2026-03-12"
-              placeholderTextColor={Colors.textTertiary}
+              placeholderTextColor={theme.colors.text[400]}
             />
 
             <Text style={styles.fieldLabel}>Leave Type</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: Spacing.md }}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.typeRow}>
               {LEAVE_TYPES.map((lt) => (
                 <TouchableOpacity
                   key={lt}
-                  style={[styles.chip, leaveType === lt && styles.chipActive]}
+                  style={[styles.typeChip, leaveType === lt && styles.typeChipActive]}
                   onPress={() => setLeaveType(lt)}
+                  activeOpacity={0.7}
                 >
-                  <Text style={[styles.chipText, leaveType === lt && styles.chipTextActive]}>{lt}</Text>
+                  <Text style={[styles.typeChipText, leaveType === lt && styles.typeChipTextActive]}>
+                    {lt}
+                  </Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>
 
             <Text style={styles.fieldLabel}>Reason (optional)</Text>
             <TextInput
-              style={[styles.input, { height: 80, textAlignVertical: "top" }]}
+              style={[styles.fieldInput, styles.textArea]}
               value={leaveReason}
               onChangeText={setLeaveReason}
               placeholder="Brief reason..."
-              placeholderTextColor={Colors.textTertiary}
+              placeholderTextColor={theme.colors.text[400]}
               multiline
+              textAlignVertical="top"
             />
 
-            <TouchableOpacity style={styles.submitBtn} onPress={handleApply} disabled={submitting}>
-              {submitting ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.submitBtnText}>Submit Leave Request</Text>
-              )}
-            </TouchableOpacity>
+            <PrimaryButton
+              title="Submit Leave Request"
+              onPress={handleApply}
+              loading={submitting}
+              style={styles.submitBtn}
+            />
           </ScrollView>
-        </SafeAreaView>
+        </ScreenContainer>
       </Modal>
-    </SafeAreaView>
+    </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
-  center: { flex: 1, justifyContent: "center", alignItems: "center", padding: Spacing.xl },
-  emptyContainer: { flex: 1, justifyContent: "center", alignItems: "center", padding: Spacing.xl },
-
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: Spacing.lg,
+  filterBar: {
     borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
+    borderBottomColor: theme.colors.border,
+    maxHeight: 48,
   },
-  backIcon: { padding: Spacing.sm },
-  headerTitle: { flex: 1, fontSize: 20, fontWeight: "bold", color: Colors.text, marginLeft: Spacing.md },
-  applyBtn: {
-    flexDirection: "row",
+  filterBarContent: {
+    paddingHorizontal: theme.spacing.m,
     alignItems: "center",
-    backgroundColor: Colors.primary,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: Layout.borderRadius.sm,
-    gap: 4,
+    gap: theme.spacing.s,
   },
-  applyBtnText: { color: "#fff", fontWeight: "600", fontSize: 14 },
-
-  filterBar: { borderBottomWidth: 1, borderBottomColor: Colors.borderLight, maxHeight: 48 },
-  filterBarContent: { paddingHorizontal: Spacing.md, alignItems: "center" },
   filterChip: {
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    marginRight: Spacing.sm,
-    borderRadius: Layout.borderRadius.sm,
+    paddingHorizontal: theme.spacing.m,
+    paddingVertical: theme.spacing.xs + 2,
+    borderRadius: theme.radius.full,
     borderWidth: 1,
-    borderColor: Colors.borderLight,
-    backgroundColor: Colors.backgroundSecondary,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surface,
   },
-  filterChipActive: { borderColor: Colors.primary, backgroundColor: Colors.primary + "15" },
-  filterChipText: { fontSize: 13, color: Colors.textSecondary, fontWeight: "500" },
-  filterChipTextActive: { color: Colors.primary, fontWeight: "600" },
-
+  filterChipActive: {
+    borderColor: theme.colors.primary[500],
+    backgroundColor: theme.colors.primary[50],
+  },
+  filterChipText: {
+    ...theme.typography.caption,
+    color: theme.colors.text[500],
+    fontWeight: "500",
+  },
+  filterChipTextActive: {
+    color: theme.colors.primary[600],
+    fontWeight: "600",
+  },
+  listContent: {
+    padding: theme.spacing.m,
+    paddingBottom: theme.spacing.xxl + 60,
+  },
   card: {
-    marginBottom: Spacing.md,
-    padding: Spacing.md,
-    borderRadius: Layout.borderRadius.md,
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radius.xl,
+    padding: theme.spacing.m,
+    marginBottom: theme.spacing.s,
     borderWidth: 1,
-    borderColor: Colors.borderLight,
-    backgroundColor: Colors.backgroundTertiary,
+    borderColor: theme.colors.border,
+    ...theme.shadows.sm,
   },
-  cardHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: Spacing.sm },
-  leaveType: { fontSize: 13, fontWeight: "700", color: Colors.text, letterSpacing: 0.5 },
-  statusBadge: { paddingHorizontal: Spacing.sm, paddingVertical: 3, borderRadius: Layout.borderRadius.sm },
-  statusText: { fontSize: 12, fontWeight: "600" },
-  leaveDates: { fontSize: 14, color: Colors.text, marginBottom: 4 },
-  leaveReason: { fontSize: 13, color: Colors.textSecondary, marginTop: 4, fontStyle: "italic" },
-  leaveDate: { fontSize: 12, color: Colors.textTertiary, marginTop: 6 },
-
-  cancelBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    alignSelf: "flex-start",
-    gap: 4,
-    marginTop: Spacing.sm,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 4,
-    borderRadius: Layout.borderRadius.sm,
-    borderWidth: 1,
-    borderColor: Colors.error + "60",
-    backgroundColor: Colors.error + "10",
-  },
-  cancelBtnText: { fontSize: 12, color: Colors.error, fontWeight: "500" },
-
-  errorText: { fontSize: 14, color: Colors.error, textAlign: "center", marginTop: Spacing.md },
-  retryBtn: {
-    marginTop: Spacing.lg,
-    backgroundColor: Colors.primary,
-    paddingHorizontal: Spacing.xl,
-    paddingVertical: Spacing.sm,
-    borderRadius: Layout.borderRadius.md,
-  },
-  retryBtnText: { color: "#fff", fontWeight: "600" },
-  emptyText: { fontSize: 15, color: Colors.textSecondary, marginTop: Spacing.md, textAlign: "center" },
-  applyEmptyBtn: {
-    marginTop: Spacing.lg,
-    backgroundColor: Colors.primary,
-    paddingHorizontal: Spacing.xl,
-    paddingVertical: Spacing.sm,
-    borderRadius: Layout.borderRadius.md,
-  },
-  applyEmptyBtnText: { color: "#fff", fontWeight: "600", fontSize: 15 },
-
-  // Modal
-  modalContainer: { flex: 1, backgroundColor: Colors.background },
-  modalHeader: {
+  cardTop: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    padding: Spacing.lg,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
+    marginBottom: theme.spacing.s,
   },
-  modalTitle: { fontSize: 18, fontWeight: "600", color: Colors.text },
-
-  fieldLabel: { fontSize: 14, fontWeight: "500", color: Colors.text, marginBottom: Spacing.xs, marginTop: Spacing.md },
-  input: {
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: Layout.borderRadius.sm,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    fontSize: 15,
-    color: Colors.text,
-    backgroundColor: Colors.backgroundSecondary,
+  leaveTypeLbl: {
+    ...theme.typography.overline,
+    color: theme.colors.text[700],
   },
-  chip: {
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: Layout.borderRadius.sm,
-    borderWidth: 1,
-    borderColor: Colors.borderLight,
-    backgroundColor: Colors.backgroundSecondary,
-    marginRight: Spacing.sm,
-  },
-  chipActive: { borderColor: Colors.primary, backgroundColor: Colors.primary + "20" },
-  chipText: { fontSize: 13, color: Colors.text },
-  chipTextActive: { color: Colors.primary, fontWeight: "600" },
-  submitBtn: {
-    backgroundColor: Colors.primary,
-    paddingVertical: Spacing.md,
-    borderRadius: Layout.borderRadius.md,
+  cardDetail: {
+    flexDirection: "row",
     alignItems: "center",
-    marginTop: Spacing.xl,
-    marginBottom: Spacing.lg,
+    gap: theme.spacing.xs,
+    marginBottom: theme.spacing.xs,
   },
-  submitBtnText: { color: "#fff", fontWeight: "700", fontSize: 16 },
+  cardDetailText: {
+    ...theme.typography.body,
+    fontWeight: "500",
+    color: theme.colors.text[900],
+  },
+  cardReason: {
+    ...theme.typography.bodySmall,
+    color: theme.colors.text[500],
+    fontStyle: "italic",
+    marginBottom: theme.spacing.xs,
+  },
+  cardApplied: {
+    ...theme.typography.caption,
+    color: theme.colors.text[400],
+    marginTop: theme.spacing.xs,
+  },
+  cancelChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing.xs,
+    alignSelf: "flex-start",
+    marginTop: theme.spacing.s,
+    paddingHorizontal: theme.spacing.s,
+    paddingVertical: theme.spacing.xs,
+    borderRadius: theme.radius.full,
+    borderWidth: 1,
+    borderColor: theme.colors.danger + "60",
+    backgroundColor: theme.colors.dangerLight,
+  },
+  cancelChipText: {
+    ...theme.typography.caption,
+    color: theme.colors.danger,
+    fontWeight: "500",
+  },
+  modalForm: {
+    padding: theme.spacing.m,
+    paddingBottom: theme.spacing.xxl,
+  },
+  fieldLabel: {
+    ...theme.typography.label,
+    color: theme.colors.text[700],
+    marginBottom: theme.spacing.xs,
+    marginTop: theme.spacing.m,
+  },
+  fieldInput: {
+    height: 48,
+    borderWidth: 1.5,
+    borderColor: theme.colors.border,
+    borderRadius: theme.radius.l,
+    paddingHorizontal: theme.spacing.m,
+    ...theme.typography.body,
+    color: theme.colors.text[900],
+    backgroundColor: theme.colors.surface,
+  },
+  textArea: {
+    height: 80,
+    paddingTop: theme.spacing.sm,
+    textAlignVertical: "top",
+  },
+  typeRow: { marginBottom: theme.spacing.s },
+  typeChip: {
+    paddingHorizontal: theme.spacing.m,
+    paddingVertical: theme.spacing.xs + 2,
+    borderRadius: theme.radius.full,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surface,
+    marginRight: theme.spacing.s,
+  },
+  typeChipActive: {
+    borderColor: theme.colors.primary[500],
+    backgroundColor: theme.colors.primary[500],
+  },
+  typeChipText: {
+    ...theme.typography.caption,
+    color: theme.colors.text[500],
+    fontWeight: "500",
+  },
+  typeChipTextActive: {
+    color: "white",
+    fontWeight: "600",
+  },
+  submitBtn: {
+    marginTop: theme.spacing.xl,
+  },
 });

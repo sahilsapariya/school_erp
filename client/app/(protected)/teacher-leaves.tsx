@@ -3,43 +3,45 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   FlatList,
   TouchableOpacity,
-  Alert,
-  ActivityIndicator,
   RefreshControl,
-  TextInput,
 } from "react-native";
 import { useRouter } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
-import { Colors } from "@/common/constants/colors";
-import { Spacing, Layout } from "@/common/constants/spacing";
 import { useTeacherLeaves } from "@/modules/teachers/hooks/useTeacherLeaves";
 import { usePermissions } from "@/modules/permissions/hooks/usePermissions";
 import * as PERMS from "@/modules/permissions/constants/permissions";
 import { TeacherLeave } from "@/modules/teachers/types";
+import { ScreenContainer } from "@/src/components/ui/ScreenContainer";
+import { Header } from "@/src/components/ui/Header";
+import { SearchBar } from "@/src/components/ui/SearchBar";
+import { StatusBadge } from "@/src/components/ui/StatusBadge";
+import { PrimaryButton } from "@/src/components/ui/PrimaryButton";
+import { EmptyState } from "@/src/components/ui/EmptyState";
+import { LoadingState } from "@/src/components/ui/LoadingState";
+import { Avatar } from "@/src/components/ui/Avatar";
+import { useToast } from "@/src/components/ui/Toast";
+import { theme } from "@/src/design-system/theme";
+import { Icons } from "@/src/design-system/icons";
 
-const STATUS_FILTERS: { label: string; value: string }[] = [
-  { label: "All", value: "" },
+const STATUS_FILTERS = [
   { label: "Pending", value: "pending" },
+  { label: "All", value: "" },
   { label: "Approved", value: "approved" },
   { label: "Rejected", value: "rejected" },
-  { label: "Cancelled", value: "cancelled" },
 ];
 
-function statusColor(status: string): string {
-  switch (status) {
-    case "approved": return Colors.success;
-    case "rejected": return Colors.error;
-    case "cancelled": return Colors.textSecondary;
-    default: return Colors.warning;
-  }
+function leaveStatusType(status: string): "success" | "danger" | "warning" | "info" {
+  if (status === "approved") return "success";
+  if (status === "rejected") return "danger";
+  if (status === "cancelled") return "info";
+  return "warning";
 }
 
 export default function TeacherLeavesScreen() {
   const router = useRouter();
+  const toast = useToast();
   const { hasPermission } = usePermissions();
   const canManage = hasPermission(PERMS.TEACHER_LEAVE_MANAGE);
 
@@ -65,124 +67,113 @@ export default function TeacherLeavesScreen() {
       )
     : leaves;
 
-  const handleApprove = (leave: TeacherLeave) => {
-    Alert.alert("Approve Leave", `Approve ${leave.teacher_name ?? "this teacher"}'s leave request?`, [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Approve",
-        onPress: async () => {
-          try {
-            await approveLeave(leave.id);
-          } catch (e: any) {
-            Alert.alert("Error", e.message || "Failed to approve leave");
-          }
-        },
-      },
-    ]);
+  const handleApprove = async (leave: TeacherLeave) => {
+    try {
+      await approveLeave(leave.id);
+      toast.success("Leave approved", `${leave.teacher_name ?? "Teacher"}'s leave has been approved.`);
+    } catch (e: any) {
+      toast.error("Error", e.message || "Failed to approve leave");
+    }
   };
 
-  const handleReject = (leave: TeacherLeave) => {
-    Alert.alert("Reject Leave", `Reject ${leave.teacher_name ?? "this teacher"}'s leave request?`, [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Reject",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            await rejectLeave(leave.id);
-          } catch (e: any) {
-            Alert.alert("Error", e.message || "Failed to reject leave");
-          }
-        },
-      },
-    ]);
+  const handleReject = async (leave: TeacherLeave) => {
+    try {
+      await rejectLeave(leave.id);
+      toast.warning("Leave rejected", `${leave.teacher_name ?? "Teacher"}'s leave has been rejected.`);
+    } catch (e: any) {
+      toast.error("Error", e.message || "Failed to reject leave");
+    }
   };
+
+  if (loading && leaves.length === 0) {
+    return (
+      <ScreenContainer>
+        <Header title="Leave Requests" onBack={() => router.back()} compact />
+        <LoadingState message="Loading leave requests..." />
+      </ScreenContainer>
+    );
+  }
 
   const renderLeave = ({ item }: { item: TeacherLeave }) => (
     <View style={styles.card}>
-      <View style={styles.cardHeader}>
-        <View style={styles.teacherInfo}>
-          <View style={styles.avatarCircle}>
-            <Text style={styles.avatarText}>
-              {(item.teacher_name ?? "?").charAt(0).toUpperCase()}
-            </Text>
-          </View>
-          <View>
+      <View style={styles.cardTop}>
+        <View style={styles.teacherRow}>
+          <Avatar name={item.teacher_name ?? "T"} size={40} />
+          <View style={styles.teacherInfo}>
             <Text style={styles.teacherName}>{item.teacher_name ?? "—"}</Text>
             {item.teacher_employee_id ? (
-              <Text style={styles.employeeId}>#{item.teacher_employee_id}</Text>
+              <Text style={styles.teacherEmpId}>#{item.teacher_employee_id}</Text>
             ) : null}
           </View>
         </View>
-        <View style={[styles.statusBadge, { backgroundColor: statusColor(item.status) + "20" }]}>
-          <Text style={[styles.statusText, { color: statusColor(item.status) }]}>{item.status}</Text>
+        <StatusBadge status={leaveStatusType(item.status)} label={item.status} />
+      </View>
+
+      <View style={styles.detailGrid}>
+        <View style={styles.detailItem}>
+          <Text style={styles.detailLabel}>Type</Text>
+          <Text style={styles.detailValue}>{item.leave_type.toUpperCase()}</Text>
+        </View>
+        <View style={styles.detailItem}>
+          <Text style={styles.detailLabel}>Duration</Text>
+          <Text style={styles.detailValue}>{item.start_date} → {item.end_date}</Text>
+        </View>
+        <View style={styles.detailItem}>
+          <Text style={styles.detailLabel}>Applied</Text>
+          <Text style={styles.detailValue}>{item.created_at.slice(0, 10)}</Text>
         </View>
       </View>
 
-      <View style={styles.leaveDetails}>
-        <View style={styles.detailRow}>
-          <Ionicons name="briefcase-outline" size={14} color={Colors.textSecondary} />
-          <Text style={styles.detailText}>{item.leave_type.toUpperCase()}</Text>
+      {item.reason ? (
+        <View style={styles.reasonBox}>
+          <Icons.FileText size={13} color={theme.colors.text[500]} />
+          <Text style={styles.reasonText}>{item.reason}</Text>
         </View>
-        <View style={styles.detailRow}>
-          <Ionicons name="calendar-outline" size={14} color={Colors.textSecondary} />
-          <Text style={styles.detailText}>{item.start_date} → {item.end_date}</Text>
-        </View>
-        {item.reason ? (
-          <View style={styles.detailRow}>
-            <Ionicons name="chatbubble-outline" size={14} color={Colors.textSecondary} />
-            <Text style={[styles.detailText, styles.reasonText]}>{item.reason}</Text>
-          </View>
-        ) : null}
-        <View style={styles.detailRow}>
-          <Ionicons name="time-outline" size={14} color={Colors.textSecondary} />
-          <Text style={styles.detailText}>Applied: {item.created_at.slice(0, 10)}</Text>
-        </View>
-      </View>
+      ) : null}
 
       {canManage && item.status === "pending" && (
-        <View style={styles.actions}>
-          <TouchableOpacity style={styles.approveBtn} onPress={() => handleApprove(item)}>
-            <Ionicons name="checkmark-circle-outline" size={16} color={Colors.success} />
-            <Text style={styles.approveBtnText}>Approve</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.rejectBtn} onPress={() => handleReject(item)}>
-            <Ionicons name="close-circle-outline" size={16} color={Colors.error} />
-            <Text style={styles.rejectBtnText}>Reject</Text>
-          </TouchableOpacity>
+        <View style={styles.cardActions}>
+          <PrimaryButton
+            title="Approve"
+            size="sm"
+            onPress={() => handleApprove(item)}
+            style={{ flex: 1 }}
+          />
+          <PrimaryButton
+            title="Reject"
+            size="sm"
+            variant="outline"
+            onPress={() => handleReject(item)}
+            style={{ flex: 1 }}
+          />
         </View>
       )}
     </View>
   );
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backIcon}>
-          <Ionicons name="arrow-back" size={24} color={Colors.text} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Teacher Leaves</Text>
-        <TouchableOpacity style={styles.refreshBtn} onPress={() => load(statusFilter)}>
-          <Ionicons name="refresh-outline" size={22} color={Colors.primary} />
-        </TouchableOpacity>
-      </View>
+    <ScreenContainer>
+      <Header
+        title="Leave Requests"
+        onBack={() => router.back()}
+        compact
+        rightAction={
+          <TouchableOpacity
+            style={styles.refreshBtn}
+            onPress={() => load(statusFilter)}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Icons.Refresh size={20} color={theme.colors.primary[500]} />
+          </TouchableOpacity>
+        }
+      />
 
-      {/* Search */}
-      <View style={styles.searchContainer}>
-        <Ionicons name="search-outline" size={18} color={Colors.textSecondary} style={styles.searchIcon} />
-        <TextInput
-          style={styles.searchInput}
+      <View style={styles.searchWrap}>
+        <SearchBar
           value={searchQuery}
           onChangeText={setSearchQuery}
           placeholder="Search by teacher name or ID..."
-          placeholderTextColor={Colors.textTertiary}
         />
-        {searchQuery.length > 0 && (
-          <TouchableOpacity onPress={() => setSearchQuery("")}>
-            <Ionicons name="close-circle" size={18} color={Colors.textSecondary} />
-          </TouchableOpacity>
-        )}
       </View>
 
       {/* Status filter chips */}
@@ -197,6 +188,7 @@ export default function TeacherLeavesScreen() {
             key={f.value}
             style={[styles.filterChip, statusFilter === f.value && styles.filterChipActive]}
             onPress={() => setStatusFilter(f.value)}
+            activeOpacity={0.7}
           >
             <Text style={[styles.filterChipText, statusFilter === f.value && styles.filterChipTextActive]}>
               {f.label}
@@ -205,9 +197,8 @@ export default function TeacherLeavesScreen() {
         ))}
       </ScrollView>
 
-      {/* Count row */}
       {!loading && !error && (
-        <View style={styles.countRow}>
+        <View style={styles.countBar}>
           <Text style={styles.countText}>
             {filteredLeaves.length} {filteredLeaves.length === 1 ? "request" : "requests"}
             {searchQuery ? " matching search" : ""}
@@ -215,158 +206,165 @@ export default function TeacherLeavesScreen() {
         </View>
       )}
 
-      {/* Content */}
-      {error ? (
-        <View style={styles.center}>
-          <Ionicons name="alert-circle-outline" size={48} color={Colors.error} />
-          <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity style={styles.retryBtn} onPress={() => load(statusFilter)}>
-            <Text style={styles.retryBtnText}>Retry</Text>
-          </TouchableOpacity>
-        </View>
-      ) : (
-        <FlatList
-          data={filteredLeaves}
-          keyExtractor={(item) => item.id}
-          renderItem={renderLeave}
-          contentContainerStyle={filteredLeaves.length === 0 ? styles.emptyContainer : { padding: Spacing.md }}
-          refreshControl={
-            <RefreshControl refreshing={loading} onRefresh={() => load(statusFilter)} colors={[Colors.primary]} />
-          }
-          ListEmptyComponent={
-            !loading ? (
-              <View style={styles.center}>
-                <Ionicons name="document-text-outline" size={56} color={Colors.borderLight} />
-                <Text style={styles.emptyText}>
-                  {searchQuery ? "No results found for your search." : "No leave requests found."}
-                </Text>
-              </View>
-            ) : null
-          }
-        />
-      )}
-    </SafeAreaView>
+      <FlatList
+        data={filteredLeaves}
+        keyExtractor={(item) => item.id}
+        renderItem={renderLeave}
+        contentContainerStyle={styles.listContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={loading}
+            onRefresh={() => load(statusFilter)}
+            tintColor={theme.colors.primary[500]}
+          />
+        }
+        ListEmptyComponent={
+          error ? (
+            <EmptyState
+              icon={<Icons.AlertCircle size={32} color={theme.colors.danger} />}
+              title="Failed to load"
+              description={error}
+              action={{ label: "Retry", onPress: () => load(statusFilter) }}
+            />
+          ) : (
+            <EmptyState
+              icon={<Icons.FileText size={32} color={theme.colors.primary[300]} />}
+              title="No leave requests"
+              description={searchQuery ? "No results matching your search." : "No leave requests found."}
+            />
+          )
+        }
+      />
+    </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
-  center: { flex: 1, justifyContent: "center", alignItems: "center", padding: Spacing.xl },
-  emptyContainer: { flex: 1, justifyContent: "center", alignItems: "center", padding: Spacing.xl },
-
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: Spacing.lg,
+  searchWrap: {
+    paddingHorizontal: theme.spacing.m,
+    paddingTop: theme.spacing.s,
+    paddingBottom: theme.spacing.xs,
+  },
+  filterBar: {
     borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
+    borderBottomColor: theme.colors.border,
+    maxHeight: 48,
   },
-  backIcon: { padding: Spacing.sm },
-  headerTitle: { flex: 1, fontSize: 20, fontWeight: "bold", color: Colors.text, marginLeft: Spacing.md },
-  refreshBtn: { padding: Spacing.sm },
-
-  searchContainer: {
-    flexDirection: "row",
+  filterBarContent: {
+    paddingHorizontal: theme.spacing.m,
     alignItems: "center",
-    margin: Spacing.md,
-    paddingHorizontal: Spacing.md,
-    backgroundColor: Colors.backgroundSecondary,
-    borderRadius: Layout.borderRadius.md,
-    borderWidth: 1,
-    borderColor: Colors.borderLight,
+    gap: theme.spacing.s,
   },
-  searchIcon: { marginRight: Spacing.sm },
-  searchInput: { flex: 1, paddingVertical: Spacing.sm, fontSize: 14, color: Colors.text },
-
-  filterBar: { borderBottomWidth: 1, borderBottomColor: Colors.borderLight, maxHeight: 48 },
-  filterBarContent: { paddingHorizontal: Spacing.md, alignItems: "center" },
   filterChip: {
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    marginRight: Spacing.sm,
-    borderRadius: Layout.borderRadius.sm,
+    paddingHorizontal: theme.spacing.m,
+    paddingVertical: theme.spacing.xs + 2,
+    borderRadius: theme.radius.full,
     borderWidth: 1,
-    borderColor: Colors.borderLight,
-    backgroundColor: Colors.backgroundSecondary,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surface,
   },
-  filterChipActive: { borderColor: Colors.primary, backgroundColor: Colors.primary + "15" },
-  filterChipText: { fontSize: 13, color: Colors.textSecondary, fontWeight: "500" },
-  filterChipTextActive: { color: Colors.primary, fontWeight: "600" },
-
-  countRow: {
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
+  filterChipActive: {
+    borderColor: theme.colors.primary[500],
+    backgroundColor: theme.colors.primary[50],
+  },
+  filterChipText: {
+    ...theme.typography.caption,
+    color: theme.colors.text[500],
+    fontWeight: "500",
+  },
+  filterChipTextActive: {
+    color: theme.colors.primary[600],
+    fontWeight: "600",
+  },
+  countBar: {
+    paddingHorizontal: theme.spacing.m,
+    paddingVertical: theme.spacing.s,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
+    borderBottomColor: theme.colors.border,
   },
-  countText: { fontSize: 13, color: Colors.textSecondary },
-
+  countText: {
+    ...theme.typography.caption,
+    color: theme.colors.text[500],
+  },
+  listContent: {
+    padding: theme.spacing.m,
+    paddingBottom: theme.spacing.xxl,
+  },
   card: {
-    marginBottom: Spacing.md,
-    padding: Spacing.md,
-    borderRadius: Layout.borderRadius.md,
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radius.xl,
+    padding: theme.spacing.m,
+    marginBottom: theme.spacing.s,
     borderWidth: 1,
-    borderColor: Colors.borderLight,
-    backgroundColor: Colors.backgroundTertiary,
+    borderColor: theme.colors.border,
+    ...theme.shadows.sm,
   },
-  cardHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: Spacing.sm },
-  teacherInfo: { flexDirection: "row", alignItems: "center", gap: Spacing.sm, flex: 1 },
-  avatarCircle: {
+  cardTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: theme.spacing.m,
+  },
+  teacherRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing.sm,
+    flex: 1,
+  },
+  teacherInfo: { flex: 1 },
+  teacherName: {
+    ...theme.typography.body,
+    fontWeight: "600",
+    color: theme.colors.text[900],
+  },
+  teacherEmpId: {
+    ...theme.typography.caption,
+    color: theme.colors.text[500],
+    marginTop: 2,
+  },
+  detailGrid: {
+    flexDirection: "row",
+    gap: theme.spacing.m,
+    marginBottom: theme.spacing.s,
+  },
+  detailItem: { flex: 1 },
+  detailLabel: {
+    ...theme.typography.caption,
+    color: theme.colors.text[500],
+    marginBottom: 2,
+  },
+  detailValue: {
+    ...theme.typography.bodySmall,
+    fontWeight: "500",
+    color: theme.colors.text[900],
+  },
+  reasonBox: {
+    flexDirection: "row",
+    gap: theme.spacing.xs,
+    alignItems: "flex-start",
+    backgroundColor: theme.colors.backgroundSecondary,
+    borderRadius: theme.radius.m,
+    padding: theme.spacing.s,
+    marginBottom: theme.spacing.s,
+  },
+  reasonText: {
+    ...theme.typography.bodySmall,
+    color: theme.colors.text[500],
+    flex: 1,
+    fontStyle: "italic",
+  },
+  cardActions: {
+    flexDirection: "row",
+    gap: theme.spacing.s,
+    marginTop: theme.spacing.s,
+  },
+  refreshBtn: {
     width: 36,
     height: 36,
-    borderRadius: 18,
-    backgroundColor: Colors.primary + "25",
-    justifyContent: "center",
+    borderRadius: theme.radius.m,
+    backgroundColor: theme.colors.backgroundSecondary,
     alignItems: "center",
-  },
-  avatarText: { fontSize: 16, fontWeight: "700", color: Colors.primary },
-  teacherName: { fontSize: 15, fontWeight: "600", color: Colors.text },
-  employeeId: { fontSize: 12, color: Colors.textSecondary, marginTop: 1 },
-
-  statusBadge: { paddingHorizontal: Spacing.sm, paddingVertical: 3, borderRadius: Layout.borderRadius.sm },
-  statusText: { fontSize: 12, fontWeight: "600" },
-
-  leaveDetails: { gap: 5, marginBottom: Spacing.sm },
-  detailRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  detailText: { fontSize: 13, color: Colors.textSecondary },
-  reasonText: { fontStyle: "italic", flex: 1 },
-
-  actions: { flexDirection: "row", gap: Spacing.sm, marginTop: Spacing.sm },
-  approveBtn: {
-    flex: 1,
-    flexDirection: "row",
     justifyContent: "center",
-    alignItems: "center",
-    gap: 4,
-    backgroundColor: Colors.success + "15",
-    paddingVertical: Spacing.sm,
-    borderRadius: Layout.borderRadius.sm,
-    borderWidth: 1,
-    borderColor: Colors.success + "40",
   },
-  approveBtnText: { color: Colors.success, fontWeight: "600", fontSize: 13 },
-  rejectBtn: {
-    flex: 1,
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    gap: 4,
-    backgroundColor: Colors.error + "15",
-    paddingVertical: Spacing.sm,
-    borderRadius: Layout.borderRadius.sm,
-    borderWidth: 1,
-    borderColor: Colors.error + "40",
-  },
-  rejectBtnText: { color: Colors.error, fontWeight: "600", fontSize: 13 },
-
-  errorText: { fontSize: 14, color: Colors.error, textAlign: "center", marginTop: Spacing.md },
-  retryBtn: {
-    marginTop: Spacing.lg,
-    backgroundColor: Colors.primary,
-    paddingHorizontal: Spacing.xl,
-    paddingVertical: Spacing.sm,
-    borderRadius: Layout.borderRadius.md,
-  },
-  retryBtnText: { color: "#fff", fontWeight: "600" },
-  emptyText: { fontSize: 15, color: Colors.textSecondary, marginTop: Spacing.md, textAlign: "center" },
 });

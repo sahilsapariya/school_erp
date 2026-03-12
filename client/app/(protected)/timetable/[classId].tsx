@@ -9,7 +9,7 @@ export default function TimetableClassPage() {
 
   useEffect(() => {
     if (!isFeatureEnabled("class_management")) {
-      router.replace("/(protected)/home");
+      router.replace("/(protected)/dashboard" as any);
     }
   }, [isFeatureEnabled, router]);
 

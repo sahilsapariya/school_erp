@@ -1,40 +1,31 @@
-import React, { useEffect, useState, useCallback } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
-  ActivityIndicator,
-  SafeAreaView,
-  RefreshControl,
-  TouchableOpacity,
-  Alert,
-  TextInput,
-} from "react-native";
+import React, { useEffect, useState } from "react";
+import { View, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
 import { useTeachers } from "../hooks/useTeachers";
-import { TeacherListItem } from "../components/TeacherListItem";
 import { CreateTeacherModal } from "../components/CreateTeacherModal";
 import { usePermissions } from "@/modules/permissions/hooks/usePermissions";
 import * as PERMS from "@/modules/permissions/constants/permissions";
-import { Colors } from "@/common/constants/colors";
-import { Spacing, Layout } from "@/common/constants/spacing";
 import { Teacher } from "../types";
-
-function useDebounce<T>(value: T, delay: number): T {
-  const [debouncedValue, setDebouncedValue] = useState<T>(value);
-  useEffect(() => {
-    const handler = setTimeout(() => setDebouncedValue(value), delay);
-    return () => clearTimeout(handler);
-  }, [value, delay]);
-  return debouncedValue;
-}
+import {
+  ScreenContainer,
+  Header,
+  ResourceList,
+  DataRow,
+  FloatingActionButton,
+  StatusBadge,
+  LoadingState,
+  EmptyState,
+} from "@/src/components/ui";
+import { Avatar } from "@/src/components/ui/Avatar";
+import { useToast } from "@/src/components/ui/Toast";
+import { useDebounce } from "@/src/hooks/useDebounce";
+import { theme } from "@/src/design-system/theme";
 
 export default function TeachersScreen() {
   const router = useRouter();
   const { teachers, loading, fetchTeachers, createTeacher } = useTeachers();
   const { hasPermission } = usePermissions();
+  const toast = useToast();
 
   const [modalVisible, setModalVisible] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -56,13 +47,12 @@ export default function TeachersScreen() {
       setModalVisible(false);
 
       if (response.credentials) {
-        Alert.alert(
-          "Teacher Created Successfully",
-          `Login credentials:\n\nEmployee ID: ${response.credentials.employee_id}\nEmail: ${response.credentials.email}\nPassword: ${response.credentials.password}\n\nTeacher must reset password on first login.`,
-          [{ text: "OK" }]
+        toast.success(
+          "Teacher Created",
+          `Employee ID: ${response.credentials.employee_id} • Password has been set.`
         );
       } else {
-        Alert.alert("Success", "Teacher created successfully");
+        toast.success("Teacher created successfully");
       }
 
       fetchTeachers();
@@ -71,61 +61,54 @@ export default function TeachersScreen() {
     }
   };
 
+  if (loading && teachers.length === 0) {
+    return (
+      <ScreenContainer>
+        <Header title="Teachers" />
+        <LoadingState message="Loading teachers..." />
+      </ScreenContainer>
+    );
+  }
+
+  const renderItem = ({ item }: { item: Teacher }) => (
+    <DataRow
+      title={item.name}
+      subtitle={`${item.employee_id}${item.department ? ` • ${item.department}` : ""}`}
+      leftIcon={<Avatar name={item.name} size={32} />}
+      rightComponent={
+        <StatusBadge
+          status={item.status === "active" ? "success" : "warning"}
+          label={item.status || "active"}
+        />
+      }
+      onPress={() => handleTeacherPress(item)}
+    />
+  );
+
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Teachers</Text>
-        {canCreate && (
-          <TouchableOpacity
-            style={styles.addButton}
-            onPress={() => setModalVisible(true)}
-          >
-            <Ionicons name="add" size={24} color={Colors.primary} />
-          </TouchableOpacity>
-        )}
-      </View>
-
-      {/* Search */}
-      <View style={styles.searchContainer}>
-        <Ionicons name="search" size={20} color={Colors.textSecondary} style={styles.searchIcon} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Search by name, ID, or department..."
-          placeholderTextColor={Colors.textSecondary}
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-        />
-        {searchQuery.length > 0 && (
-          <TouchableOpacity onPress={() => setSearchQuery("")}>
-            <Ionicons name="close-circle" size={20} color={Colors.textSecondary} />
-          </TouchableOpacity>
-        )}
-      </View>
-
-      {loading && teachers.length === 0 ? (
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color={Colors.primary} />
-        </View>
-      ) : (
-        <FlatList
+    <ScreenContainer>
+      <View style={styles.container}>
+        <ResourceList
+          title="Teachers"
           data={teachers}
+          renderItem={renderItem}
           keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <TeacherListItem teacher={item} onPress={handleTeacherPress} />
-          )}
-          contentContainerStyle={styles.listContent}
-          refreshControl={
-            <RefreshControl refreshing={loading} onRefresh={() => fetchTeachers()} />
-          }
-          ListEmptyComponent={
-            <View style={styles.center}>
-              <Text style={styles.emptyText}>
-                {searchQuery ? "No teachers found." : "No teachers yet."}
-              </Text>
-            </View>
+          onSearch={setSearchQuery}
+          filterOptions={[
+            { id: "all", label: "All" },
+            { id: "active", label: "Active" },
+          ]}
+          emptyState={
+            <EmptyState
+              title={searchQuery ? "No teachers found" : "No teachers yet"}
+              description={searchQuery ? "Try a different search term." : "Add your first teacher to get started."}
+            />
           }
         />
-      )}
+        {canCreate && (
+          <FloatingActionButton onPress={() => setModalVisible(true)} />
+        )}
+      </View>
 
       {canCreate && (
         <CreateTeacherModal
@@ -134,40 +117,12 @@ export default function TeachersScreen() {
           onSubmit={handleCreateTeacher}
         />
       )}
-    </SafeAreaView>
+    </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
-  center: { flex: 1, justifyContent: "center", alignItems: "center", padding: Spacing.xl },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: Spacing.lg,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
+  container: {
+    flex: 1,
   },
-  headerTitle: { fontSize: 24, fontWeight: "bold", color: Colors.text },
-  addButton: {
-    padding: Spacing.sm,
-    backgroundColor: Colors.backgroundSecondary,
-    borderRadius: Layout.borderRadius.md,
-  },
-  searchContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: Colors.backgroundSecondary,
-    borderRadius: Layout.borderRadius.md,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    margin: Spacing.md,
-    borderWidth: 1,
-    borderColor: Colors.borderLight,
-  },
-  searchIcon: { marginRight: Spacing.sm },
-  searchInput: { flex: 1, fontSize: 16, color: Colors.text, padding: Spacing.sm },
-  listContent: { padding: Spacing.md },
-  emptyText: { fontSize: 16, color: Colors.textSecondary },
 });

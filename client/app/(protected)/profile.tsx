@@ -1,451 +1,293 @@
 import React from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-} from "react-native";
-import { Colors } from "@/common/constants/colors";
-import { Spacing, Layout } from "@/common/constants/spacing";
-import { Ionicons } from "@expo/vector-icons";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from "react-native";
 import { Protected } from "@/modules/permissions/components/Protected";
 import { useAuth } from "@/modules/auth/hooks/useAuth";
 import { getUserRole } from "@/common/constants/navigation";
 import * as PERMS from "@/modules/permissions/constants/permissions";
+import { ScreenContainer } from "@/src/components/ui/ScreenContainer";
+import { SurfaceCard } from "@/src/components/ui/SurfaceCard";
+import { Avatar } from "@/src/components/ui/Avatar";
+import { useToast } from "@/src/components/ui/Toast";
+import { theme } from "@/src/design-system/theme";
+import { Icons } from "@/src/design-system/icons";
+
+interface MenuItemProps {
+  icon: React.ReactNode;
+  title: string;
+  subtitle: string;
+  onPress?: () => void;
+  rightElement?: React.ReactNode;
+}
+
+const MenuItem: React.FC<MenuItemProps> = ({ icon, title, subtitle, onPress, rightElement }) => (
+  <TouchableOpacity
+    style={styles.menuItem}
+    onPress={onPress}
+    activeOpacity={onPress ? 0.7 : 1}
+  >
+    <View style={styles.menuItemIcon}>{icon}</View>
+    <View style={styles.menuItemText}>
+      <Text style={styles.menuItemTitle}>{title}</Text>
+      <Text style={styles.menuItemSubtitle}>{subtitle}</Text>
+    </View>
+    {rightElement ?? (onPress ? <Icons.ChevronRight size={18} color={theme.colors.text[400]} /> : null)}
+  </TouchableOpacity>
+);
 
 export default function ProfileScreen() {
   const { user, logout, permissions } = useAuth();
+  const toast = useToast();
 
   const userRole = getUserRole(permissions);
+  const displayName = user?.name || user?.email?.split("@")[0] || "User";
 
   const handleLogout = async () => {
-    await logout();
+    try {
+      await logout();
+    } catch {
+      toast.error("Logout failed", "Please try again.");
+    }
   };
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.contentContainer}
-      showsVerticalScrollIndicator={false}
-    >
-      {/* Profile Header */}
-      <View style={styles.header}>
-        <View style={styles.avatarContainer}>
-          <View style={styles.avatar}>
-            <Ionicons name="person" size={48} color={Colors.primary} />
-          </View>
-          <View style={styles.roleBadge}>
+    <ScreenContainer>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scroll}
+      >
+        {/* Profile Card */}
+        <View style={styles.profileCard}>
+          <Avatar name={displayName} size={80} />
+          <Text style={styles.displayName}>{displayName}</Text>
+          <Text style={styles.email}>{user?.email}</Text>
+          <View style={styles.rolePill}>
             <Text style={styles.roleText}>{userRole}</Text>
           </View>
         </View>
-        <Text style={styles.name}>{user?.email?.split("@")[0]}</Text>
-        <Text style={styles.email}>{user?.email}</Text>
-      </View>
 
-      <View style={styles.content}>
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Profile Information</Text>
-
-          <TouchableOpacity style={styles.infoCard}>
-            <View style={styles.cardContent}>
-              <View style={styles.cardIcon}>
-                <Ionicons
-                  name="person-outline"
-                  size={24}
-                  color={Colors.primary}
-                />
-              </View>
-              <View style={styles.cardText}>
-                <Text style={styles.cardTitle}>Edit Profile</Text>
-                <Text style={styles.cardSubtitle}>
-                  Update personal information
-                </Text>
-              </View>
-            </View>
-            <Ionicons
-              name="chevron-forward"
-              size={20}
-              color={Colors.textSecondary}
+        {/* Profile Actions */}
+        <View style={styles.sectionContainer}>
+          <Text style={styles.sectionLabel}>Account</Text>
+          <SurfaceCard style={styles.menuCard} padded={false}>
+            <MenuItem
+              icon={<Icons.Profile size={20} color={theme.colors.primary[500]} />}
+              title="Edit Profile"
+              subtitle="Update your personal information"
             />
-          </TouchableOpacity>
-
-          <Protected
-            anyPermissions={[
-              PERMS.PROFILE_READ_SELF,
-              PERMS.PROFILE_UPDATE_SELF,
-            ]}
-          >
-            <TouchableOpacity style={styles.infoCard}>
-              <View style={styles.cardContent}>
-                <View style={styles.cardIcon}>
-                  <Ionicons
-                    name="shield-outline"
-                    size={24}
-                    color={Colors.primary}
-                  />
-                </View>
-                <View style={styles.cardText}>
-                  <Text style={styles.cardTitle}>Change Password</Text>
-                  <Text style={styles.cardSubtitle}>Update your password</Text>
-                </View>
-              </View>
-              <Ionicons
-                name="chevron-forward"
-                size={20}
-                color={Colors.textSecondary}
+            <Protected anyPermissions={[PERMS.PROFILE_READ_SELF, PERMS.PROFILE_UPDATE_SELF]}>
+              <MenuItem
+                icon={<Icons.Lock size={20} color={theme.colors.primary[500]} />}
+                title="Change Password"
+                subtitle="Update your password"
               />
-            </TouchableOpacity>
-          </Protected>
+            </Protected>
+          </SurfaceCard>
         </View>
 
-        {/* Academic Info - Student/Parent */}
-        <Protected
-          anyPermissions={[PERMS.GRADE_READ_SELF, PERMS.GRADE_READ_CHILD]}
-        >
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Academic</Text>
-
-            <TouchableOpacity style={styles.infoCard}>
-              <View style={styles.cardContent}>
-                <View style={styles.cardIcon}>
-                  <Ionicons
-                    name="document-text-outline"
-                    size={24}
-                    color={Colors.primary}
-                  />
-                </View>
-                <View style={styles.cardText}>
-                  <Text style={styles.cardTitle}>Report Card</Text>
-                  <Text style={styles.cardSubtitle}>
-                    View academic progress
-                  </Text>
-                </View>
-              </View>
-              <Ionicons
-                name="chevron-forward"
-                size={20}
-                color={Colors.textSecondary}
+        <Protected anyPermissions={[PERMS.GRADE_READ_SELF, PERMS.GRADE_READ_CHILD]}>
+          <View style={styles.sectionContainer}>
+            <Text style={styles.sectionLabel}>Academic</Text>
+            <SurfaceCard style={styles.menuCard} padded={false}>
+              <MenuItem
+                icon={<Icons.FileText size={20} color={theme.colors.primary[500]} />}
+                title="Report Card"
+                subtitle="View your academic progress"
               />
-            </TouchableOpacity>
+            </SurfaceCard>
           </View>
         </Protected>
 
-        {/* Permissions & Roles - Admin View */}
         <Protected anyPermissions={[PERMS.SYSTEM_MANAGE, PERMS.ROLE_READ]}>
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>System</Text>
-
-            <TouchableOpacity style={styles.infoCard}>
-              <View style={styles.cardContent}>
-                <View style={styles.cardIcon}>
-                  <Ionicons
-                    name="people-outline"
-                    size={24}
-                    color={Colors.primary}
-                  />
-                </View>
-                <View style={styles.cardText}>
-                  <Text style={styles.cardTitle}>Roles & Permissions</Text>
-                  <Text style={styles.cardSubtitle}>
-                    View system roles (read-only)
-                  </Text>
-                </View>
-              </View>
-              <Ionicons
-                name="chevron-forward"
-                size={20}
-                color={Colors.textSecondary}
+          <View style={styles.sectionContainer}>
+            <Text style={styles.sectionLabel}>System</Text>
+            <SurfaceCard style={styles.menuCard} padded={false}>
+              <MenuItem
+                icon={<Icons.Users size={20} color={theme.colors.primary[500]} />}
+                title="Roles & Permissions"
+                subtitle="View system roles"
               />
-            </TouchableOpacity>
-
-            <View style={styles.infoCard}>
-              <View style={styles.cardContent}>
-                <View style={styles.cardIcon}>
-                  <Ionicons
-                    name="information-circle-outline"
-                    size={24}
-                    color={Colors.primary}
-                  />
-                </View>
-                <View style={styles.cardText}>
-                  <Text style={styles.cardTitle}>System Info</Text>
-                  <Text style={styles.cardSubtitle}>
-                    App version and details
-                  </Text>
-                </View>
-              </View>
-              <Text style={styles.versionText}>v1.0.0</Text>
-            </View>
+              <MenuItem
+                icon={<Icons.Info size={20} color={theme.colors.primary[500]} />}
+                title="System Info"
+                subtitle="App version and details"
+                rightElement={<Text style={styles.versionText}>v1.0.0</Text>}
+              />
+            </SurfaceCard>
           </View>
         </Protected>
 
-        {/* My Permissions */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>
-            My Permissions ({permissions.length})
-          </Text>
-
-          <View style={styles.permissionsCard}>
-            {permissions.slice(0, 8).map((perm, index) => (
-              <View key={index} style={styles.permissionChip}>
-                <Ionicons
-                  name="checkmark-circle"
-                  size={14}
-                  color={Colors.success}
-                />
-                <Text style={styles.permissionText}>{perm}</Text>
+        {/* Permissions */}
+        {permissions.length > 0 && (
+          <View style={styles.sectionContainer}>
+            <Text style={styles.sectionLabel}>My Permissions ({permissions.length})</Text>
+            <SurfaceCard style={styles.menuCard}>
+              <View style={styles.permissionsWrap}>
+                {permissions.slice(0, 8).map((perm, index) => (
+                  <View key={index} style={styles.permChip}>
+                    <Icons.CheckMark size={11} color={theme.colors.success} />
+                    <Text style={styles.permText}>{perm}</Text>
+                  </View>
+                ))}
+                {permissions.length > 8 && (
+                  <View style={[styles.permChip, styles.permChipMore]}>
+                    <Text style={[styles.permText, styles.permTextMore]}>+{permissions.length - 8} more</Text>
+                  </View>
+                )}
               </View>
-            ))}
-            {permissions.length > 8 && (
-              <TouchableOpacity style={styles.permissionChip}>
-                <Text style={[styles.permissionText, styles.moreText]}>
-                  +{permissions.length - 8} more
-                </Text>
-              </TouchableOpacity>
-            )}
+            </SurfaceCard>
           </View>
-        </View>
+        )}
 
         {/* Settings */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Settings</Text>
-
-          <TouchableOpacity style={styles.infoCard}>
-            <View style={styles.cardContent}>
-              <View style={styles.cardIcon}>
-                <Ionicons
-                  name="notifications-outline"
-                  size={24}
-                  color={Colors.primary}
-                />
-              </View>
-              <View style={styles.cardText}>
-                <Text style={styles.cardTitle}>Notifications</Text>
-                <Text style={styles.cardSubtitle}>
-                  Manage notification preferences
-                </Text>
-              </View>
-            </View>
-            <Ionicons
-              name="chevron-forward"
-              size={20}
-              color={Colors.textSecondary}
+        <View style={styles.sectionContainer}>
+          <Text style={styles.sectionLabel}>Preferences</Text>
+          <SurfaceCard style={styles.menuCard} padded={false}>
+            <MenuItem
+              icon={<Icons.Bell size={20} color={theme.colors.primary[500]} />}
+              title="Notifications"
+              subtitle="Manage notification preferences"
             />
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.infoCard}>
-            <View style={styles.cardContent}>
-              <View style={styles.cardIcon}>
-                <Ionicons
-                  name="help-circle-outline"
-                  size={24}
-                  color={Colors.primary}
-                />
-              </View>
-              <View style={styles.cardText}>
-                <Text style={styles.cardTitle}>Help & Support</Text>
-                <Text style={styles.cardSubtitle}>
-                  Get help and contact support
-                </Text>
-              </View>
-            </View>
-            <Ionicons
-              name="chevron-forward"
-              size={20}
-              color={Colors.textSecondary}
+            <MenuItem
+              icon={<Icons.Info size={20} color={theme.colors.primary[500]} />}
+              title="Help & Support"
+              subtitle="Get help and contact support"
             />
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.infoCard}>
-            <View style={styles.cardContent}>
-              <View style={styles.cardIcon}>
-                <Ionicons
-                  name="document-outline"
-                  size={24}
-                  color={Colors.primary}
-                />
-              </View>
-              <View style={styles.cardText}>
-                <Text style={styles.cardTitle}>Terms & Privacy</Text>
-                <Text style={styles.cardSubtitle}>
-                  View terms and privacy policy
-                </Text>
-              </View>
-            </View>
-            <Ionicons
-              name="chevron-forward"
-              size={20}
-              color={Colors.textSecondary}
-            />
-          </TouchableOpacity>
+          </SurfaceCard>
         </View>
 
-        {/* Logout Button */}
-        <View style={styles.section}>
-          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-            <Ionicons name="log-out-outline" size={24} color={Colors.error} />
-            <Text style={styles.logoutText}>Logout</Text>
+        {/* Logout */}
+        <View style={styles.sectionContainer}>
+          <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout} activeOpacity={0.8}>
+            <Icons.LogOut size={20} color={theme.colors.danger} />
+            <Text style={styles.logoutText}>Sign Out</Text>
           </TouchableOpacity>
         </View>
-      </View>
-    </ScrollView>
+      </ScrollView>
+    </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
+  scroll: {
+    paddingBottom: theme.spacing.xxl,
   },
-  contentContainer: {
-    paddingBottom: Spacing.lg,
-  },
-  header: {
+  profileCard: {
     alignItems: "center",
-    padding: Spacing.xl,
-    backgroundColor: Colors.backgroundSecondary,
-    borderBottomLeftRadius: Spacing.xl,
-    borderBottomRightRadius: Spacing.xl,
+    paddingTop: theme.spacing.xl,
+    paddingBottom: theme.spacing.l,
+    paddingHorizontal: theme.spacing.m,
   },
-  avatarContainer: {
-    position: "relative",
-    marginBottom: Spacing.md,
-  },
-  avatar: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    backgroundColor: Colors.background,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 4,
-    borderColor: Colors.primary,
-  },
-  roleBadge: {
-    position: "absolute",
-    bottom: 0,
-    right: -8,
-    backgroundColor: Colors.primary,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs,
-    borderRadius: Layout.borderRadius.md,
-  },
-  roleText: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: Colors.background,
-    fontFamily: "System",
-  },
-  name: {
-    fontSize: 24,
-    fontWeight: "700",
-    color: Colors.text,
-    marginBottom: Spacing.xs,
-    fontFamily: "System",
+  displayName: {
+    ...theme.typography.h2,
+    color: theme.colors.text[900],
+    marginTop: theme.spacing.m,
+    textAlign: "center",
   },
   email: {
-    fontSize: 14,
-    color: Colors.textSecondary,
-    fontFamily: "System",
+    ...theme.typography.body,
+    color: theme.colors.text[500],
+    marginTop: theme.spacing.xs,
   },
-  content: {
-    gap: Spacing.lg,
-    marginTop: Spacing.lg,
+  rolePill: {
+    marginTop: theme.spacing.s,
+    paddingHorizontal: theme.spacing.m,
+    paddingVertical: theme.spacing.xs,
+    backgroundColor: theme.colors.primary[50],
+    borderRadius: theme.radius.full,
+    borderWidth: 1,
+    borderColor: theme.colors.primary[200],
   },
-  section: {
-    paddingHorizontal: Spacing.lg,
-  },
-  sectionTitle: {
-    fontSize: 18,
+  roleText: {
+    ...theme.typography.caption,
     fontWeight: "600",
-    color: Colors.text,
-    marginBottom: Spacing.md,
-    fontFamily: "System",
+    color: theme.colors.primary[600],
   },
-  infoCard: {
+  sectionContainer: {
+    paddingHorizontal: theme.spacing.m,
+    marginBottom: theme.spacing.m,
+  },
+  sectionLabel: {
+    ...theme.typography.overline,
+    color: theme.colors.text[500],
+    marginBottom: theme.spacing.s,
+    paddingHorizontal: theme.spacing.xs,
+  },
+  menuCard: {
+    overflow: "hidden",
+    padding: 0,
+  },
+  menuItem: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: Colors.backgroundSecondary,
-    borderRadius: Layout.borderRadius.lg,
-    padding: Spacing.md,
-    marginBottom: Spacing.md,
+    paddingVertical: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.m,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
   },
-  cardContent: {
-    flexDirection: "row",
-    alignItems: "center",
-    flex: 1,
-  },
-  cardIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: Layout.borderRadius.md,
-    backgroundColor: Colors.background,
+  menuItemIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: theme.radius.m,
+    backgroundColor: theme.colors.primary[50],
     alignItems: "center",
     justifyContent: "center",
-    marginRight: Spacing.md,
+    marginRight: theme.spacing.m,
+    flexShrink: 0,
   },
-  cardText: {
-    flex: 1,
+  menuItemText: { flex: 1 },
+  menuItemTitle: {
+    ...theme.typography.body,
+    fontWeight: "500",
+    color: theme.colors.text[900],
   },
-  cardTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: Colors.text,
-    marginBottom: 2,
-    fontFamily: "System",
-  },
-  cardSubtitle: {
-    fontSize: 13,
-    color: Colors.textSecondary,
-    fontFamily: "System",
+  menuItemSubtitle: {
+    ...theme.typography.caption,
+    color: theme.colors.text[500],
+    marginTop: 2,
   },
   versionText: {
-    fontSize: 14,
-    color: Colors.textSecondary,
-    fontFamily: "System",
+    ...theme.typography.caption,
+    color: theme.colors.text[400],
   },
-  permissionsCard: {
-    backgroundColor: Colors.backgroundSecondary,
-    borderRadius: Layout.borderRadius.lg,
-    padding: Spacing.md,
+  permissionsWrap: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: Spacing.sm,
+    gap: theme.spacing.s,
   },
-  permissionChip: {
+  permChip: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: Colors.background,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: Layout.borderRadius.lg,
-    gap: Spacing.xs,
+    backgroundColor: theme.colors.backgroundSecondary,
+    paddingHorizontal: theme.spacing.s,
+    paddingVertical: theme.spacing.xs,
+    borderRadius: theme.radius.full,
+    gap: 4,
   },
-  permissionText: {
-    fontSize: 12,
-    color: Colors.text,
-    fontFamily: "System",
+  permChipMore: {
+    backgroundColor: theme.colors.primary[50],
   },
-  moreText: {
-    color: Colors.primary,
+  permText: {
+    ...theme.typography.caption,
+    color: theme.colors.text[700],
+  },
+  permTextMore: {
+    color: theme.colors.primary[500],
     fontWeight: "600",
   },
-  logoutButton: {
+  logoutBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: Colors.backgroundSecondary,
-    padding: Spacing.md,
-    borderRadius: Layout.borderRadius.lg,
-    borderWidth: 1,
-    borderColor: Colors.error,
+    gap: theme.spacing.s,
+    paddingVertical: theme.spacing.m,
+    borderRadius: theme.radius.xl,
+    borderWidth: 1.5,
+    borderColor: theme.colors.danger,
+    backgroundColor: theme.colors.dangerLight,
   },
   logoutText: {
-    fontSize: 16,
+    ...theme.typography.label,
     fontWeight: "600",
-    color: Colors.error,
-    marginLeft: Spacing.sm,
-    fontFamily: "System",
+    color: theme.colors.danger,
   },
 });
