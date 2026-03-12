@@ -31,33 +31,30 @@ export const holidayService = {
     if (params.limit !== undefined) qs.set('limit', String(params.limit));
     if (params.offset !== undefined) qs.set('offset', String(params.offset));
     const query = qs.toString() ? `?${qs.toString()}` : '';
-    const res = await apiGet<ListHolidaysResponse>(`/api/holidays/${query}`);
-    return (res as any).data ?? [];
+    const res = await apiGet<Holiday[]>(`/api/holidays/${query}`);
+    return Array.isArray(res) ? res : [];
   },
 
   getUpcoming: async (limit = 10): Promise<Holiday[]> => {
     const res = await apiGet<Holiday[]>(`/api/holidays/upcoming?limit=${limit}`);
-    return (res as any).data ?? [];
+    return Array.isArray(res) ? res : [];
   },
 
   getRecurring: async (): Promise<Holiday[]> => {
     const res = await apiGet<Holiday[]>('/api/holidays/recurring');
-    return (res as any).data ?? [];
+    return Array.isArray(res) ? res : [];
   },
 
   getHoliday: async (id: string): Promise<Holiday> => {
-    const res = await apiGet<Holiday>(`/api/holidays/${id}`);
-    return (res as any).data;
+    return apiGet<Holiday>(`/api/holidays/${id}`);
   },
 
   createHoliday: async (data: CreateHolidayDTO): Promise<Holiday> => {
-    const res = await apiPost<Holiday>('/api/holidays/', data);
-    return (res as any).data;
+    return apiPost<Holiday>('/api/holidays/', data);
   },
 
   updateHoliday: async (id: string, data: Partial<CreateHolidayDTO>): Promise<Holiday> => {
-    const res = await apiPut<Holiday>(`/api/holidays/${id}`, data);
-    return (res as any).data;
+    return apiPut<Holiday>(`/api/holidays/${id}`, data);
   },
 
   deleteHoliday: async (id: string): Promise<void> => {

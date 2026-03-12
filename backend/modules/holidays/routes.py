@@ -59,6 +59,7 @@ def list_holidays():
     include_recurring = include_recurring_str != "false"
 
     result = services.list_holidays(
+        tenant_id=g.tenant_id,
         academic_year_id=request.args.get("academic_year_id"),
         holiday_type=request.args.get("holiday_type"),
         start_date=request.args.get("start_date"),
@@ -85,7 +86,7 @@ def get_upcoming_holidays():
     except ValueError:
         return validation_error_response("limit must be an integer")
 
-    result = services.get_upcoming_holidays(limit=limit)
+    result = services.get_upcoming_holidays(tenant_id=g.tenant_id, limit=limit)
     if result["success"]:
         return success_response(data=result["data"])
     return error_response("FetchError", result["error"], 400)
@@ -98,7 +99,7 @@ def get_upcoming_holidays():
 @require_any_permission(PERM_READ, PERM_MANAGE)
 def get_recurring_holidays():
     """Return all recurring weekly-off entries for the tenant."""
-    result = services.get_recurring_holidays()
+    result = services.get_recurring_holidays(tenant_id=g.tenant_id)
     if result["success"]:
         return success_response(data=result["data"])
     return error_response("FetchError", result["error"], 400)
@@ -147,7 +148,7 @@ def create_holiday():
 @require_plan_feature("holiday_management")
 @require_any_permission(PERM_READ, PERM_MANAGE)
 def get_holiday(holiday_id):
-    result = services.get_holiday(holiday_id)
+    result = services.get_holiday(holiday_id, tenant_id=g.tenant_id)
     if result["success"]:
         return success_response(data=result["data"])
     if result.get("not_found"):
@@ -183,7 +184,7 @@ def update_holiday(holiday_id):
 @require_plan_feature("holiday_management")
 @require_any_permission(PERM_DELETE, PERM_MANAGE)
 def delete_holiday(holiday_id):
-    result = services.delete_holiday(holiday_id)
+    result = services.delete_holiday(holiday_id, tenant_id=g.tenant_id)
     if result["success"]:
         return success_response(message=result["message"])
     if result.get("not_found"):

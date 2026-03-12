@@ -4,6 +4,53 @@ from datetime import datetime
 import uuid
 
 
+LEAVE_TYPES = ["casual", "sick", "emergency", "unpaid", "other"]
+
+# Default policy settings applied when a tenant has no explicit policy yet
+DEFAULT_POLICY_SETTINGS = {
+    "casual": {
+        "total_days": 12,
+        "is_unlimited": False,
+        "is_carry_forward_allowed": True,
+        "max_carry_forward_days": 3,
+        "allow_negative": False,
+        "requires_reason": False,
+    },
+    "sick": {
+        "total_days": 10,
+        "is_unlimited": False,
+        "is_carry_forward_allowed": False,
+        "max_carry_forward_days": 0,
+        "allow_negative": False,
+        "requires_reason": False,
+    },
+    "emergency": {
+        "total_days": 3,
+        "is_unlimited": False,
+        "is_carry_forward_allowed": False,
+        "max_carry_forward_days": 0,
+        "allow_negative": True,
+        "requires_reason": True,
+    },
+    "unpaid": {
+        "total_days": 0,
+        "is_unlimited": True,
+        "is_carry_forward_allowed": False,
+        "max_carry_forward_days": 0,
+        "allow_negative": False,
+        "requires_reason": False,
+    },
+    "other": {
+        "total_days": 5,
+        "is_unlimited": False,
+        "is_carry_forward_allowed": False,
+        "max_carry_forward_days": 0,
+        "allow_negative": False,
+        "requires_reason": False,
+    },
+}
+
+
 class Teacher(TenantBaseModel):
     """
     Teacher Model
@@ -188,6 +235,8 @@ class TeacherLeave(TenantBaseModel):
     leave_type = db.Column(db.String(50), nullable=False, default="casual")
     reason = db.Column(db.Text, nullable=True)
     status = db.Column(db.String(20), nullable=False, default="pending")
+    working_days = db.Column(db.Float, nullable=True)       # working (non-holiday) days in the leave period
+    academic_year = db.Column(db.String(10), nullable=True)  # e.g. "2025-26", for balance tracking
 
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -213,6 +262,8 @@ class TeacherLeave(TenantBaseModel):
             "leave_type": self.leave_type,
             "reason": self.reason,
             "status": self.status,
+            "working_days": self.working_days,
+            "academic_year": self.academic_year,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
         }
@@ -260,3 +311,117 @@ class TeacherWorkloadRule(TenantBaseModel):
 
     def __repr__(self):
         return f"<TeacherWorkloadRule teacher={self.teacher_id}>"
+
+
+class LeavePolicy(TenantBaseModel):
+    """
+    Leave Policy (per-tenant, per-leave-type).
+
+    Defines annual allocation, carry-forward rules, and behaviour flags for
+    each leave type.  Admin can customise; defaults from DEFAULT_POLICY_SETTINGS
+    are auto-created on first access.
+    """
+    __tablename__ = "leave_policies"
+    __table_args__ = (
+        db.UniqueConstraint("tenant_id", "leave_type", name="uq_leave_policy_tenant_type"),
+    )
+
+    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    leave_type = db.Column(db.String(50), nullable=False)
+    total_days = db.Column(db.Integer, nullable=False, default=0)
+    is_unlimited = db.Column(db.Boolean, nullable=False, default=False)
+    is_carry_forward_allowed = db.Column(db.Boolean, nullable=False, default=False)
+    max_carry_forward_days = db.Column(db.Integer, nullable=False, default=0)  # 0 = no cap when CF is on
+    allow_negative = db.Column(db.Boolean, nullable=False, default=False)
+    requires_reason = db.Column(db.Boolean, nullable=False, default=False)
+
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def save(self):
+        db.session.add(self)
+        db.session.commit()
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "leave_type": self.leave_type,
+            "total_days": self.total_days,
+            "is_unlimited": self.is_unlimited,
+            "is_carry_forward_allowed": self.is_carry_forward_allowed,
+            "max_carry_forward_days": self.max_carry_forward_days,
+            "allow_negative": self.allow_negative,
+            "requires_reason": self.requires_reason,
+            "created_at": self.created_at.isoformat(),
+            "updated_at": self.updated_at.isoformat(),
+        }
+
+    def __repr__(self):
+        return f"<LeavePolicy tenant={self.tenant_id} type={self.leave_type} days={self.total_days}>"
+
+
+class TeacherLeaveBalance(TenantBaseModel):
+    """
+    Teacher Leave Balance (per-teacher, per-leave-type, per-academic-year).
+
+    Tracks how many days are allocated, used, and reserved (pending).
+    Available days = allocated + carried_forward - used - pending.
+    """
+    __tablename__ = "teacher_leave_balances"
+    __table_args__ = (
+        db.UniqueConstraint(
+            "teacher_id", "leave_type", "academic_year", "tenant_id",
+            name="uq_leave_balance_teacher_type_year",
+        ),
+    )
+
+    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    teacher_id = db.Column(db.String(36), db.ForeignKey("teachers.id", ondelete="CASCADE"), nullable=False, index=True)
+    leave_type = db.Column(db.String(50), nullable=False)
+    academic_year = db.Column(db.String(10), nullable=False)   # e.g. "2025-26"
+    allocated_days = db.Column(db.Integer, nullable=False, default=0)
+    used_days = db.Column(db.Float, nullable=False, default=0.0)
+    pending_days = db.Column(db.Float, nullable=False, default=0.0)
+    carried_forward_days = db.Column(db.Integer, nullable=False, default=0)
+    notes = db.Column(db.Text, nullable=True)
+    last_adjusted_by = db.Column(db.String(36), db.ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    last_adjusted_at = db.Column(db.DateTime, nullable=True)
+
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    teacher = db.relationship(
+        "Teacher", backref=db.backref("leave_balances", lazy=True, passive_deletes=True)
+    )
+
+    @property
+    def available_days(self) -> float:
+        return self.allocated_days + self.carried_forward_days - self.used_days - self.pending_days
+
+    def save(self):
+        db.session.add(self)
+        db.session.commit()
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "teacher_id": self.teacher_id,
+            "leave_type": self.leave_type,
+            "academic_year": self.academic_year,
+            "allocated_days": self.allocated_days,
+            "used_days": round(self.used_days, 2),
+            "pending_days": round(self.pending_days, 2),
+            "carried_forward_days": self.carried_forward_days,
+            "available_days": round(self.available_days, 2),
+            "notes": self.notes,
+            "last_adjusted_at": self.last_adjusted_at.isoformat() if self.last_adjusted_at else None,
+            "created_at": self.created_at.isoformat(),
+            "updated_at": self.updated_at.isoformat(),
+        }
+
+    def __repr__(self):
+        return (
+            f"<TeacherLeaveBalance teacher={self.teacher_id} "
+            f"type={self.leave_type} year={self.academic_year} "
+            f"avail={self.available_days}>"
+        )

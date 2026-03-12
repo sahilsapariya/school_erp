@@ -4,19 +4,32 @@ Teacher Constraint Services
 Business logic for teacher management constraint features:
   - Subject Expertise
   - Availability Slots
-  - Leave Planner
+  - Leave Planner (with balance enforcement)
   - Workload Rules
+  - Leave Policy management
+  - Teacher Leave Balance management
 """
 
 from typing import Dict, List, Optional
-from datetime import datetime
+from datetime import datetime, date
 
 from sqlalchemy.exc import IntegrityError
 
 from backend.core.database import db
 from backend.core.tenant import get_tenant_id
-from .models import Teacher, TeacherSubject, TeacherAvailability, TeacherLeave, TeacherWorkloadRule
+from .models import (
+    Teacher,
+    TeacherSubject,
+    TeacherAvailability,
+    TeacherLeave,
+    TeacherWorkloadRule,
+    LeavePolicy,
+    TeacherLeaveBalance,
+    LEAVE_TYPES,
+    DEFAULT_POLICY_SETTINGS,
+)
 from backend.modules.subjects.models import Subject
+from backend.modules.holidays.services import get_working_days_info_for_range
 
 
 # ---------------------------------------------------------------------------
@@ -153,11 +166,229 @@ def delete_availability(availability_id: str) -> Dict:
 
 
 # ---------------------------------------------------------------------------
+# Academic Year Helper
+# ---------------------------------------------------------------------------
+
+def get_current_academic_year() -> str:
+    """
+    Return current academic year string using April–March cycle.
+    e.g. Apr 2025 – Mar 2026 → "2025-26"
+    """
+    today = date.today()
+    if today.month >= 4:
+        return f"{today.year}-{str(today.year + 1)[2:]}"
+    return f"{today.year - 1}-{str(today.year)[2:]}"
+
+
+# ---------------------------------------------------------------------------
+# Leave Policy Helpers
+# ---------------------------------------------------------------------------
+
+def _get_or_create_policy(tenant_id: str, leave_type: str) -> LeavePolicy:
+    """Return the leave policy for a type, creating from defaults if absent (no commit)."""
+    policy = LeavePolicy.query.filter_by(tenant_id=tenant_id, leave_type=leave_type).first()
+    if not policy:
+        defaults = DEFAULT_POLICY_SETTINGS.get(leave_type, DEFAULT_POLICY_SETTINGS["other"])
+        policy = LeavePolicy(tenant_id=tenant_id, leave_type=leave_type, **defaults)
+        db.session.add(policy)
+        db.session.flush()
+    return policy
+
+
+def get_all_policies() -> List[Dict]:
+    """Get leave policies for all leave types, initializing defaults as needed."""
+    tenant_id = get_tenant_id()
+    result = []
+    try:
+        for lt in LEAVE_TYPES:
+            policy = _get_or_create_policy(tenant_id, lt)
+            result.append(policy.to_dict())
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+    return result
+
+
+def upsert_leave_policy(
+    leave_type: str,
+    total_days: Optional[int] = None,
+    is_unlimited: Optional[bool] = None,
+    is_carry_forward_allowed: Optional[bool] = None,
+    max_carry_forward_days: Optional[int] = None,
+    allow_negative: Optional[bool] = None,
+    requires_reason: Optional[bool] = None,
+) -> Dict:
+    """Admin: create or update a leave type policy."""
+    try:
+        tenant_id = get_tenant_id()
+        if leave_type not in LEAVE_TYPES:
+            return {"success": False, "error": f"Invalid leave type. Must be one of: {', '.join(LEAVE_TYPES)}"}
+
+        policy = _get_or_create_policy(tenant_id, leave_type)
+
+        if total_days is not None:
+            if total_days < 0:
+                return {"success": False, "error": "total_days must be >= 0"}
+            policy.total_days = total_days
+        if is_unlimited is not None:
+            policy.is_unlimited = is_unlimited
+        if is_carry_forward_allowed is not None:
+            policy.is_carry_forward_allowed = is_carry_forward_allowed
+        if max_carry_forward_days is not None:
+            if max_carry_forward_days < 0:
+                return {"success": False, "error": "max_carry_forward_days must be >= 0"}
+            policy.max_carry_forward_days = max_carry_forward_days
+        if allow_negative is not None:
+            policy.allow_negative = allow_negative
+        if requires_reason is not None:
+            policy.requires_reason = requires_reason
+
+        db.session.commit()
+        return {"success": True, "policy": policy.to_dict()}
+    except Exception as e:
+        db.session.rollback()
+        return {"success": False, "error": f"Failed to update policy: {str(e)}"}
+
+
+# ---------------------------------------------------------------------------
+# Leave Balance Helpers
+# ---------------------------------------------------------------------------
+
+def _get_or_init_balance(
+    teacher_id: str, leave_type: str, academic_year: str, tenant_id: str
+) -> TeacherLeaveBalance:
+    """
+    Return the balance record for teacher/type/year, creating it from the policy
+    if it does not exist (with carry-forward calculation). Does NOT commit.
+    """
+    balance = TeacherLeaveBalance.query.filter_by(
+        teacher_id=teacher_id,
+        leave_type=leave_type,
+        academic_year=academic_year,
+        tenant_id=tenant_id,
+    ).first()
+    if balance:
+        return balance
+
+    policy = _get_or_create_policy(tenant_id, leave_type)
+
+    # Compute carry-forward from previous academic year
+    carried_forward = 0
+    if policy.is_carry_forward_allowed:
+        parts = academic_year.split("-")
+        prev_start = int(parts[0]) - 1
+        prev_year = f"{prev_start}-{str(prev_start + 1)[2:]}"
+        prev_balance = TeacherLeaveBalance.query.filter_by(
+            teacher_id=teacher_id,
+            leave_type=leave_type,
+            academic_year=prev_year,
+            tenant_id=tenant_id,
+        ).first()
+        if prev_balance and prev_balance.available_days > 0:
+            avail = prev_balance.available_days
+            if policy.max_carry_forward_days > 0:
+                carried_forward = min(int(avail), policy.max_carry_forward_days)
+            else:
+                carried_forward = int(avail)
+
+    balance = TeacherLeaveBalance(
+        tenant_id=tenant_id,
+        teacher_id=teacher_id,
+        leave_type=leave_type,
+        academic_year=academic_year,
+        allocated_days=policy.total_days,
+        used_days=0.0,
+        pending_days=0.0,
+        carried_forward_days=carried_forward,
+    )
+    db.session.add(balance)
+    db.session.flush()
+    return balance
+
+
+def get_teacher_leave_balances(teacher_id: str, academic_year: Optional[str] = None) -> List[Dict]:
+    """
+    Get all leave type balances for a teacher for the given year (default: current),
+    auto-initialising from policy for any missing leave types.
+    """
+    try:
+        tenant_id = get_tenant_id()
+        teacher = Teacher.query.filter_by(id=teacher_id, tenant_id=tenant_id).first()
+        if not teacher:
+            return []
+
+        year = academic_year or get_current_academic_year()
+        results = []
+        for lt in LEAVE_TYPES:
+            balance = _get_or_init_balance(teacher_id, lt, year, tenant_id)
+            policy = _get_or_create_policy(tenant_id, lt)
+            data = balance.to_dict()
+            data["is_unlimited"] = policy.is_unlimited
+            data["allow_negative"] = policy.allow_negative
+            data["requires_reason"] = policy.requires_reason
+            results.append(data)
+        db.session.commit()
+        return results
+    except Exception:
+        db.session.rollback()
+        return []
+
+
+def adjust_teacher_leave_balance(
+    teacher_id: str,
+    leave_type: str,
+    allocated_days: int,
+    notes: Optional[str],
+    adjusted_by_user_id: str,
+    academic_year: Optional[str] = None,
+) -> Dict:
+    """Admin: override the allocated_days for a teacher's leave type balance."""
+    try:
+        tenant_id = get_tenant_id()
+        if leave_type not in LEAVE_TYPES:
+            return {"success": False, "error": f"Invalid leave type. Must be one of: {', '.join(LEAVE_TYPES)}"}
+        if allocated_days < 0:
+            return {"success": False, "error": "allocated_days must be >= 0"}
+
+        teacher = Teacher.query.filter_by(id=teacher_id, tenant_id=tenant_id).first()
+        if not teacher:
+            return {"success": False, "error": "Teacher not found"}
+
+        year = academic_year or get_current_academic_year()
+        balance = _get_or_init_balance(teacher_id, leave_type, year, tenant_id)
+        balance.allocated_days = allocated_days
+        if notes:
+            balance.notes = notes
+        balance.last_adjusted_by = adjusted_by_user_id
+        balance.last_adjusted_at = datetime.utcnow()
+
+        policy = _get_or_create_policy(tenant_id, leave_type)
+        db.session.commit()
+
+        result = balance.to_dict()
+        result["is_unlimited"] = policy.is_unlimited
+        result["allow_negative"] = policy.allow_negative
+        return {"success": True, "balance": result}
+    except Exception as e:
+        db.session.rollback()
+        return {"success": False, "error": f"Failed to adjust balance: {str(e)}"}
+
+
+# ---------------------------------------------------------------------------
 # Teacher Leaves
 # ---------------------------------------------------------------------------
 
-def create_leave(teacher_id: str, start_date: str, end_date: str, leave_type: str, reason: Optional[str]) -> Dict:
-    """Create a leave request."""
+def create_leave(
+    teacher_id: str, start_date: str, end_date: str, leave_type: str, reason: Optional[str]
+) -> Dict:
+    """
+    Create a leave request with full validation:
+      1. Date format & range checks
+      2. Leave type validation
+      3. Holiday-only period block
+      4. Overlapping active leave check
+      5. Balance sufficiency check (with pending reservation)
+    """
     try:
         tenant_id = get_tenant_id()
 
@@ -165,6 +396,7 @@ def create_leave(teacher_id: str, start_date: str, end_date: str, leave_type: st
         if not teacher:
             return {"success": False, "error": "Teacher not found"}
 
+        # -- Date validation --
         try:
             sd = datetime.strptime(start_date, "%Y-%m-%d").date()
             ed = datetime.strptime(end_date, "%Y-%m-%d").date()
@@ -174,6 +406,70 @@ def create_leave(teacher_id: str, start_date: str, end_date: str, leave_type: st
         if ed < sd:
             return {"success": False, "error": "end_date must be >= start_date"}
 
+        if sd < date.today():
+            return {"success": False, "error": "Cannot apply for leave with a past start date"}
+
+        # -- Leave type validation --
+        if leave_type not in LEAVE_TYPES:
+            return {"success": False, "error": f"Invalid leave type. Must be one of: {', '.join(LEAVE_TYPES)}"}
+
+        # -- Holiday overlap check --
+        total_days, working_days, holiday_occurrences = get_working_days_info_for_range(sd, ed, tenant_id)
+        if working_days == 0:
+            holiday_names = list({o.get("name") or "Weekly Off" for o in holiday_occurrences})
+            names_str = ", ".join(holiday_names[:3])
+            return {
+                "success": False,
+                "error": (
+                    f"The selected leave period consists entirely of holidays/weekly-off days "
+                    f"({names_str}). No leave application is needed for this period."
+                ),
+                "is_holiday_conflict": True,
+                "holiday_occurrences": holiday_occurrences,
+            }
+
+        # -- Overlapping active leave check --
+        overlap = (
+            TeacherLeave.query
+            .filter_by(teacher_id=teacher_id, tenant_id=tenant_id)
+            .filter(TeacherLeave.status.in_([TeacherLeave.STATUS_PENDING, TeacherLeave.STATUS_APPROVED]))
+            .filter(TeacherLeave.start_date <= ed, TeacherLeave.end_date >= sd)
+            .first()
+        )
+        if overlap:
+            return {
+                "success": False,
+                "error": (
+                    f"You already have a {overlap.status} leave request "
+                    f"({overlap.start_date} → {overlap.end_date}) that overlaps with this period."
+                ),
+                "is_overlap_conflict": True,
+                "conflicting_leave_id": overlap.id,
+            }
+
+        # -- Balance check & reservation --
+        year = get_current_academic_year()
+        policy = _get_or_create_policy(tenant_id, leave_type)
+
+        if not policy.is_unlimited:
+            balance = _get_or_init_balance(teacher_id, leave_type, year, tenant_id)
+            if not policy.allow_negative:
+                available = balance.available_days
+                if available < working_days:
+                    db.session.rollback()
+                    return {
+                        "success": False,
+                        "error": (
+                            f"Insufficient {leave_type} leave balance. "
+                            f"Available: {available:.1f} day(s), Requested: {working_days} working day(s)."
+                        ),
+                        "is_balance_insufficient": True,
+                        "available_days": round(available, 2),
+                        "requested_days": working_days,
+                    }
+            # Reserve days in pending
+            balance.pending_days += working_days
+
         leave = TeacherLeave(
             tenant_id=tenant_id,
             teacher_id=teacher_id,
@@ -182,9 +478,24 @@ def create_leave(teacher_id: str, start_date: str, end_date: str, leave_type: st
             leave_type=leave_type,
             reason=reason,
             status=TeacherLeave.STATUS_PENDING,
+            working_days=float(working_days),
+            academic_year=year,
         )
-        leave.save()
-        return {"success": True, "leave": leave.to_dict()}
+        db.session.add(leave)
+        db.session.commit()
+
+        result = leave.to_dict()
+        holiday_days = total_days - working_days
+        if holiday_days > 0:
+            holiday_names = list({o.get("name") or "Weekly Off" for o in holiday_occurrences})
+            names_str = ", ".join(holiday_names[:3])
+            result["warning"] = (
+                f"Note: {holiday_days} day(s) in your leave range fall on holidays/weekly-offs "
+                f"({names_str}). Only {working_days} working day(s) will be counted."
+            )
+            result["holiday_days"] = holiday_days
+            result["working_days"] = working_days
+        return {"success": True, "leave": result}
 
     except Exception as e:
         db.session.rollback()
@@ -204,17 +515,75 @@ def list_leaves(teacher_id: Optional[str] = None, status: Optional[str] = None) 
 
 
 def approve_leave(leave_id: str) -> Dict:
-    """Approve a leave request."""
-    return _update_leave_status(leave_id, TeacherLeave.STATUS_APPROVED)
+    """Approve a leave request and move pending days to used."""
+    try:
+        tenant_id = get_tenant_id()
+        leave = TeacherLeave.query.filter_by(id=leave_id, tenant_id=tenant_id).first()
+        if not leave:
+            return {"success": False, "error": "Leave request not found"}
+        if leave.status != TeacherLeave.STATUS_PENDING:
+            return {"success": False, "error": f"Only pending leaves can be approved (current status: {leave.status})"}
+
+        # Move pending → used in balance
+        if leave.working_days:
+            year = leave.academic_year or get_current_academic_year()
+            policy = _get_or_create_policy(tenant_id, leave.leave_type)
+            if not policy.is_unlimited:
+                balance = TeacherLeaveBalance.query.filter_by(
+                    teacher_id=leave.teacher_id,
+                    leave_type=leave.leave_type,
+                    academic_year=year,
+                    tenant_id=tenant_id,
+                ).first()
+                if balance:
+                    balance.pending_days = max(0.0, balance.pending_days - leave.working_days)
+                    balance.used_days += leave.working_days
+
+        leave.status = TeacherLeave.STATUS_APPROVED
+        db.session.commit()
+        return {"success": True, "leave": leave.to_dict()}
+    except Exception as e:
+        db.session.rollback()
+        return {"success": False, "error": f"Failed to approve leave: {str(e)}"}
 
 
 def reject_leave(leave_id: str) -> Dict:
-    """Reject a leave request."""
-    return _update_leave_status(leave_id, TeacherLeave.STATUS_REJECTED)
+    """Reject a leave request and release the reserved pending days."""
+    try:
+        tenant_id = get_tenant_id()
+        leave = TeacherLeave.query.filter_by(id=leave_id, tenant_id=tenant_id).first()
+        if not leave:
+            return {"success": False, "error": "Leave request not found"}
+        if leave.status != TeacherLeave.STATUS_PENDING:
+            return {"success": False, "error": f"Only pending leaves can be rejected (current status: {leave.status})"}
+
+        # Release pending days
+        if leave.working_days:
+            year = leave.academic_year or get_current_academic_year()
+            policy = _get_or_create_policy(tenant_id, leave.leave_type)
+            if not policy.is_unlimited:
+                balance = TeacherLeaveBalance.query.filter_by(
+                    teacher_id=leave.teacher_id,
+                    leave_type=leave.leave_type,
+                    academic_year=year,
+                    tenant_id=tenant_id,
+                ).first()
+                if balance:
+                    balance.pending_days = max(0.0, balance.pending_days - leave.working_days)
+
+        leave.status = TeacherLeave.STATUS_REJECTED
+        db.session.commit()
+        return {"success": True, "leave": leave.to_dict()}
+    except Exception as e:
+        db.session.rollback()
+        return {"success": False, "error": f"Failed to reject leave: {str(e)}"}
 
 
 def cancel_leave(leave_id: str, teacher_id: str) -> Dict:
-    """Cancel a pending leave request. Only the owning teacher can cancel."""
+    """
+    Cancel a pending leave request (teacher cancels their own).
+    Releases the reserved pending days back to available balance.
+    """
     try:
         tenant_id = get_tenant_id()
         leave = TeacherLeave.query.filter_by(id=leave_id, tenant_id=tenant_id).first()
@@ -224,26 +593,27 @@ def cancel_leave(leave_id: str, teacher_id: str) -> Dict:
             return {"success": False, "error": "You can only cancel your own leave requests"}
         if leave.status != TeacherLeave.STATUS_PENDING:
             return {"success": False, "error": "Only pending leave requests can be cancelled"}
+
+        # Release pending days
+        if leave.working_days:
+            year = leave.academic_year or get_current_academic_year()
+            policy = _get_or_create_policy(tenant_id, leave.leave_type)
+            if not policy.is_unlimited:
+                balance = TeacherLeaveBalance.query.filter_by(
+                    teacher_id=teacher_id,
+                    leave_type=leave.leave_type,
+                    academic_year=year,
+                    tenant_id=tenant_id,
+                ).first()
+                if balance:
+                    balance.pending_days = max(0.0, balance.pending_days - leave.working_days)
+
         leave.status = "cancelled"
-        leave.save()
+        db.session.commit()
         return {"success": True, "leave": leave.to_dict()}
     except Exception as e:
         db.session.rollback()
         return {"success": False, "error": f"Failed to cancel leave: {str(e)}"}
-
-
-def _update_leave_status(leave_id: str, status: str) -> Dict:
-    try:
-        tenant_id = get_tenant_id()
-        leave = TeacherLeave.query.filter_by(id=leave_id, tenant_id=tenant_id).first()
-        if not leave:
-            return {"success": False, "error": "Leave request not found"}
-        leave.status = status
-        leave.save()
-        return {"success": True, "leave": leave.to_dict()}
-    except Exception as e:
-        db.session.rollback()
-        return {"success": False, "error": f"Failed to update leave: {str(e)}"}
 
 
 # ---------------------------------------------------------------------------
@@ -287,7 +657,9 @@ def create_workload_rule(teacher_id: str, max_periods_per_day: int, max_periods_
         return {"success": False, "error": f"Failed to create workload rule: {str(e)}"}
 
 
-def update_workload_rule(teacher_id: str, max_periods_per_day: Optional[int], max_periods_per_week: Optional[int]) -> Dict:
+def update_workload_rule(
+    teacher_id: str, max_periods_per_day: Optional[int], max_periods_per_week: Optional[int]
+) -> Dict:
     """Update workload rule for a teacher. Creates one if it doesn't exist."""
     try:
         tenant_id = get_tenant_id()

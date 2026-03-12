@@ -5,7 +5,12 @@ Endpoints for:
   - Teacher Subject Expertise:  GET/POST/DELETE /api/teachers/<id>/subjects
   - Teacher Availability:       GET/POST/PUT/DELETE /api/teachers/<id>/availability
   - Teacher Leaves:             POST/GET /api/teachers/leaves
-                                PUT /api/teachers/leaves/<id>/approve|reject
+                                PUT /api/teachers/leaves/<id>/approve|reject|cancel
+  - Leave Balances:             GET /api/teachers/leave-balances/my
+                                GET /api/teachers/<id>/leave-balances
+                                PUT /api/teachers/<id>/leave-balances/<type>
+  - Leave Policy:               GET /api/teachers/leave-policy
+                                PUT /api/teachers/leave-policy/<type>
   - Teacher Workload Rules:     GET/POST/PUT /api/teachers/<id>/workload
 """
 
@@ -240,6 +245,99 @@ def reject_teacher_leave(leave_id):
     if result["success"]:
         return success_response(data=result["leave"], message="Leave rejected")
     return error_response("RejectError", result["error"], 400)
+
+
+# ===========================================================================
+# Feature 3b — Leave Balance & Policy
+# ===========================================================================
+
+@teachers_bp.route("/leave-balances/my", methods=["GET"])
+@tenant_required
+@auth_required
+@require_plan_feature("teacher_management")
+@require_permission(PERM_LEAVE_APPLY)
+def get_my_leave_balances():
+    """Return leave balances for the authenticated teacher (current academic year)."""
+    teacher = teacher_svc.get_teacher_by_user_id(g.current_user.id)
+    if not teacher:
+        return not_found_response("Teacher profile")
+
+    academic_year = request.args.get("academic_year")
+    balances = svc.get_teacher_leave_balances(teacher["id"], academic_year)
+    return success_response(data=balances)
+
+
+@teachers_bp.route("/<teacher_id>/leave-balances", methods=["GET"])
+@tenant_required
+@auth_required
+@require_plan_feature("teacher_management")
+@require_permission(PERM_LEAVE_MANAGE)
+def get_teacher_leave_balances(teacher_id):
+    """Admin: return leave balances for a specific teacher."""
+    academic_year = request.args.get("academic_year")
+    balances = svc.get_teacher_leave_balances(teacher_id, academic_year)
+    return success_response(data=balances)
+
+
+@teachers_bp.route("/<teacher_id>/leave-balances/<leave_type>", methods=["PUT"])
+@tenant_required
+@auth_required
+@require_plan_feature("teacher_management")
+@require_permission(PERM_LEAVE_MANAGE)
+def adjust_teacher_leave_balance(teacher_id, leave_type):
+    """Admin: override the allocated leave days for a teacher and leave type."""
+    data = request.get_json() or {}
+    allocated_days = data.get("allocated_days")
+    if allocated_days is None:
+        return validation_error_response("allocated_days is required")
+
+    notes = data.get("notes")
+    academic_year = data.get("academic_year")
+
+    result = svc.adjust_teacher_leave_balance(
+        teacher_id=teacher_id,
+        leave_type=leave_type,
+        allocated_days=int(allocated_days),
+        notes=notes,
+        adjusted_by_user_id=g.current_user.id,
+        academic_year=academic_year,
+    )
+    if result["success"]:
+        return success_response(data=result["balance"], message="Leave balance updated")
+    return error_response("BalanceError", result["error"], 400)
+
+
+@teachers_bp.route("/leave-policy", methods=["GET"])
+@tenant_required
+@auth_required
+@require_plan_feature("teacher_management")
+@require_permission(PERM_LEAVE_APPLY)
+def get_leave_policy():
+    """Return leave policies for all leave types for this tenant."""
+    policies = svc.get_all_policies()
+    return success_response(data=policies)
+
+
+@teachers_bp.route("/leave-policy/<leave_type>", methods=["PUT"])
+@tenant_required
+@auth_required
+@require_plan_feature("teacher_management")
+@require_permission(PERM_LEAVE_MANAGE)
+def update_leave_policy(leave_type):
+    """Admin: create or update the leave policy for a specific leave type."""
+    data = request.get_json() or {}
+    result = svc.upsert_leave_policy(
+        leave_type=leave_type,
+        total_days=data.get("total_days"),
+        is_unlimited=data.get("is_unlimited"),
+        is_carry_forward_allowed=data.get("is_carry_forward_allowed"),
+        max_carry_forward_days=data.get("max_carry_forward_days"),
+        allow_negative=data.get("allow_negative"),
+        requires_reason=data.get("requires_reason"),
+    )
+    if result["success"]:
+        return success_response(data=result["policy"], message="Leave policy updated")
+    return error_response("PolicyError", result["error"], 400)
 
 
 # ===========================================================================

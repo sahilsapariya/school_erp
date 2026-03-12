@@ -52,6 +52,9 @@ export interface CreateAvailabilityDTO {
 
 // --- Teacher Leaves ---
 export type LeaveStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
+export type LeaveType = 'casual' | 'sick' | 'emergency' | 'unpaid' | 'other';
+
+export const LEAVE_TYPES: LeaveType[] = ['casual', 'sick', 'emergency', 'unpaid', 'other'];
 
 export interface TeacherLeave {
   id: string;
@@ -63,6 +66,8 @@ export interface TeacherLeave {
   leave_type: string;
   reason?: string;
   status: LeaveStatus;
+  working_days?: number;
+  academic_year?: string;
   created_at: string;
   updated_at: string;
 }
@@ -72,6 +77,55 @@ export interface CreateLeaveDTO {
   end_date: string;
   leave_type: string;
   reason?: string;
+}
+
+// --- Leave Policy ---
+export interface LeavePolicy {
+  id: string;
+  leave_type: string;
+  total_days: number;
+  is_unlimited: boolean;
+  is_carry_forward_allowed: boolean;
+  max_carry_forward_days: number;
+  allow_negative: boolean;
+  requires_reason: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UpdateLeavePolicyDTO {
+  total_days?: number;
+  is_unlimited?: boolean;
+  is_carry_forward_allowed?: boolean;
+  max_carry_forward_days?: number;
+  allow_negative?: boolean;
+  requires_reason?: boolean;
+}
+
+// --- Leave Balance ---
+export interface LeaveBalance {
+  id: string;
+  teacher_id: string;
+  leave_type: string;
+  academic_year: string;
+  allocated_days: number;
+  used_days: number;
+  pending_days: number;
+  carried_forward_days: number;
+  available_days: number;
+  is_unlimited: boolean;
+  allow_negative: boolean;
+  requires_reason: boolean;
+  notes?: string;
+  last_adjusted_at?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdjustLeaveBalanceDTO {
+  allocated_days: number;
+  notes?: string;
+  academic_year?: string;
 }
 
 // --- Teacher Workload ---

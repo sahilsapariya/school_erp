@@ -7,6 +7,10 @@ import {
   CreateLeaveDTO,
   TeacherWorkload,
   WorkloadDTO,
+  LeaveBalance,
+  LeavePolicy,
+  AdjustLeaveBalanceDTO,
+  UpdateLeavePolicyDTO,
 } from '../types';
 
 // ---------------------------------------------------------------------------
@@ -76,6 +80,39 @@ export const teacherLeaveService = {
 
   rejectLeave: (leaveId: string) =>
     apiPut<TeacherLeave>(`/api/teachers/leaves/${leaveId}/reject`, {}),
+};
+
+// ---------------------------------------------------------------------------
+// Leave Balances
+// ---------------------------------------------------------------------------
+
+export const teacherLeaveBalanceService = {
+  getMyBalances: (params?: { academic_year?: string }) => {
+    let url = '/api/teachers/leave-balances/my';
+    if (params?.academic_year) url += `?academic_year=${encodeURIComponent(params.academic_year)}`;
+    return apiGet<LeaveBalance[]>(url);
+  },
+
+  getTeacherBalances: (teacherId: string, params?: { academic_year?: string }) => {
+    let url = `/api/teachers/${teacherId}/leave-balances`;
+    if (params?.academic_year) url += `?academic_year=${encodeURIComponent(params.academic_year)}`;
+    return apiGet<LeaveBalance[]>(url);
+  },
+
+  adjustBalance: (teacherId: string, leaveType: string, dto: AdjustLeaveBalanceDTO) =>
+    apiPut<LeaveBalance>(`/api/teachers/${teacherId}/leave-balances/${leaveType}`, dto),
+};
+
+// ---------------------------------------------------------------------------
+// Leave Policy
+// ---------------------------------------------------------------------------
+
+export const leavePolicyService = {
+  getPolicies: () =>
+    apiGet<LeavePolicy[]>('/api/teachers/leave-policy'),
+
+  updatePolicy: (leaveType: string, dto: UpdateLeavePolicyDTO) =>
+    apiPut<LeavePolicy>(`/api/teachers/leave-policy/${leaveType}`, dto),
 };
 
 // ---------------------------------------------------------------------------

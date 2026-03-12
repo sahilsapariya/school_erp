@@ -6,6 +6,7 @@ from backend.core.database import db
 from backend.core.tenant import get_tenant_id
 from backend.modules.classes.models import Class
 from backend.modules.students.models import Student
+from backend.modules.holidays.services import get_holiday_for_date
 from .models import Attendance
 
 
@@ -53,6 +54,18 @@ def mark_attendance(
             return {'success': False, 'error': 'Date is before academic year start'}
         if cls.end_date and att_date > cls.end_date:
             return {'success': False, 'error': 'Date is after academic year end'}
+
+        # Holiday check — attendance cannot be marked on holidays or weekly-off days
+        tenant_id = get_tenant_id()
+        holiday = get_holiday_for_date(att_date, tenant_id)
+        if holiday:
+            holiday_label = holiday.get('name') or ('Weekly Off' if holiday.get('is_recurring') else 'Holiday')
+            return {
+                'success': False,
+                'error': f"Attendance cannot be marked on '{holiday_label}'. This day is a holiday.",
+                'is_holiday': True,
+                'holiday': holiday,
+            }
 
         created = 0
         updated = 0
@@ -121,6 +134,7 @@ def get_attendance_by_class_date(class_id: str, date_str: str) -> Dict:
     """
     Get attendance records for a class on a specific date.
     Also returns students who haven't been marked yet.
+    Includes a `holiday_info` field if the date is a holiday.
     """
     try:
         cls = Class.query.get(class_id)
@@ -128,6 +142,10 @@ def get_attendance_by_class_date(class_id: str, date_str: str) -> Dict:
             return {'success': False, 'error': 'Class not found'}
 
         att_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+
+        # Check if this date is a holiday
+        tenant_id = get_tenant_id()
+        holiday_info = get_holiday_for_date(att_date, tenant_id)
 
         # Get all students in this class, excluding those admitted after the attendance date
         students = Student.query.filter_by(class_id=class_id).all()
@@ -163,6 +181,8 @@ def get_attendance_by_class_date(class_id: str, date_str: str) -> Dict:
                 'class_id': class_id,
                 'class_name': f"{cls.name}-{cls.section}",
                 'date': date_str,
+                'is_holiday': holiday_info is not None,
+                'holiday_info': holiday_info,
                 'total_students': len(students),
                 'marked_count': len(records),
                 'present_count': sum(1 for r in records if r.status == 'present'),

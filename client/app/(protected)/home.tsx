@@ -130,6 +130,12 @@ export default function ProtectedHomeScreen() {
               <ActionCard icon="document-text-outline" label="Leave Requests"
                 onPress={() => router.push("/(protected)/teacher-leaves" as any)} color="#6366f1" />
             </Protected>
+            {isFeatureEnabled("holiday_management") && (
+              <Protected anyPermissions={[PERMS.HOLIDAY_READ, PERMS.HOLIDAY_MANAGE]}>
+                <ActionCard icon="calendar-outline" label="Holidays"
+                  onPress={() => router.push("/(protected)/holidays" as any)} color="#0ea5e9" />
+              </Protected>
+            )}
           </View>
         </View>
       )}
@@ -153,7 +159,7 @@ export default function ProtectedHomeScreen() {
             )}
             {isFeatureEnabled("teacher_management") && (
               <Protected permission={PERMS.TEACHER_LEAVE_APPLY}>
-                <ActionCard icon="calendar-outline" label="My Leaves"
+                <ActionCard icon="calendar-outline" label="Leave Tracker"
                   onPress={() => router.push("/(protected)/my-leaves" as any)} color="#f59e0b" />
               </Protected>
             )}

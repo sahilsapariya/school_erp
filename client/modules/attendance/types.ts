@@ -8,10 +8,22 @@ export interface AttendanceRecord {
   marked: boolean;
 }
 
+export interface HolidayInfo {
+  id: string;
+  name: string;
+  holiday_type: string;
+  is_recurring: boolean;
+  recurring_day_name: string | null;
+  start_date: string | null;
+  end_date: string | null;
+}
+
 export interface ClassAttendanceData {
   class_id: string;
   class_name: string;
   date: string;
+  is_holiday: boolean;
+  holiday_info: HolidayInfo | null;
   total_students: number;
   marked_count: number;
   present_count: number;

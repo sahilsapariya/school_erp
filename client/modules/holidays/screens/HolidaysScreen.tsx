@@ -62,14 +62,16 @@ export default function HolidaysScreen() {
 
     if (activeTab === 'all' || activeTab === 'upcoming') {
       const today = new Date().toISOString().split('T')[0];
+      const validHolidays = holidays.filter((h): h is Holiday => !!h?.id);
       const filtered = activeTab === 'upcoming'
-        ? holidays.filter((h) => h.start_date && h.start_date >= today)
-        : holidays;
+        ? validHolidays.filter((h) => h.start_date && h.start_date >= today)
+        : validHolidays;
       if (filtered.length) list.push({ title: 'Holidays', data: filtered });
     }
 
     if (activeTab === 'all' || activeTab === 'recurring') {
-      if (recurringHolidays.length) list.push({ title: 'Weekly Off Days', data: recurringHolidays });
+      const validRecurring = recurringHolidays.filter((h): h is Holiday => !!h?.id);
+      if (validRecurring.length) list.push({ title: 'Weekly Off Days', data: validRecurring });
     }
 
     return list;
@@ -186,7 +188,7 @@ export default function HolidaysScreen() {
       {/* List */}
       <SectionList
         sections={sections}
-        keyExtractor={(item) => item.id}
+        keyExtractor={(item) => item?.id ?? Math.random().toString()}
         renderItem={({ item }) => (
           <HolidayListItem
             holiday={item}

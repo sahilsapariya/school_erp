@@ -9,8 +9,8 @@ Business logic for Holiday CRUD.  Handles:
   day that already has a recurring weekly-off entry for that tenant.
 """
 
-from datetime import date, datetime
-from typing import Dict, List, Optional
+from datetime import date, datetime, timedelta
+from typing import Dict, List, Optional, Tuple
 
 from backend.core.database import db
 from .models import Holiday, HOLIDAY_TYPES, DAY_NAMES
@@ -53,10 +53,109 @@ def _check_sunday_collision(start_date: date, tenant_id: str) -> bool:
 
 
 # ---------------------------------------------------------------------------
+# Cross-module Holiday Utilities (used by attendance, leave management, etc.)
+# ---------------------------------------------------------------------------
+
+def get_holiday_for_date(check_date: date, tenant_id: str) -> Optional[Dict]:
+    """
+    Check if a specific date is a holiday (non-recurring range OR recurring weekly-off).
+    Returns the first matching holiday dict, or None if the date is a working day.
+    """
+    try:
+        # Non-recurring: date falls within [start_date, end_date]
+        holiday = (
+            Holiday.query
+            .filter(Holiday.tenant_id == tenant_id)
+            .filter(Holiday.is_recurring == False)  # noqa: E712
+            .filter(Holiday.start_date <= check_date)
+            .filter(Holiday.end_date >= check_date)
+            .first()
+        )
+        if holiday:
+            return holiday.to_dict()
+
+        # Recurring: weekday matches
+        recurring = (
+            Holiday.query
+            .filter(Holiday.tenant_id == tenant_id)
+            .filter(Holiday.is_recurring == True)  # noqa: E712
+            .filter(Holiday.recurring_day_of_week == check_date.weekday())
+            .first()
+        )
+        if recurring:
+            return recurring.to_dict()
+
+        return None
+    except Exception:
+        return None
+
+
+def get_working_days_info_for_range(
+    start_date: date,
+    end_date: date,
+    tenant_id: str,
+) -> Tuple[int, int, List[Dict]]:
+    """
+    Analyse a date range and return (total_days, working_days, holiday_occurrences).
+
+    holiday_occurrences is a list of dicts, each being a holiday.to_dict() enriched
+    with an `occurrence_date` field (YYYY-MM-DD) for the specific date that is a holiday.
+    """
+    try:
+        total_days = (end_date - start_date).days + 1
+        holiday_dates: set = set()
+        occurrences: List[Dict] = []
+
+        # Non-recurring holidays overlapping the range
+        non_recurring = (
+            Holiday.query
+            .filter(Holiday.tenant_id == tenant_id)
+            .filter(Holiday.is_recurring == False)  # noqa: E712
+            .filter(Holiday.start_date <= end_date)
+            .filter(Holiday.end_date >= start_date)
+            .all()
+        )
+        for h in non_recurring:
+            h_start = max(h.start_date, start_date)
+            h_end = min(h.end_date or h.start_date, end_date)
+            cur = h_start
+            while cur <= h_end:
+                if cur not in holiday_dates:
+                    holiday_dates.add(cur)
+                    occurrences.append({**h.to_dict(), "occurrence_date": cur.isoformat()})
+                cur += timedelta(days=1)
+
+        # Recurring (weekly-off) holidays
+        recurring = (
+            Holiday.query
+            .filter(Holiday.tenant_id == tenant_id)
+            .filter(Holiday.is_recurring == True)  # noqa: E712
+            .all()
+        )
+        for r in recurring:
+            if r.recurring_day_of_week is None:
+                continue
+            cur = start_date
+            while cur <= end_date:
+                if cur.weekday() == r.recurring_day_of_week and cur not in holiday_dates:
+                    holiday_dates.add(cur)
+                    occurrences.append({**r.to_dict(), "occurrence_date": cur.isoformat()})
+                cur += timedelta(days=1)
+
+        working_days = total_days - len(holiday_dates)
+        return total_days, working_days, occurrences
+
+    except Exception:
+        total_days = (end_date - start_date).days + 1
+        return total_days, total_days, []
+
+
+# ---------------------------------------------------------------------------
 # Read
 # ---------------------------------------------------------------------------
 
 def list_holidays(
+    tenant_id: str,
     academic_year_id: Optional[str] = None,
     holiday_type: Optional[str] = None,
     start_date: Optional[str] = None,
@@ -78,7 +177,7 @@ def list_holidays(
         include_recurring  — whether to include recurring weekly-off rows (default True)
     """
     try:
-        query = Holiday.query
+        query = Holiday.query.filter(Holiday.tenant_id == tenant_id)
 
         if not include_recurring:
             query = query.filter(Holiday.is_recurring == False)  # noqa: E712
@@ -135,9 +234,9 @@ def list_holidays(
         return {"success": False, "error": str(exc)}
 
 
-def get_holiday(holiday_id: str) -> Dict:
+def get_holiday(holiday_id: str, tenant_id: str) -> Dict:
     try:
-        h = Holiday.query.get(holiday_id)
+        h = Holiday.query.filter_by(id=holiday_id, tenant_id=tenant_id).first()
         if not h:
             return {"success": False, "error": "Holiday not found", "not_found": True}
         return {"success": True, "data": h.to_dict()}
@@ -145,12 +244,13 @@ def get_holiday(holiday_id: str) -> Dict:
         return {"success": False, "error": str(exc)}
 
 
-def get_upcoming_holidays(limit: int = 10) -> Dict:
+def get_upcoming_holidays(tenant_id: str, limit: int = 10) -> Dict:
     """Return upcoming non-recurring holidays starting from today."""
     try:
         today = date.today()
         holidays = (
             Holiday.query
+            .filter(Holiday.tenant_id == tenant_id)
             .filter(Holiday.is_recurring == False)  # noqa: E712
             .filter(Holiday.start_date >= today)
             .order_by(Holiday.start_date.asc())
@@ -162,11 +262,12 @@ def get_upcoming_holidays(limit: int = 10) -> Dict:
         return {"success": False, "error": str(exc)}
 
 
-def get_recurring_holidays() -> Dict:
+def get_recurring_holidays(tenant_id: str) -> Dict:
     """Return all recurring weekly-off entries for the tenant."""
     try:
         holidays = (
             Holiday.query
+            .filter(Holiday.tenant_id == tenant_id)
             .filter(Holiday.is_recurring == True)  # noqa: E712
             .order_by(Holiday.recurring_day_of_week.asc())
             .all()
@@ -243,10 +344,10 @@ def create_holiday(data: dict, tenant_id: str) -> Dict:
         if errors:
             return {"success": False, "error": "Validation failed", "details": errors}
 
-        # --- Duplicate checks ---
+        # --- Duplicate checks (scoped to tenant) ---
         if is_recurring:
             dup = Holiday.query.filter_by(
-                is_recurring=True, recurring_day_of_week=recurring_day_of_week
+                is_recurring=True, recurring_day_of_week=recurring_day_of_week, tenant_id=tenant_id
             ).first()
             if dup:
                 return {
@@ -255,7 +356,7 @@ def create_holiday(data: dict, tenant_id: str) -> Dict:
                 }
         else:
             dup = Holiday.query.filter_by(
-                start_date=start_date, name=name
+                start_date=start_date, name=name, tenant_id=tenant_id
             ).first()
             if dup:
                 return {
@@ -277,6 +378,7 @@ def create_holiday(data: dict, tenant_id: str) -> Dict:
             is_recurring=is_recurring,
             recurring_day_of_week=recurring_day_of_week,
             academic_year_id=academic_year_id,
+            tenant_id=tenant_id,
         )
         holiday.save()
 
@@ -299,7 +401,7 @@ def update_holiday(holiday_id: str, data: dict, tenant_id: str) -> Dict:
     Partial update of a holiday. Only supplied fields are changed.
     """
     try:
-        h = Holiday.query.get(holiday_id)
+        h = Holiday.query.filter_by(id=holiday_id, tenant_id=tenant_id).first()
         if not h:
             return {"success": False, "error": "Holiday not found", "not_found": True}
 
@@ -363,12 +465,13 @@ def update_holiday(holiday_id: str, data: dict, tenant_id: str) -> Dict:
         if errors:
             return {"success": False, "error": "Validation failed", "details": errors}
 
-        # Uniqueness check
+        # Uniqueness check (scoped to tenant)
         if not h.is_recurring:
             conflict = Holiday.query.filter(
                 Holiday.start_date == h.start_date,
                 Holiday.name == h.name,
                 Holiday.id != holiday_id,
+                Holiday.tenant_id == tenant_id,
             ).first()
             if conflict:
                 return {
@@ -396,9 +499,9 @@ def update_holiday(holiday_id: str, data: dict, tenant_id: str) -> Dict:
         return {"success": False, "error": str(exc)}
 
 
-def delete_holiday(holiday_id: str) -> Dict:
+def delete_holiday(holiday_id: str, tenant_id: str) -> Dict:
     try:
-        h = Holiday.query.get(holiday_id)
+        h = Holiday.query.filter_by(id=holiday_id, tenant_id=tenant_id).first()
         if not h:
             return {"success": False, "error": "Holiday not found", "not_found": True}
         name = h.name

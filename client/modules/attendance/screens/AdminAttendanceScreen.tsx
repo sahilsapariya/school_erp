@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -16,6 +16,8 @@ import { useClasses } from "@/modules/classes/hooks/useClasses";
 import { Colors } from "@/common/constants/colors";
 import { Spacing, Layout } from "@/common/constants/spacing";
 import { ClassItem } from "@/modules/classes/types";
+import { holidayService } from "@/modules/holidays/services/holidayService";
+import { Holiday } from "@/modules/holidays/types";
 
 export default function AdminAttendanceScreen() {
   const router = useRouter();
@@ -25,9 +27,35 @@ export default function AdminAttendanceScreen() {
   const today = new Date().toISOString().split("T")[0];
   const [selectedDate, setSelectedDate] = useState(today);
   const [selectedClass, setSelectedClass] = useState<ClassItem | null>(null);
+  const [holidayInfo, setHolidayInfo] = useState<Holiday | null>(null);
+
+  // Check if selected date is a holiday
+  const checkHoliday = useCallback(async (dateStr: string) => {
+    if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+      setHolidayInfo(null);
+      return;
+    }
+    try {
+      const d = new Date(dateStr);
+      const backendWeekday = (d.getDay() + 6) % 7;
+      const [nonRecurring, recurring] = await Promise.all([
+        holidayService.getHolidays({ start_date: dateStr, end_date: dateStr, include_recurring: false }),
+        holidayService.getRecurring(),
+      ]);
+      if (nonRecurring.length > 0) {
+        setHolidayInfo(nonRecurring[0]);
+      } else {
+        const match = recurring.find((r) => r.recurring_day_of_week === backendWeekday);
+        setHolidayInfo(match ?? null);
+      }
+    } catch {
+      setHolidayInfo(null);
+    }
+  }, []);
 
   useEffect(() => {
     fetchClasses();
+    checkHoliday(today);
   }, []);
 
   const handleClassSelect = (cls: ClassItem) => {
@@ -37,6 +65,7 @@ export default function AdminAttendanceScreen() {
 
   const handleDateChange = (date: string) => {
     setSelectedDate(date);
+    checkHoliday(date);
     if (selectedClass) {
       fetchClassAttendance(selectedClass.id, date);
     }
@@ -71,6 +100,23 @@ export default function AdminAttendanceScreen() {
           placeholderTextColor={Colors.textTertiary}
         />
       </View>
+
+      {/* Holiday Banner */}
+      {holidayInfo && (
+        <View style={styles.holidayBanner}>
+          <Ionicons name="umbrella-outline" size={20} color="#FF6B35" />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.holidayBannerTitle}>
+              {holidayInfo.is_recurring
+                ? `Weekly Off — ${holidayInfo.recurring_day_name ?? "Off Day"}`
+                : holidayInfo.name}
+            </Text>
+            <Text style={styles.holidayBannerSubtitle}>
+              This is a holiday. Attendance records shown are read-only.
+            </Text>
+          </View>
+        </View>
+      )}
 
       {/* Class Selector */}
       {!selectedClass ? (
@@ -251,4 +297,26 @@ const styles = StyleSheet.create({
   recordDetail: { fontSize: 13, color: Colors.textSecondary },
   recordStatus: { fontSize: 14, fontWeight: "600", textTransform: "capitalize" },
   emptyText: { fontSize: 16, color: Colors.textSecondary },
+  holidayBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    marginHorizontal: Spacing.md,
+    marginBottom: Spacing.sm,
+    padding: Spacing.md,
+    backgroundColor: "#FFF3F0",
+    borderRadius: Layout.borderRadius.md,
+    borderWidth: 1,
+    borderColor: "#FF6B35",
+  },
+  holidayBannerTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#CC3300",
+  },
+  holidayBannerSubtitle: {
+    fontSize: 12,
+    color: "#FF6B35",
+    marginTop: 2,
+  },
 });

@@ -16,6 +16,8 @@ import { useAttendance } from "../hooks/useAttendance";
 import { Colors } from "@/common/constants/colors";
 import { Spacing, Layout } from "@/common/constants/spacing";
 import { AttendanceRecord } from "../types";
+import { holidayService } from "@/modules/holidays/services/holidayService";
+import { Holiday } from "@/modules/holidays/types";
 
 export default function MarkAttendanceScreen() {
   const { classId, className } = useLocalSearchParams<{
@@ -30,6 +32,9 @@ export default function MarkAttendanceScreen() {
   const [localRecords, setLocalRecords] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const dateScrollRef = useRef<ScrollView>(null);
+
+  // Holiday awareness
+  const [holidayMap, setHolidayMap] = useState<Record<string, Holiday>>({});
 
   const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -52,6 +57,49 @@ export default function MarkAttendanceScreen() {
     }
     return dates;
   }, [today]);
+
+  // Fetch holidays for the date range shown in the strip
+  useEffect(() => {
+    const loadHolidays = async () => {
+      if (dateList.length === 0) return;
+      try {
+        const startDate = dateList[0].dateStr;
+        const endDate = dateList[dateList.length - 1].dateStr;
+        const [nonRecurring, recurring] = await Promise.all([
+          holidayService.getHolidays({ start_date: startDate, end_date: endDate, include_recurring: false }),
+          holidayService.getRecurring(),
+        ]);
+        const map: Record<string, Holiday> = {};
+        // Expand non-recurring holiday ranges into individual dates
+        for (const h of nonRecurring) {
+          if (!h.start_date) continue;
+          const hStart = new Date(h.start_date);
+          const hEnd = new Date(h.end_date || h.start_date);
+          const cur = new Date(hStart);
+          while (cur <= hEnd) {
+            const ds = cur.toISOString().split("T")[0];
+            if (!map[ds]) map[ds] = h;
+            cur.setDate(cur.getDate() + 1);
+          }
+        }
+        // Map recurring (weekly-off) holidays — convert JS getDay() to backend weekday (0=Mon…6=Sun)
+        for (const item of dateList) {
+          const d = new Date(item.dateStr);
+          const backendWeekday = (d.getDay() + 6) % 7;
+          const match = recurring.find((r) => r.recurring_day_of_week === backendWeekday);
+          if (match && !map[item.dateStr]) map[item.dateStr] = match;
+        }
+        setHolidayMap(map);
+      } catch {
+        // Holiday indicators are informational — fail silently
+      }
+    };
+    loadHolidays();
+  }, [dateList]);
+
+  // Derived: is the currently selected date a holiday?
+  const selectedHoliday = holidayMap[selectedDate] ?? null;
+  const isSelectedHoliday = selectedHoliday !== null;
 
   useEffect(() => {
     if (classId) {
@@ -102,6 +150,14 @@ export default function MarkAttendanceScreen() {
   const handleSubmit = async () => {
     if (!classId) return;
 
+    if (isSelectedHoliday) {
+      const label = selectedHoliday.is_recurring
+        ? (selectedHoliday.recurring_day_name ?? "Weekly Off")
+        : selectedHoliday.name;
+      Alert.alert("Holiday", `Cannot mark attendance on "${label}". This day is a holiday.`);
+      return;
+    }
+
     const records = Object.entries(localRecords).map(([student_id, status]) => ({
       student_id,
       status,
@@ -148,20 +204,27 @@ export default function MarkAttendanceScreen() {
 
     return (
       <TouchableOpacity
-        style={styles.studentRow}
-        onPress={() => toggleStatus(item.student_id)}
-        activeOpacity={0.7}
+        style={[styles.studentRow, isSelectedHoliday && styles.studentRowDisabled]}
+        onPress={isSelectedHoliday ? undefined : () => toggleStatus(item.student_id)}
+        activeOpacity={isSelectedHoliday ? 1 : 0.7}
+        disabled={isSelectedHoliday}
       >
         <View style={styles.studentInfo}>
-          <Text style={styles.studentName}>{item.student_name}</Text>
+          <Text style={[styles.studentName, isSelectedHoliday && { color: Colors.textTertiary }]}>
+            {item.student_name}
+          </Text>
           <Text style={styles.studentDetail}>
             {item.roll_number ? `Roll: ${item.roll_number} - ` : ""}
             {item.admission_number}
           </Text>
         </View>
-        <View style={[styles.statusBadge, { borderColor: icon.color }]}>
-          <Ionicons name={icon.name} size={24} color={icon.color} />
-          <Text style={[styles.statusText, { color: icon.color }]}>
+        <View style={[styles.statusBadge, { borderColor: isSelectedHoliday ? Colors.borderLight : icon.color }]}>
+          <Ionicons
+            name={icon.name}
+            size={24}
+            color={isSelectedHoliday ? Colors.textTertiary : icon.color}
+          />
+          <Text style={[styles.statusText, { color: isSelectedHoliday ? Colors.textTertiary : icon.color }]}>
             {status || "Not marked"}
           </Text>
         </View>
@@ -201,6 +264,7 @@ export default function MarkAttendanceScreen() {
         >
           {dateList.map((item) => {
             const isSelected = item.dateStr === selectedDate;
+            const isHolidayDate = !!holidayMap[item.dateStr];
             return (
               <TouchableOpacity
                 key={item.dateStr}
@@ -208,14 +272,19 @@ export default function MarkAttendanceScreen() {
                   styles.dateCell,
                   isSelected && styles.dateCellSelected,
                   item.isToday && !isSelected && styles.dateCellToday,
+                  isHolidayDate && !isSelected && styles.dateCellHoliday,
                 ]}
                 onPress={() => setSelectedDate(item.dateStr)}
                 activeOpacity={0.7}
               >
+                {isHolidayDate && (
+                  <View style={[styles.holidayDot, isSelected && styles.holidayDotSelected]} />
+                )}
                 <Text
                   style={[
                     styles.dateWeekday,
                     isSelected && styles.dateTextSelected,
+                    isHolidayDate && !isSelected && styles.dateTextHoliday,
                   ]}
                 >
                   {item.weekday}
@@ -224,6 +293,7 @@ export default function MarkAttendanceScreen() {
                   style={[
                     styles.dateDay,
                     isSelected && styles.dateTextSelected,
+                    isHolidayDate && !isSelected && styles.dateTextHoliday,
                   ]}
                 >
                   {item.day}
@@ -232,6 +302,7 @@ export default function MarkAttendanceScreen() {
                   style={[
                     styles.dateMonth,
                     isSelected && styles.dateTextSelected,
+                    isHolidayDate && !isSelected && styles.dateTextHoliday,
                   ]}
                 >
                   {item.month}
@@ -262,13 +333,42 @@ export default function MarkAttendanceScreen() {
         </View>
       </View>
 
+      {/* Holiday Banner */}
+      {isSelectedHoliday && (
+        <View style={styles.holidayBanner}>
+          <Ionicons name="umbrella-outline" size={20} color="#FF6B35" />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.holidayBannerTitle}>
+              {selectedHoliday.is_recurring
+                ? `Weekly Off — ${selectedHoliday.recurring_day_name ?? "Off Day"}`
+                : selectedHoliday.name}
+            </Text>
+            <Text style={styles.holidayBannerSubtitle}>
+              Attendance cannot be marked on this holiday.
+            </Text>
+          </View>
+        </View>
+      )}
+
       {/* Quick Actions */}
       <View style={styles.quickActions}>
-        <TouchableOpacity style={styles.quickBtn} onPress={markAllPresent}>
-          <Text style={styles.quickBtnText}>All Present</Text>
+        <TouchableOpacity
+          style={[styles.quickBtn, isSelectedHoliday && styles.quickBtnDisabled]}
+          onPress={isSelectedHoliday ? undefined : markAllPresent}
+          disabled={isSelectedHoliday}
+        >
+          <Text style={[styles.quickBtnText, isSelectedHoliday && { color: Colors.textTertiary }]}>
+            All Present
+          </Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.quickBtn} onPress={markAllAbsent}>
-          <Text style={styles.quickBtnText}>All Absent</Text>
+        <TouchableOpacity
+          style={[styles.quickBtn, isSelectedHoliday && styles.quickBtnDisabled]}
+          onPress={isSelectedHoliday ? undefined : markAllAbsent}
+          disabled={isSelectedHoliday}
+        >
+          <Text style={[styles.quickBtnText, isSelectedHoliday && { color: Colors.textTertiary }]}>
+            All Absent
+          </Text>
         </TouchableOpacity>
       </View>
 
@@ -294,12 +394,21 @@ export default function MarkAttendanceScreen() {
       {/* Submit Button */}
       <View style={styles.footer}>
         <TouchableOpacity
-          style={[styles.submitButton, submitting && styles.submitDisabled]}
+          style={[
+            styles.submitButton,
+            (submitting || isSelectedHoliday) && styles.submitDisabled,
+            isSelectedHoliday && styles.submitHoliday,
+          ]}
           onPress={handleSubmit}
-          disabled={submitting}
+          disabled={submitting || isSelectedHoliday}
         >
           {submitting ? (
             <ActivityIndicator color="#FFFFFF" />
+          ) : isSelectedHoliday ? (
+            <View style={styles.submitHolidayContent}>
+              <Ionicons name="ban-outline" size={18} color="#FFFFFF" />
+              <Text style={styles.submitText}>Holiday — Attendance Disabled</Text>
+            </View>
           ) : (
             <Text style={styles.submitText}>Save Attendance</Text>
           )}
@@ -369,6 +478,48 @@ const styles = StyleSheet.create({
   dateTextSelected: {
     color: "#FFFFFF",
   },
+  dateCellHoliday: {
+    backgroundColor: "#FFF3F0",
+    borderWidth: 1,
+    borderColor: "#FF6B35",
+  },
+  dateTextHoliday: {
+    color: "#FF6B35",
+  },
+  holidayDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: "#FF6B35",
+    position: "absolute",
+    top: 4,
+    right: 4,
+  },
+  holidayDotSelected: {
+    backgroundColor: "#FFFFFF",
+  },
+  holidayBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    marginHorizontal: Spacing.md,
+    marginTop: Spacing.sm,
+    padding: Spacing.md,
+    backgroundColor: "#FFF3F0",
+    borderRadius: Layout.borderRadius.md,
+    borderWidth: 1,
+    borderColor: "#FF6B35",
+  },
+  holidayBannerTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#CC3300",
+  },
+  holidayBannerSubtitle: {
+    fontSize: 12,
+    color: "#FF6B35",
+    marginTop: 2,
+  },
   summaryBar: {
     flexDirection: "row",
     justifyContent: "space-around",
@@ -395,6 +546,21 @@ const styles = StyleSheet.create({
     borderColor: Colors.borderLight,
   },
   quickBtnText: { fontSize: 13, fontWeight: "500", color: Colors.text },
+  quickBtnDisabled: {
+    opacity: 0.4,
+    backgroundColor: Colors.backgroundSecondary,
+  },
+  studentRowDisabled: {
+    opacity: 0.5,
+  },
+  submitHoliday: {
+    backgroundColor: "#CC3300",
+  },
+  submitHolidayContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+  },
   listContent: { padding: Spacing.md },
   studentRow: {
     flexDirection: "row",

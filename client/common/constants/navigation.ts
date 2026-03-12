@@ -102,7 +102,7 @@ export const ALL_TABS: TabConfig[] = [
   {
     // Teachers see their own leaves here (requires teacher.leave.apply, NOT teacher.leave.manage)
     name: 'my-leaves',
-    title: 'My Leaves',
+    title: 'Leave Tracker',
     icon: 'calendar',
     iconOutline: 'calendar-outline',
     requiredPermissions: [PERMS.TEACHER_LEAVE_APPLY],
@@ -116,17 +116,6 @@ export const ALL_TABS: TabConfig[] = [
     iconOutline: 'document-text-outline',
     requiredPermissions: [PERMS.TEACHER_LEAVE_MANAGE],
     requiredPlanFeature: 'teacher_management',
-  },
-  {
-    name: 'holidays',
-    title: 'Holidays',
-    icon: 'calendar',
-    iconOutline: 'calendar-outline',
-    requiredPermissions: [
-      PERMS.HOLIDAY_READ,
-      PERMS.HOLIDAY_MANAGE,
-    ],
-    requiredPlanFeature: 'holiday_management',
   },
   {
     name: 'profile',
@@ -153,12 +142,19 @@ export const getVisibleTabs = (
       }
     }
 
-    // "My Leaves" is exclusively for teachers — hide for users who can manage all leaves (admins)
+    // Leave Tracker: show to teachers (have leave.apply but not admin roles)
+    // OR to holiday managers / super admins (for managing school holidays)
     if (tab.name === 'my-leaves') {
-      return permissions.includes(PERMS.TEACHER_LEAVE_APPLY) &&
-             !permissions.includes(PERMS.TEACHER_LEAVE_MANAGE) &&
-             !permissions.includes(PERMS.SYSTEM_MANAGE) &&
-             !permissions.includes(PERMS.USER_MANAGE);
+      const isTeacherOnly = permissions.includes(PERMS.TEACHER_LEAVE_APPLY) &&
+                            !permissions.includes(PERMS.TEACHER_LEAVE_MANAGE) &&
+                            !permissions.includes(PERMS.SYSTEM_MANAGE) &&
+                            !permissions.includes(PERMS.USER_MANAGE);
+      const isHolidayManager = permissions.includes(PERMS.SYSTEM_MANAGE) ||
+                                permissions.includes(PERMS.USER_MANAGE) ||
+                                [PERMS.HOLIDAY_MANAGE, PERMS.HOLIDAY_CREATE, PERMS.HOLIDAY_READ].some(
+                                  p => permissions.includes(p)
+                                );
+      return isTeacherOnly || isHolidayManager;
     }
 
     // If no permissions required, show to everyone
