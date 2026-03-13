@@ -75,29 +75,6 @@ export const financeService = {
     await apiDelete(`/api/finance/structures/${id}`);
   },
 
-  assignStructure: async (structureId: string, studentIds: string[]) => {
-    const res = await apiPost<{ created_count: number }>(
-      `/api/finance/structures/${structureId}/assign`,
-      { student_ids: studentIds }
-    );
-    return res;
-  },
-
-  getAssignData: async (structureId: string, params?: { class_ids?: string[]; search?: string }) => {
-    let url = `/api/finance/structures/${structureId}/assign-data`;
-    if (params && (params.class_ids?.length || params.search)) {
-      const q = new URLSearchParams();
-      if (params.class_ids?.length) q.append("class_ids", params.class_ids.join(","));
-      if (params.search) q.append("search", params.search);
-      url += `?${q.toString()}`;
-    }
-    return await apiGet<{
-      students: Array<{ id: string; name?: string; admission_number?: string }>;
-      assigned_student_ids: string[];
-      student_fee_ids_by_student: Record<string, string>;
-    }>(url);
-  },
-
   // Summary (dashboard - single lightweight request)
   // Pass include_recent_payments=N to get summary + recent payments in one call
   getSummary: async (params?: {

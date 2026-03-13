@@ -107,34 +107,6 @@ export function useDeleteStructure() {
   });
 }
 
-export function useAssignStructure() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({
-      structureId,
-      studentIds,
-    }: {
-      structureId: string;
-      studentIds: string[];
-    }) => financeService.assignStructure(structureId, studentIds),
-    onSuccess: async () => {
-      await Promise.all([
-        qc.invalidateQueries({ queryKey: KEYS.structures }),
-        qc.invalidateQueries({
-          queryKey: KEYS.studentFees,
-          refetchType: "all",
-        }),
-        qc.invalidateQueries({ queryKey: KEYS.summary }),
-        qc.invalidateQueries({ queryKey: ["finance", "dashboard"] }),
-        qc.invalidateQueries({
-          queryKey: ["finance", "recentPayments"],
-          refetchType: "all",
-        }),
-      ]);
-    },
-  });
-}
-
 export function useFinanceSummary(params?: {
   academic_year_id?: string;
   class_id?: string;
@@ -266,45 +238,3 @@ export function useClasses() {
   });
 }
 
-export function useStudentsForAssign(
-  params?: { class_ids?: string[]; search?: string },
-  enabled = true
-) {
-  return useQuery({
-    queryKey: [
-      "students",
-      "assign",
-      params?.class_ids?.join(",") ?? "all",
-      params?.search ?? "",
-    ],
-    queryFn: () =>
-      studentService.getStudents({
-        class_ids: params?.class_ids?.length ? params.class_ids : undefined,
-        search: params?.search,
-      }),
-    enabled,
-  });
-}
-
-/** Assign modal: one API call for students + assignment status. Use instead of useStudentsForAssign + useStudentFees. */
-export function useAssignData(
-  structureId: string | null,
-  params?: { class_ids?: string[]; search?: string },
-  enabled = true
-) {
-  return useQuery({
-    queryKey: [
-      "finance",
-      "assignData",
-      structureId ?? "",
-      params?.class_ids?.join(",") ?? "all",
-      params?.search ?? "",
-    ],
-    queryFn: () =>
-      financeService.getAssignData(structureId!, {
-        class_ids: params?.class_ids?.length ? params.class_ids : undefined,
-        search: params?.search,
-      }),
-    enabled: !!structureId && enabled,
-  });
-}

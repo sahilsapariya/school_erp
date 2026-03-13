@@ -27,8 +27,10 @@ export default function FinanceLayout() {
       }}
     >
       <Stack.Screen name="index" />
-      <Stack.Screen name="structures" />
-      <Stack.Screen name="student-fees" />
+      <Stack.Screen name="structures/index" />
+      <Stack.Screen name="structures/[id]" />
+      <Stack.Screen name="student-fees/index" />
+      <Stack.Screen name="student-fees/[id]" />
     </Stack>
   );
 }

@@ -18,24 +18,16 @@ import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import {
   useStructures,
-  useStructure,
   useAcademicYears,
   useClasses,
   useAvailableClassesForStructure,
   useCreateStructure,
   useUpdateStructure,
-  useDeleteStructure,
-  useAssignStructure,
-  useStudentsForAssign,
-  useStudentFees,
-  useDeleteStudentFee,
 } from "@/modules/finance/hooks/useFinance";
 import { useAcademicYearContext } from "@/modules/academics/context/AcademicYearContext";
 import type { FeeStructure } from "@/modules/finance/types";
-import { studentService } from "@/modules/students/services/studentService";
 import { Colors } from "@/common/constants/colors";
 import { Spacing, Layout } from "@/common/constants/spacing";
-import { ClassSelect } from "@/common/components/ClassSelect";
 import { ClassMultiSelect } from "@/common/components/ClassMultiSelect";
 
 function formatDate(s: string) {
@@ -51,8 +43,6 @@ export default function FeeStructuresPage() {
   const { selectedAcademicYearId: contextYearId } = useAcademicYearContext();
   const [academicYearFilter, setAcademicYearFilter] = useState<string>("");
   const [modalOpen, setModalOpen] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [assignStructureId, setAssignStructureId] = useState<string | null>(null);
 
   const { data: academicYears = [] } = useAcademicYears(false);
   const { data: classes = [] } = useClasses();
@@ -67,34 +57,6 @@ export default function FeeStructuresPage() {
 
   const createMut = useCreateStructure();
   const updateMut = useUpdateStructure();
-  const deleteMut = useDeleteStructure();
-  const assignMut = useAssignStructure();
-
-  const handleEdit = (s: FeeStructure) => {
-    setEditingId(s.id);
-    setModalOpen(true);
-  };
-
-  const handleDelete = (s: FeeStructure) => {
-    Alert.alert(
-      "Delete Structure",
-      `Delete "${s.name}"? This cannot be undone.`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await deleteMut.mutateAsync(s.id);
-            } catch (e: any) {
-              Alert.alert("Error", e?.message ?? "Failed to delete");
-            }
-          },
-        },
-      ]
-    );
-  };
 
   if (error) {
     return (
@@ -107,7 +69,11 @@ export default function FeeStructuresPage() {
   }
 
   const renderStructureItem = ({ item: s }: { item: FeeStructure }) => (
-    <View style={styles.classCard}>
+    <TouchableOpacity
+      style={styles.classCard}
+      onPress={() => router.push(`/(protected)/finance/structures/${s.id}` as never)}
+      activeOpacity={0.7}
+    >
       <View style={styles.classIcon}>
         <Ionicons name="layers" size={24} color={Colors.primary} />
       </View>
@@ -125,33 +91,7 @@ export default function FeeStructuresPage() {
           </View>
         ) : null}
       </View>
-      <View style={styles.cardActions}>
-        <TouchableOpacity
-          onPress={() => setAssignStructureId(s.id)}
-          style={styles.actionBtn}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        >
-          <Ionicons name="people-outline" size={20} color={Colors.primary} />
-          <Text style={styles.actionLabel}>Assign</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          onPress={() => handleEdit(s)}
-          style={styles.actionBtn}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        >
-          <Ionicons name="pencil-outline" size={20} color={Colors.primary} />
-          <Text style={styles.actionLabel}>Edit</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          onPress={() => handleDelete(s)}
-          style={[styles.actionBtn, styles.actionBtnDanger]}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        >
-          <Ionicons name="trash-outline" size={20} color={Colors.error} />
-          <Text style={styles.actionLabelDanger}>Delete</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
+    </TouchableOpacity>
   );
 
   return (
@@ -163,10 +103,7 @@ export default function FeeStructuresPage() {
         <Text style={styles.headerTitle}>Fee Structures</Text>
         <TouchableOpacity
           style={styles.addButton}
-          onPress={() => {
-            setEditingId(null);
-            setModalOpen(true);
-          }}
+          onPress={() => setModalOpen(true)}
         >
           <Ionicons name="add" size={24} color={Colors.primary} />
         </TouchableOpacity>
@@ -212,9 +149,7 @@ export default function FeeStructuresPage() {
           keyExtractor={(item) => item.id}
           renderItem={renderStructureItem}
           contentContainerStyle={styles.listContent}
-          refreshControl={
-            <RefreshControl refreshing={isRefetching} onRefresh={refetch} />
-          }
+          refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} />}
           ListEmptyComponent={
             <View style={styles.emptyState}>
               <Ionicons name="layers-outline" size={48} color={Colors.textTertiary} />
@@ -224,10 +159,7 @@ export default function FeeStructuresPage() {
               </Text>
               <TouchableOpacity
                 style={styles.emptyCta}
-                onPress={() => {
-                  setEditingId(null);
-                  setModalOpen(true);
-                }}
+                onPress={() => setModalOpen(true)}
               >
                 <Ionicons name="add" size={20} color="#fff" />
                 <Text style={styles.emptyCtaText}>Create Structure</Text>
@@ -239,15 +171,12 @@ export default function FeeStructuresPage() {
 
         <StructureModal
           visible={modalOpen}
-          onClose={() => {
-            setModalOpen(false);
-            setEditingId(null);
-          }}
-          editingId={editingId}
-          structures={structures}
-          academicYears={academicYears}
-          allClasses={classes}
-          defaultAcademicYearId={contextYearId || undefined}
+          onClose={() => setModalOpen(false)}
+          editingId={null}
+        structures={structures}
+        academicYears={academicYears}
+        allClasses={classes}
+        defaultAcademicYearId={contextYearId ?? undefined}
         onCreate={async (data) => {
           await createMut.mutateAsync(data);
           setModalOpen(false);
@@ -255,25 +184,9 @@ export default function FeeStructuresPage() {
         onUpdate={async (id, data) => {
           await updateMut.mutateAsync({ id, data });
           setModalOpen(false);
-          setEditingId(null);
         }}
         isCreating={createMut.isPending}
         isUpdating={updateMut.isPending}
-      />
-
-      <AssignStructureModal
-        visible={!!assignStructureId}
-        onClose={() => setAssignStructureId(null)}
-        structureId={assignStructureId}
-        structureName={structures.find((s) => s.id === assignStructureId)?.name}
-        structureClassIds={structures.find((s) => s.id === assignStructureId)?.class_ids ?? []}
-        classes={classes}
-        onAssign={async (studentIds) => {
-          if (!assignStructureId) return;
-          await assignMut.mutateAsync({ structureId: assignStructureId, studentIds });
-          setAssignStructureId(null);
-        }}
-        isAssigning={assignMut.isPending}
       />
     </SafeAreaView>
   );
@@ -287,8 +200,14 @@ interface StructureModalProps {
   academicYears: { id: string; name: string }[];
   allClasses: { id: string; name: string; section?: string }[];
   defaultAcademicYearId?: string;
-  onCreate: (data: any) => Promise<void>;
-  onUpdate: (id: string, data: any) => Promise<void>;
+  onCreate: (data: {
+    name: string;
+    academic_year_id: string;
+    due_date: string;
+    class_ids?: string[];
+    components: { name: string; amount: number; is_optional: boolean }[];
+  }) => Promise<void>;
+  onUpdate: (id: string, data: { name?: string; due_date?: string; class_ids?: string[]; components?: { name: string; amount: number; is_optional: boolean }[] }) => Promise<void>;
   isCreating: boolean;
   isUpdating: boolean;
 }
@@ -306,9 +225,7 @@ function StructureModal({
   isCreating,
   isUpdating,
 }: StructureModalProps) {
-  const editing = editingId
-    ? structures.find((s) => s.id === editingId)
-    : null;
+  const editing = editingId ? structures.find((s) => s.id === editingId) : null;
 
   const [name, setName] = useState(editing?.name ?? "");
   const [academicYearId, setAcademicYearId] = useState(
@@ -318,7 +235,9 @@ function StructureModal({
     editing?.class_ids ?? (editing?.class_id ? [editing.class_id] : [])
   );
   const [dueDate, setDueDate] = useState(editing?.due_date ?? "");
-  const [components, setComponents] = useState<{ name: string; amount: string; is_optional: boolean }[]>(
+  const [components, setComponents] = useState<
+    { name: string; amount: string; is_optional: boolean }[]
+  >(
     editing?.components?.map((c) => ({
       name: c.name,
       amount: String(c.amount ?? 0),
@@ -326,7 +245,7 @@ function StructureModal({
     })) ?? [{ name: "", amount: "", is_optional: false }]
   );
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (visible) {
       setName(editing?.name ?? "");
       setAcademicYearId(editing?.academic_year_id ?? defaultAcademicYearId ?? "");
@@ -405,15 +324,15 @@ function StructureModal({
           components: comps,
         });
       }
-    } catch (e: any) {
-      Alert.alert("Error", e?.message ?? "Failed to save");
+    } catch (e: unknown) {
+      Alert.alert("Error", e instanceof Error ? e.message : "Failed to save");
     }
   };
 
   const effectiveAcademicYearId = academicYearId || (editing?.academic_year_id ?? "");
   const { data: availableClasses = [] } = useAvailableClassesForStructure(
     effectiveAcademicYearId || undefined,
-    editingId,
+    editingId ?? undefined,
     visible && !!effectiveAcademicYearId
   );
   const classOptions = availableClasses.map((c) => ({
@@ -457,10 +376,7 @@ function StructureModal({
                   {academicYears.map((ay) => (
                     <TouchableOpacity
                       key={ay.id}
-                      style={[
-                        styles.formChip,
-                        academicYearId === ay.id && styles.formChipActive,
-                      ]}
+                      style={[styles.formChip, academicYearId === ay.id && styles.formChipActive]}
                       onPress={() => setAcademicYearId(ay.id)}
                     >
                       <Text
@@ -506,7 +422,7 @@ function StructureModal({
               </TouchableOpacity>
             </View>
             {components.map((c, i) => (
-              <View key={i} style={styles.componentRow}>
+              <View key={i} style={styles.componentFormRow}>
                 <TextInput
                   style={[styles.input, styles.componentInput]}
                   value={c.name}
@@ -550,260 +466,7 @@ function StructureModal({
               {isCreating || isUpdating ? (
                 <ActivityIndicator size="small" color={Colors.background} />
               ) : (
-                <Text style={styles.submitBtnText}>
-                  {editingId ? "Update" : "Create"}
-                </Text>
-              )}
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
-    </Modal>
-  );
-}
-
-interface AssignStructureModalProps {
-  visible: boolean;
-  onClose: () => void;
-  structureId: string | null;
-  structureName?: string;
-  structureClassIds?: string[];
-  classes: { id: string; name: string; section?: string }[];
-  onAssign: (studentIds: string[]) => Promise<void>;
-  isAssigning: boolean;
-}
-
-function AssignStructureModal({
-  visible,
-  onClose,
-  structureId,
-  structureName,
-  structureClassIds = [],
-  classes,
-  onAssign,
-  isAssigning,
-}: AssignStructureModalProps) {
-  const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set());
-  const hasUserToggledRef = React.useRef(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-  const deleteFeeMut = useDeleteStudentFee();
-
-  // Fetch structure inside modal so we always use latest class_ids after edits.
-  // Wait for fetch to complete so we don't sync selection with stale class_ids.
-  const {
-    data: structure,
-    isFetching: structureFetching,
-    refetch: refetchStructure,
-  } = useStructure(structureId ?? undefined, visible && !!structureId);
-  const effectiveStructureClassIds = structure?.class_ids ?? structureClassIds;
-  const effectiveStructureName = structure?.name ?? structureName;
-  const structureReady = !structureId || !structureFetching;
-
-  // Force refetch when modal opens so we always have latest structure (e.g. after edit).
-  React.useEffect(() => {
-    if (visible && structureId) refetchStructure();
-  }, [visible, structureId]);
-
-  React.useEffect(() => {
-    const t = setTimeout(() => setDebouncedSearch(searchQuery.trim()), 300);
-    return () => clearTimeout(t);
-  }, [searchQuery]);
-
-  const isAllClassesStructure = effectiveStructureClassIds.length === 0;
-  const allowedClasses = isAllClassesStructure
-    ? classes
-    : classes.filter((c) => effectiveStructureClassIds.includes(c.id));
-  const effectiveClassIds = isAllClassesStructure
-    ? allowedClasses.map((c) => c.id)
-    : effectiveStructureClassIds;
-
-  const { data: displayStudents = [], isLoading: studentsLoading } = useStudentsForAssign(
-    visible
-      ? {
-          class_ids: effectiveClassIds.length > 0 ? effectiveClassIds : undefined,
-          search: debouncedSearch || undefined,
-        }
-      : undefined,
-    visible
-  );
-
-  const {
-    data: structureFees = [],
-    isLoading: structureFeesLoading,
-  } = useStudentFees(
-    structureId ? { fee_structure_id: structureId, include_items: false } : undefined
-  );
-
-  const { assignedStudentIds, assignedFeeIdsByStudent } = React.useMemo(() => {
-    const ids = new Set<string>();
-    const map = new Map<string, string>();
-    if (!structureFees || (structureFees as any[]).length === 0) {
-      return { assignedStudentIds: ids, assignedFeeIdsByStudent: map };
-    }
-    const classFilter = new Set(effectiveClassIds);
-    (structureFees as Array<{ id: string; student_id: string; class_id?: string }>).forEach(
-      (sf) => {
-        if (classFilter.size === 0 || !sf.class_id || classFilter.has(sf.class_id)) {
-          ids.add(sf.student_id);
-          map.set(sf.student_id, sf.id);
-        }
-      }
-    );
-    return { assignedStudentIds: ids, assignedFeeIdsByStudent: map };
-  }, [structureFees, effectiveClassIds]);
-
-  React.useEffect(() => {
-    if (!visible) {
-      setSelectedStudentIds(new Set());
-      hasUserToggledRef.current = false;
-      setSearchQuery("");
-      setDebouncedSearch("");
-    }
-  }, [visible]);
-
-  // Sync selection from assignedStudentIds whenever data updates (e.g. after structure edit + refetch).
-  // Skip if user has manually toggled, to avoid overwriting their changes.
-  // Wait for structure to finish loading so we use latest class_ids (avoids stale selection after edit).
-  React.useEffect(() => {
-    if (!visible || structureFeesLoading || !structureReady || hasUserToggledRef.current) return;
-    if (assignedStudentIds.size > 0) {
-      setSelectedStudentIds(new Set(assignedStudentIds));
-    } else {
-      setSelectedStudentIds(new Set());
-    }
-  }, [visible, assignedStudentIds, structureFeesLoading, structureReady]);
-
-  const toggleStudent = (id: string) => {
-    hasUserToggledRef.current = true;
-    setSelectedStudentIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-
-  const handleAssign = async () => {
-    const selected = new Set(selectedStudentIds);
-    const toAdd: string[] = [];
-    const toRemoveFeeIds: string[] = [];
-
-    assignedStudentIds.forEach((sid) => {
-      if (!selected.has(sid)) {
-        const feeId = assignedFeeIdsByStudent.get(sid);
-        if (feeId) toRemoveFeeIds.push(feeId);
-      }
-    });
-    selected.forEach((sid) => {
-      if (!assignedStudentIds.has(sid)) toAdd.push(sid);
-    });
-
-    try {
-      if (toRemoveFeeIds.length > 0) {
-        await Promise.all(toRemoveFeeIds.map((fid) => deleteFeeMut.mutateAsync(fid)));
-      }
-      if (toAdd.length > 0) {
-        await onAssign(toAdd);
-      }
-      onClose();
-    } catch (e: any) {
-      Alert.alert(
-        "Error",
-        e?.message ??
-          "Failed to update student assignments. Some students may have payments recorded and cannot be removed."
-      );
-    }
-  };
-
-  return (
-    <Modal visible={visible} animationType="slide" transparent>
-      <View style={styles.modalOverlay}>
-        <View style={[styles.modalContent, { maxHeight: "85%" }]}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Assign: {structureName ?? "—"}</Text>
-            <TouchableOpacity onPress={onClose}>
-              <Ionicons name="close" size={24} color={Colors.text} />
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.assignModeSection}>
-            <Text style={styles.assignModeLabel}>Assign to students</Text>
-            <Text style={styles.helperText}>
-              {isAllClassesStructure
-                ? "This fee structure applies to all classes."
-                : `Structure classes: ${
-                    allowedClasses.length
-                      ? allowedClasses
-                          .map((c) => (c.section ? `${c.name}-${c.section}` : c.name))
-                          .join(", ")
-                      : "—"
-                  }`}
-            </Text>
-            <Text style={styles.assignModeHint}>
-              Select individual students to assign or remove this fee structure
-            </Text>
-          </View>
-
-          <View style={[styles.modalBody, { paddingBottom: 0 }]}>
-            <Text style={styles.inputLabel}>Search students</Text>
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Name, admission number..."
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              placeholderTextColor={Colors.textTertiary}
-            />
-            <Text style={[styles.inputLabel, { marginTop: Spacing.md }]}>Select Students</Text>
-            <ScrollView style={{ maxHeight: 240 }} showsVerticalScrollIndicator>
-              {studentsLoading ? (
-                <View style={styles.center}>
-                  <ActivityIndicator size="small" color={Colors.primary} />
-                </View>
-              ) : (
-                (displayStudents as Array<{ id: string; name?: string; admission_number?: string }>).map(
-                  (s) => (
-                    <TouchableOpacity
-                      key={s.id}
-                      style={[
-                        styles.studentSelectRow,
-                        selectedStudentIds.has(s.id) && styles.studentSelectRowActive,
-                      ]}
-                      onPress={() => toggleStudent(s.id)}
-                    >
-                      <Ionicons
-                        name={selectedStudentIds.has(s.id) ? "checkbox" : "square-outline"}
-                        size={22}
-                        color={selectedStudentIds.has(s.id) ? Colors.primary : Colors.textSecondary}
-                      />
-                      <Text style={styles.studentSelectName}>
-                        {s.name ?? s.admission_number ?? s.id}
-                      </Text>
-                    </TouchableOpacity>
-                  )
-                )
-              )}
-              {!studentsLoading && displayStudents.length === 0 && (
-                <Text style={styles.emptyText}>
-                  {searchQuery.trim() ? "No students match your search" : "No students"}
-                </Text>
-              )}
-            </ScrollView>
-          </View>
-
-          <View style={styles.modalFooter}>
-            <TouchableOpacity style={styles.cancelBtn} onPress={onClose}>
-              <Text style={styles.cancelBtnText}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.submitBtn, isAssigning && styles.submitBtnDisabled]}
-              onPress={handleAssign}
-              disabled={isAssigning}
-            >
-              {isAssigning ? (
-                <ActivityIndicator size="small" color={Colors.background} />
-              ) : (
-                <Text style={styles.submitBtnText}>Assign</Text>
+                <Text style={styles.submitBtnText}>{editingId ? "Update" : "Create"}</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -905,7 +568,6 @@ const styles = StyleSheet.create({
   },
   emptyCtaText: { color: "#fff", fontWeight: "600", fontSize: 15 },
   errorText: { color: Colors.error, fontSize: 16 },
-
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.5)",
@@ -935,15 +597,6 @@ const styles = StyleSheet.create({
     borderTopColor: Colors.borderLight,
   },
   inputLabel: { fontSize: 14, fontWeight: "600", color: Colors.text, marginBottom: Spacing.sm },
-  searchInput: {
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: Layout.borderRadius.md,
-    padding: Spacing.md,
-    fontSize: 16,
-    marginBottom: Spacing.md,
-    color: Colors.text,
-  },
   helperText: { fontSize: 12, color: Colors.textSecondary, marginBottom: Spacing.sm },
   input: {
     borderWidth: 1,
@@ -965,7 +618,7 @@ const styles = StyleSheet.create({
   formChipText: { fontSize: 14, color: Colors.text },
   formChipTextActive: { fontSize: 14, color: Colors.background, fontWeight: "600" },
   componentHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  componentRow: { flexDirection: "row", alignItems: "center", marginBottom: Spacing.sm },
+  componentFormRow: { flexDirection: "row", alignItems: "center", marginBottom: Spacing.sm },
   componentInput: { flex: 1, marginRight: Spacing.sm },
   amountInput: { width: 90, marginRight: Spacing.sm },
   optionalRow: { flexDirection: "row", alignItems: "center", marginRight: Spacing.sm },
@@ -973,36 +626,15 @@ const styles = StyleSheet.create({
   removeBtn: { padding: Spacing.sm },
   addComponentBtn: { flexDirection: "row", alignItems: "center" },
   addComponentText: { fontSize: 14, color: Colors.primary, marginLeft: Spacing.xs },
-  assignModeSection: {
-    paddingHorizontal: Spacing.lg,
-    marginBottom: Spacing.md,
-  },
-  assignModeLabel: { fontSize: 14, fontWeight: "600", color: Colors.text },
-  assignModeHint: { fontSize: 12, color: Colors.textSecondary, marginTop: 2, marginBottom: Spacing.sm },
-  assignModeRow: { flexDirection: "row", gap: Spacing.sm },
-  assignModeChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.xs,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: Layout.borderRadius.md,
-    backgroundColor: Colors.backgroundSecondary,
-  },
-  assignModeText: { fontSize: 14, color: Colors.text },
-  assignHint: { fontSize: 13, color: Colors.textSecondary },
-  studentSelectRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: Spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
-  },
-  studentSelectRowActive: { backgroundColor: Colors.backgroundSecondary },
-  studentSelectName: { marginLeft: Spacing.md, fontSize: 16 },
   cancelBtn: { flex: 1, padding: Spacing.md, alignItems: "center" },
   cancelBtnText: { fontSize: 16, color: Colors.textSecondary },
-  submitBtn: { flex: 1, backgroundColor: Colors.primary, padding: Spacing.md, borderRadius: Layout.borderRadius.md, alignItems: "center" },
+  submitBtn: {
+    flex: 1,
+    backgroundColor: Colors.primary,
+    padding: Spacing.md,
+    borderRadius: Layout.borderRadius.md,
+    alignItems: "center",
+  },
   submitBtnDisabled: { opacity: 0.7 },
   submitBtnText: { fontSize: 16, fontWeight: "600", color: Colors.background },
 });

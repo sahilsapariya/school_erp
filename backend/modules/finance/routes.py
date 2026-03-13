@@ -224,44 +224,6 @@ def delete_structure(structure_id):
     return error_response("FinanceError", result["error"], 400)
 
 
-@finance_bp.route("/structures/<structure_id>/assign-data", methods=["GET"])
-@tenant_required
-@auth_required
-@require_plan_feature("fees_management")
-@require_any_permission(PERM_READ, PERM_MANAGE)
-def get_assign_data(structure_id):
-    """GET /api/finance/structures/<id>/assign-data - Students + assignment status in one call."""
-    class_ids_param = request.args.get("class_ids")
-    class_ids = [c.strip() for c in class_ids_param.split(",") if c.strip()] if class_ids_param else None
-    search = request.args.get("search")
-    data = services.student_fee_service.get_assign_data_for_structure(
-        fee_structure_id=structure_id,
-        class_ids=class_ids,
-        search=search,
-    )
-    if data is None:
-        return not_found_response("Fee structure")
-    return success_response(data=data)
-
-
-@finance_bp.route("/structures/<structure_id>/assign", methods=["POST"])
-@tenant_required
-@auth_required
-@require_plan_feature("fees_management")
-@require_permission(PERM_MANAGE)
-def assign_structure(structure_id):
-    """POST /api/finance/structures/<id>/assign - Assign fee structure to students."""
-    data = request.get_json() or {}
-    result = services.student_fee_service.assign_student_fees_for_structure(
-        fee_structure_id=structure_id,
-        student_ids=data.get("student_ids"),
-        user_id=g.current_user.id if g.current_user else None,
-    )
-    if result["success"]:
-        return success_response(data=result)
-    return error_response("FinanceError", result["error"], 400)
-
-
 # ---------- Summary ----------
 
 @finance_bp.route("/summary", methods=["GET"])
