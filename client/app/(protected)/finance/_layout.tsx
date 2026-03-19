@@ -14,7 +14,7 @@ export default function FinanceLayout() {
       router.replace("/(protected)/home");
       return;
     }
-    if (!hasAnyPermission([PERMS.FINANCE_READ, PERMS.FINANCE_MANAGE])) {
+    if (!hasAnyPermission([PERMS.FINANCE_READ, PERMS.FINANCE_MANAGE, PERMS.FEES_INVOICE_READ])) {
       router.replace("/(protected)/home");
     }
   }, [isFeatureEnabled, hasAnyPermission, router]);
@@ -31,6 +31,8 @@ export default function FinanceLayout() {
       <Stack.Screen name="structures/[id]" />
       <Stack.Screen name="student-fees/index" />
       <Stack.Screen name="student-fees/[id]" />
+      <Stack.Screen name="invoices/index" />
+      <Stack.Screen name="invoices/[id]" />
     </Stack>
   );
 }

@@ -27,6 +27,8 @@ DEFAULT_ROLES: Dict[str, dict] = {
             "grades.manage", "course.manage", "class.manage",
             "subject.manage", "timetable.manage",
             "finance.read", "finance.manage", "finance.collect", "finance.refund",
+            "fees.invoice.create", "fees.invoice.read", "fees.invoice.send_reminder",
+            "fees.payment.record", "fees.receipt.download",
             "teacher.leave.manage",
             "holiday.manage",
         ],

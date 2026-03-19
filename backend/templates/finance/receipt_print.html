@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Fee Receipt</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 15mm;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: DejaVu Sans, Arial, sans-serif;
+            font-size: 11px;
+            color: #1a1a1a;
+            margin: 0;
+            padding: 0;
+            line-height: 1.4;
+        }
+
+        .receipt {
+            border: 2px solid #1a1a1a;
+            padding: 16px;
+            margin: 0 auto;
+            max-width: 100%;
+        }
+
+        .header-table {
+            width: 100%;
+            border-collapse: collapse;
+            border-bottom: 2px solid #1a1a1a;
+            padding-bottom: 12px;
+            margin-bottom: 12px;
+        }
+
+        .header-table td {
+            vertical-align: middle;
+        }
+
+        .logo-cell {
+            width: 80px;
+        }
+
+        .logo-placeholder {
+            width: 64px;
+            height: 64px;
+            border: 2px solid #cccccc;
+            background: #f8f8f8;
+            text-align: center;
+            font-size: 9px;
+            color: #888;
+            line-height: 64px;
+        }
+
+        .header-center {
+            text-align: center;
+            padding: 0 12px;
+        }
+
+        .logo-cell-right {
+            width: 90px;
+            text-align: right;
+        }
+
+        .school-name {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 2px;
+        }
+
+        .school-tagline {
+            font-size: 10px;
+            font-style: italic;
+            color: #444;
+        }
+
+        .school-details {
+            font-size: 10px;
+            color: #333;
+            margin-top: 4px;
+        }
+
+        .receipt-badge {
+            border: 2px solid #1a1a1a;
+            padding: 12px 16px;
+            display: inline-block;
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .info-block {
+            width: 100%;
+            border: 2px solid #000;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+
+        .info-block td {
+            border: 1px solid #000;
+            padding: 6px 10px;
+            vertical-align: middle;
+        }
+
+        .info-block .label {
+            font-weight: bold;
+            background: #f5f5f5;
+            width: 28%;
+        }
+
+        .info-block .value {
+            background: #fff;
+        }
+
+        .student-name-row td {
+            font-size: 12px;
+        }
+
+        .student-name-row .value {
+            font-weight: bold;
+            text-decoration: underline;
+        }
+
+        .fee-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+
+        .fee-table th,
+        .fee-table td {
+            border: 1px solid #000;
+            padding: 8px 10px;
+        }
+
+        .fee-table th {
+            background: #1a1a1a;
+            color: #fff;
+            font-size: 10px;
+            font-weight: bold;
+        }
+
+        .fee-table th:nth-child(1) { width: 8%; text-align: center; }
+        .fee-table th:nth-child(2) { width: 72%; text-align: left; }
+        .fee-table th:nth-child(3) { width: 20%; text-align: right; }
+
+        .fee-table td:nth-child(1) { text-align: center; }
+        .fee-table td:nth-child(3) { text-align: right; }
+
+        .fee-row-alt {
+            background: #f9f9f9;
+        }
+
+        .summary-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+
+        .summary-table td {
+            border: 1px solid #000;
+            padding: 8px 10px;
+        }
+
+        .summary-table .payment-info {
+            background: #f5f5f5;
+            vertical-align: top;
+            width: 35%;
+        }
+
+        .summary-table .amount-label {
+            background: #f5f5f5;
+            font-weight: bold;
+            width: 45%;
+        }
+
+        .summary-table .amount-value {
+            background: #f5f5f5;
+            font-weight: bold;
+            text-align: right;
+            width: 20%;
+        }
+
+        .summary-table .balance-row td {
+            background: #e8f0fe;
+        }
+
+        .remarks-block {
+            border: 1px solid #000;
+            padding: 8px 10px;
+            margin-bottom: 20px;
+        }
+
+        .remarks-block .label {
+            font-weight: bold;
+        }
+
+        .footer {
+            margin-top: 16px;
+            padding-top: 12px;
+            border-top: 1px solid #888;
+        }
+
+        .footer-policy {
+            font-size: 10px;
+            color: #555;
+            margin-bottom: 20px;
+        }
+
+        .signature-block {
+            text-align: right;
+            margin-top: 24px;
+        }
+
+        .signature-line {
+            border-top: 1px solid #333;
+            width: 180px;
+            margin: 0 0 4px auto;
+            padding-top: 4px;
+            font-size: 10px;
+        }
+
+        .cut-line {
+            border-top: 2px dashed #555555;
+            margin: 14px 0;
+            font-size: 9px;
+            color: #555555;
+            text-align: center;
+        }
+
+        @media print {
+            .no-print { display: none !important; }
+        }
+    </style>
+</head>
+<body>
+{% from 'finance/fee_receipt.html' import receipt_copy %}
+{{ receipt_copy('OFFICE COPY') }}
+<div class="cut-line">&#9988; &nbsp; cut here &nbsp; &#9988;</div>
+{{ receipt_copy('STUDENT / PARENT COPY') }}
+<div class="no-print" style="text-align:center;margin-top:16px;">
+    <button onclick="window.print()"
+            style="padding:8px 24px;font-size:14px;cursor:pointer;">
+        Print
+    </button>
+</div>
+<script>
+    if (window.location.search.indexOf('autoprint=1') >= 0) {
+        window.onload = function() { window.print(); };
+    }
+</script>
+</body>
+</html>

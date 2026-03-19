@@ -12,6 +12,8 @@ Usage:
     >>> app.run()
 """
 
+import logging
+
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 
@@ -94,6 +96,9 @@ def register_tenant_middleware(app: Flask):
         # Auth routes resolve tenant in the route (supports body subdomain/tenant_id, header, host, default)
         if request.path.startswith("/api/auth/"):
             return None
+        # CORS preflight: skip tenant resolution so OPTIONS succeeds and browser can send actual request
+        if request.method == "OPTIONS":
+            return None
         if request.path.startswith("/api/"):
             return resolve_tenant()
         return None
@@ -129,6 +134,7 @@ def register_blueprints(app: Flask):
     from backend.modules.timetable import timetable_bp
     from backend.modules.schedule import schedule_bp
     from backend.modules.holidays import holidays_bp
+    from backend.modules.fees import fees_bp
 
     # Register blueprints with URL prefixes
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
@@ -146,63 +152,113 @@ def register_blueprints(app: Flask):
     app.register_blueprint(schedule_bp, url_prefix='/api/schedule')
     app.register_blueprint(notifications_bp, url_prefix='/api')
     app.register_blueprint(holidays_bp, url_prefix='/api/holidays')
+    app.register_blueprint(fees_bp, url_prefix='/api/fees')
 
 
 def register_error_handlers(app: Flask):
     """
-    Register global error handlers.
+    Register global error handlers with logging.
     
-    Provides consistent error responses across the application.
+    Provides consistent error responses and logs all API errors to the terminal.
     
     Args:
         app: Flask application instance
     """
-    
+    logger = logging.getLogger(__name__)
+
+    def _log_error(status_code: int, error_type: str, error_msg: str, exc=None):
+        """Log API error with request context."""
+        ctx = f"{request.method} {request.path}"
+        msg = f"[API Error] {status_code} {ctx} | {error_type}: {error_msg}"
+        if status_code >= 500:
+            logger.error(msg, exc_info=exc)
+        else:
+            logger.warning(msg)
+
     @app.errorhandler(404)
     def not_found(error):
         """Handle 404 Not Found errors"""
+        _log_error(404, "NotFound", str(getattr(error, "description", "Resource not found")))
         return jsonify({
             'success': False,
             'error': 'NotFound',
             'message': 'Resource not found'
         }), 404
-    
+
     @app.errorhandler(500)
     def internal_error(error):
         """Handle 500 Internal Server errors"""
-        db.session.rollback()  # Rollback any failed transactions
+        _log_error(500, "InternalServerError", str(error), exc=True)
+        db.session.rollback()
         return jsonify({
             'success': False,
             'error': 'InternalServerError',
             'message': 'An internal server error occurred'
         }), 500
-    
+
     @app.errorhandler(400)
     def bad_request(error):
         """Handle 400 Bad Request errors"""
+        _log_error(400, "BadRequest", str(getattr(error, "description", error)))
         return jsonify({
             'success': False,
             'error': 'BadRequest',
             'message': 'Invalid request'
         }), 400
-    
+
     @app.errorhandler(403)
     def forbidden(error):
         """Handle 403 Forbidden errors"""
+        _log_error(403, "Forbidden", str(getattr(error, "description", "Access forbidden")))
         return jsonify({
             'success': False,
             'error': 'Forbidden',
             'message': 'Access forbidden'
         }), 403
-    
+
     @app.errorhandler(401)
     def unauthorized(error):
         """Handle 401 Unauthorized errors"""
+        _log_error(401, "Unauthorized", str(getattr(error, "description", "Authentication required")))
         return jsonify({
             'success': False,
             'error': 'Unauthorized',
             'message': 'Authentication required'
         }), 401
+
+    @app.errorhandler(Exception)
+    def handle_unhandled_exception(error):
+        """Catch-all for unhandled exceptions with full traceback."""
+        _log_error(500, type(error).__name__, str(error), exc=True)
+        db.session.rollback()
+        return jsonify({
+            'success': False,
+            'error': 'InternalServerError',
+            'message': 'An internal server error occurred'
+        }), 500
+
+    @app.after_request
+    def log_error_responses(response):
+        """Log any 4xx/5xx response from routes that return error_response() directly."""
+        if response.status_code >= 400 and request.path.startswith("/api/"):
+            try:
+                body = response.get_json(silent=True)
+                err_type = body.get("error", "Unknown") if body else "Unknown"
+                err_msg = body.get("message", "") if body else ""
+                ctx = f"{request.method} {request.path}"
+                msg = f"[API Error] {response.status_code} {ctx} | {err_type}: {err_msg}"
+                if response.status_code >= 500:
+                    logger.error(msg)
+                else:
+                    logger.warning(msg)
+            except Exception:
+                logger.warning(
+                    "[API Error] %s %s %s",
+                    response.status_code,
+                    request.method,
+                    request.path,
+                )
+        return response
 
 
 def register_health_check(app: Flask):
@@ -249,11 +305,13 @@ def register_health_check(app: Flask):
                 'teachers': '/api/teachers',
                 'attendance': '/api/attendance',
                 'finance': '/api/finance',
+                'fees': '/api/fees',
                 'academics': '/api/academics',
                 'subjects': '/api/subjects',
                 'notifications': '/api/notifications',
                 'platform': '/api/platform',
-                'health': '/api/health'
+                'health': '/api/health',
+                'fees': '/api/fees'
             }
         }), 200
 

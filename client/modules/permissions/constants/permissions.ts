@@ -79,6 +79,13 @@ export const PROFILE_MANAGE = 'profile.manage';
 export const FINANCE_READ = 'finance.read';
 export const FINANCE_MANAGE = 'finance.manage';
 
+// Fees Invoice + Receipt (RBAC)
+export const FEES_INVOICE_CREATE = 'fees.invoice.create';
+export const FEES_INVOICE_READ = 'fees.invoice.read';
+export const FEES_INVOICE_SEND_REMINDER = 'fees.invoice.send_reminder';
+export const FEES_PAYMENT_RECORD = 'fees.payment.record';
+export const FEES_RECEIPT_DOWNLOAD = 'fees.receipt.download';
+
 // Finance Management (legacy fee permissions)
 export const FEE_CREATE = 'fee.create';
 export const FEE_READ_SELF = 'fee.read.self';

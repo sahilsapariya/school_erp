@@ -77,6 +77,12 @@ def init_db(app):
             StudentFeeItem,
             Payment,
         )
+        from backend.modules.fees.models import (
+            FeeInvoice,
+            FeeInvoiceItem,
+            FeePayment,
+            FeeReceipt,
+        )
         from backend.modules.notifications.models import Notification, NotificationTemplate
         from backend.modules.subjects.models import Subject
         from backend.modules.timetable.models import TimetableSlot, TimetableConfig

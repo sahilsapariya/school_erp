@@ -4,7 +4,9 @@ Finance API Routes
 All routes require tenant_id, RBAC, and write audit logs via services.
 """
 
-from flask import request, g
+import io
+
+from flask import request, g, send_file, make_response
 
 from backend.modules.finance import finance_bp
 from backend.core.decorators import (
@@ -305,6 +307,65 @@ def get_student_fee(fee_id):
     return success_response(data=data)
 
 
+@finance_bp.route("/student-fees/<fee_id>/download-invoice", methods=["GET"])
+@tenant_required
+@auth_required
+@require_plan_feature("fees_management")
+@require_any_permission(PERM_READ, PERM_MANAGE, PERM_COLLECT)
+def download_student_fee_invoice(fee_id):
+    """GET /api/finance/student-fees/<id>/download-invoice - Generate and download invoice PDF."""
+    data = services.student_fee_service.get_student_fee(fee_id)
+    if not data:
+        return not_found_response("Student fee")
+    from .services.pdf_service import generate_student_fee_invoice_pdf
+    pdf_bytes = generate_student_fee_invoice_pdf(fee_id)
+    if not pdf_bytes:
+        from backend.shared.helpers import error_response
+        return error_response("PDFError", "Failed to generate invoice PDF", 500)
+    ref = f"SF-{fee_id[:8].upper()}" if fee_id else "invoice"
+    resp = make_response(send_file(
+        io.BytesIO(pdf_bytes),
+        mimetype="application/pdf",
+        as_attachment=True,
+        download_name=f"invoice_{ref}.pdf",
+    ))
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    resp.headers["Pragma"] = "no-cache"
+    return resp
+
+
+@finance_bp.route("/payments/<payment_id>/download-receipt", methods=["GET"])
+@tenant_required
+@auth_required
+@require_plan_feature("fees_management")
+@require_any_permission(PERM_READ, PERM_MANAGE, PERM_COLLECT)
+def download_payment_receipt(payment_id):
+    """GET /api/finance/payments/<id>/download-receipt - Generate and download receipt PDF."""
+    from backend.core.tenant import get_tenant_id
+    from backend.modules.finance.models import Payment
+    tenant_id = get_tenant_id()
+    if not tenant_id:
+        return error_response("TenantError", "Tenant context required", 400)
+    payment = Payment.query.filter_by(id=payment_id, tenant_id=tenant_id).first()
+    if not payment:
+        return not_found_response("Payment")
+    from .services.pdf_service import generate_finance_receipt_pdf
+    pdf_bytes = generate_finance_receipt_pdf(payment_id)
+    if not pdf_bytes:
+        from backend.shared.helpers import error_response
+        return error_response("PDFError", "Failed to generate receipt PDF", 500)
+    receipt_num = f"RCP-{payment_id[:8].upper()}" if payment_id else "receipt"
+    resp = make_response(send_file(
+        io.BytesIO(pdf_bytes),
+        mimetype="application/pdf",
+        as_attachment=True,
+        download_name=f"receipt_{receipt_num}.pdf",
+    ))
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    resp.headers["Pragma"] = "no-cache"
+    return resp
+
+
 @finance_bp.route("/student-fees/<fee_id>", methods=["DELETE"])
 @tenant_required
 @auth_required
@@ -375,3 +436,115 @@ def refund_payment(payment_id):
     if "not found" in result.get("error", "").lower():
         return not_found_response("Payment")
     return error_response("RefundError", result["error"], 400)
+
+
+# ---------- Print HTML endpoints (browser print, no PDF) ----------
+
+@finance_bp.route("/student-fees/<fee_id>/print-invoice", methods=["GET"])
+@tenant_required
+@auth_required
+@require_plan_feature("fees_management")
+@require_any_permission(PERM_READ, PERM_MANAGE, PERM_COLLECT)
+def print_student_fee_invoice(fee_id):
+    """GET /api/finance/student-fees/<id>/print-invoice - Return HTML for browser print (dual-copy layout)."""
+    data = services.student_fee_service.get_student_fee(fee_id)
+    if not data:
+        return not_found_response("Student fee")
+    from .services.pdf_service import render_student_fee_invoice_html_for_print
+    html = render_student_fee_invoice_html_for_print(fee_id)
+    if not html:
+        return error_response("RenderError", "Failed to render invoice", 500)
+    resp = make_response(html)
+    resp.headers["Content-Type"] = "text/html; charset=utf-8"
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    resp.headers["Pragma"] = "no-cache"
+    return resp
+
+
+@finance_bp.route("/payments/<payment_id>/print-receipt", methods=["GET"])
+@tenant_required
+@auth_required
+@require_plan_feature("fees_management")
+@require_any_permission(PERM_READ, PERM_MANAGE, PERM_COLLECT)
+def print_payment_receipt(payment_id):
+    """GET /api/finance/payments/<id>/print-receipt - Return HTML for browser print (dual-copy layout)."""
+    from backend.core.tenant import get_tenant_id
+    from backend.modules.finance.models import Payment
+    tenant_id = get_tenant_id()
+    if not tenant_id:
+        return error_response("TenantError", "Tenant context required", 400)
+    payment = Payment.query.filter_by(id=payment_id, tenant_id=tenant_id).first()
+    if not payment:
+        return not_found_response("Payment")
+    from .services.pdf_service import render_finance_receipt_html_for_print
+    html = render_finance_receipt_html_for_print(payment_id)
+    if not html:
+        return error_response("RenderError", "Failed to render receipt", 500)
+    resp = make_response(html)
+    resp.headers["Content-Type"] = "text/html; charset=utf-8"
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    resp.headers["Pragma"] = "no-cache"
+    return resp
+
+
+# ---------- Tenant Profile (school admin can view/update own tenant) ----------
+
+@finance_bp.route("/tenant-profile", methods=["GET"])
+@tenant_required
+@auth_required
+def get_tenant_profile():
+    """GET /api/finance/tenant-profile - Get current tenant's profile for school admin."""
+    from backend.core.models import Tenant
+    from backend.core.tenant import get_tenant_id
+    tenant_id = get_tenant_id()
+    if not tenant_id:
+        return error_response("TenantError", "Tenant context required", 400)
+    tenant = Tenant.query.get(tenant_id)
+    if not tenant:
+        return not_found_response("Tenant")
+    return success_response(data={
+        "id": tenant.id,
+        "name": tenant.name,
+        "subdomain": tenant.subdomain,
+        "contact_email": tenant.contact_email,
+        "phone": tenant.phone,
+        "address": tenant.address,
+        "logo_url": tenant.logo_url,
+        "tagline": tenant.tagline,
+        "board_affiliation": tenant.board_affiliation,
+    })
+
+
+@finance_bp.route("/tenant-profile", methods=["PATCH"])
+@tenant_required
+@auth_required
+@require_permission("finance.manage")
+def update_tenant_profile():
+    """PATCH /api/finance/tenant-profile - Update school branding details (admin only)."""
+    from backend.core.models import Tenant
+    from backend.core.database import db
+    from backend.core.tenant import get_tenant_id
+    from datetime import datetime
+    tenant_id = get_tenant_id()
+    if not tenant_id:
+        return error_response("TenantError", "Tenant context required", 400)
+    tenant = Tenant.query.get(tenant_id)
+    if not tenant:
+        return not_found_response("Tenant")
+    data = request.get_json() or {}
+    updatable = ["logo_url", "tagline", "board_affiliation", "phone", "address", "contact_email"]
+    for field in updatable:
+        if field in data:
+            setattr(tenant, field, data[field] or None)
+    tenant.updated_at = datetime.utcnow()
+    db.session.commit()
+    return success_response(message="School profile updated", data={
+        "id": tenant.id,
+        "name": tenant.name,
+        "logo_url": tenant.logo_url,
+        "tagline": tenant.tagline,
+        "board_affiliation": tenant.board_affiliation,
+        "phone": tenant.phone,
+        "address": tenant.address,
+        "contact_email": tenant.contact_email,
+    })

@@ -75,6 +75,9 @@ class Tenant(db.Model):
         nullable=True,
         index=True,
     )
+    logo_url = db.Column(db.String(500), nullable=True)
+    tagline = db.Column(db.String(255), nullable=True)
+    board_affiliation = db.Column(db.String(100), nullable=True)
     status = db.Column(
         db.String(20),
         nullable=False,

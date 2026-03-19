@@ -1,0 +1,131 @@
+{% macro receipt_copy(copy_label='') %}
+{% if copy_label %}
+<table width="100%" cellspacing="0" cellpadding="0" style="margin-bottom:5px;">
+<tr><td>
+  <table cellspacing="0" cellpadding="3" style="border:1px solid #aaaaaa;background:#f5f5f5;">
+  <tr><td><b style="font-size:9px;">{{ copy_label }}</b></td></tr>
+  </table>
+</td></tr>
+</table>
+{% endif %}
+
+<div class="receipt">
+    <table class="header-table" cellpadding="0" cellspacing="0">
+        <tr>
+            <td class="logo-cell" width="80">
+                {% if school_logo %}
+                <img src="{{ school_logo }}" width="60" height="60" alt="School Logo" />
+                {% else %}
+                <div class="logo-placeholder">LOGO</div>
+                {% endif %}
+            </td>
+            <td class="header-center">
+                <div class="school-name">{{ school_name }}</div>
+                {% if school_tagline %}<div class="school-tagline">{{ school_tagline }}</div>{% endif %}
+                {% if board_affiliation %}<div class="school-details">{{ board_affiliation }}</div>{% endif %}
+                {% if school_address %}<div class="school-details">{{ school_address }}</div>{% endif %}
+                {% if school_phone %}<div class="school-details">Phone: {{ school_phone }}</div>{% endif %}
+            </td>
+            <td class="logo-cell-right" width="90">
+                <div class="receipt-badge">RECEIPT</div>
+            </td>
+        </tr>
+    </table>
+
+    <table class="info-block">
+        <tr>
+            <td class="label">Receipt No.:</td>
+            <td class="value">{{ receipt_number|default('—') }}</td>
+            <td class="label">Date:</td>
+            <td class="value">{{ payment_date|default('—') }}</td>
+            <td class="label">GR No.:</td>
+            <td class="value">{{ gr_number|default('—') }}</td>
+        </tr>
+        <tr class="student-name-row">
+            <td class="label">Student Name:</td>
+            <td class="value" colspan="5">{{ student_name|default('—') }}</td>
+        </tr>
+        <tr>
+            <td class="label">Standard:</td>
+            <td class="value">{{ standard|default('—') }}</td>
+            <td class="label">Division:</td>
+            <td class="value">{{ division|default('—') }}</td>
+            <td class="label">Academic Year:</td>
+            <td class="value">{{ academic_year|default('—') }}</td>
+        </tr>
+        {% if fee_structure_name and fee_structure_name != '—' %}
+        <tr>
+            <td class="label">Fee Structure:</td>
+            <td class="value" colspan="5">{{ fee_structure_name }}</td>
+        </tr>
+        {% endif %}
+    </table>
+
+    <table class="fee-table">
+        <thead>
+            <tr>
+                <th>Sr.</th>
+                <th>Particulars</th>
+                <th>Amount (₹)</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for it in items %}
+            <tr {% if loop.index is even %}class="fee-row-alt"{% endif %}>
+                <td style="border:1px solid #000;">{{ loop.index }}</td>
+                <td style="border:1px solid #000;">{{ it.fee_head or it.name }}</td>
+                <td style="border:1px solid #000;">{{ it.amount }}</td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="3" style="text-align:center;padding:16px;color:#888;">No fee components</td>
+            </tr>
+            {% endfor %}
+            <tr style="background:#e8e8e8;font-weight:bold;">
+                <td colspan="2">Total</td>
+                <td>{{ total_amount|default('—') }}</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <table class="summary-table">
+        <tr>
+            <td class="payment-info" rowspan="3">
+                <b>Payment By:</b> {{ payment_method|default('Cash')|capitalize }}
+                {% if payment_reference and payment_reference != '—' %}
+                <br><span style="font-size:10px;">Ref: {{ payment_reference }}</span>
+                {% endif %}
+            </td>
+            <td class="amount-label">Total Amount (₹)</td>
+            <td class="amount-value">{{ total_amount|default('—') }}</td>
+        </tr>
+        <tr>
+            <td class="amount-label">Amount Paid (₹)</td>
+            <td class="amount-value">{{ amount_paid|default('—') }}</td>
+        </tr>
+        <tr class="balance-row">
+            <td>Remaining Fees to be Paid (₹)</td>
+            <td style="text-align:right;">{{ balance_amount|default('0') }}</td>
+        </tr>
+    </table>
+
+    <div class="remarks-block">
+        <span class="label">Remarks:</span> {{ notes|default('—') }}
+    </div>
+
+    <div class="footer">
+        <div class="footer-policy">
+            Fees/Amount once paid will not be refundable or transferable.
+        </div>
+        <div class="signature-block">
+            <div class="signature-line">Authorized Signatory</div>
+        </div>
+    </div>
+</div>
+
+{% if show_note %}
+<div class="generated-note">
+  This is a system-generated receipt. Generated on {{ now }} | School ERP Finance Module
+</div>
+{% endif %}
+{% endmacro %}

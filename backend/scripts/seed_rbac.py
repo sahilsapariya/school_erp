@@ -110,6 +110,13 @@ PERMISSIONS = [
     ('finance.refund', 'Refund payments'),
     ('finance.manage', 'Full finance management access'),
 
+    # Fees Invoice & Receipt permissions
+    ('fees.invoice.create', 'Create fee invoices'),
+    ('fees.invoice.read', 'View fee invoices'),
+    ('fees.invoice.send_reminder', 'Send invoice reminders'),
+    ('fees.payment.record', 'Record fee payments'),
+    ('fees.receipt.download', 'Download fee receipts'),
+
     # Holiday permissions
     ('holiday.read', 'View holidays and weekly-off calendar'),
     ('holiday.create', 'Create holidays'),
@@ -140,6 +147,11 @@ ROLES = {
             'finance.manage',
             'finance.collect',
             'finance.refund',
+            'fees.invoice.create',
+            'fees.invoice.read',
+            'fees.invoice.send_reminder',
+            'fees.payment.record',
+            'fees.receipt.download',
             'teacher.leave.manage',
             'holiday.manage',
         ]

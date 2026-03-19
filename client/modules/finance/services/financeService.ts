@@ -4,6 +4,12 @@ import {
   apiPost,
   apiPut,
 } from "@/common/services/api";
+import { getApiUrl } from "@/common/constants/api";
+import {
+  getAccessToken,
+  getRefreshToken,
+  getTenantId,
+} from "@/common/utils/storage";
 import type {
   FeeStructure,
   StudentFee,
@@ -165,5 +171,91 @@ export const financeService = {
 
   refundPayment: async (paymentId: string, notes?: string) => {
     await apiPost(`/api/finance/payments/${paymentId}/refund`, { notes: notes || null });
+  },
+
+  /** Download invoice PDF for a student fee. Returns blob for save/print. */
+  downloadInvoicePdf: async (studentFeeId: string): Promise<Blob> => {
+    const url = getApiUrl(`/api/finance/student-fees/${studentFeeId}/download-invoice`);
+    const [accessToken, refreshToken, tenantId] = await Promise.all([
+      getAccessToken(),
+      getRefreshToken(),
+      getTenantId(),
+    ]);
+    const headers: Record<string, string> = {};
+    if (accessToken) headers["Authorization"] = `Bearer ${accessToken}`;
+    if (refreshToken) headers["X-Refresh-Token"] = refreshToken;
+    if (tenantId) headers["X-Tenant-ID"] = tenantId;
+    const res = await fetch(url, { headers });
+    if (!res.ok) throw new Error("Failed to download invoice PDF");
+    return await res.blob();
+  },
+
+  /** Download receipt PDF for a payment. Returns blob for save/print. */
+  downloadReceiptPdf: async (paymentId: string): Promise<Blob> => {
+    const url = getApiUrl(`/api/finance/payments/${paymentId}/download-receipt`);
+    const [accessToken, refreshToken, tenantId] = await Promise.all([
+      getAccessToken(),
+      getRefreshToken(),
+      getTenantId(),
+    ]);
+    const headers: Record<string, string> = {};
+    if (accessToken) headers["Authorization"] = `Bearer ${accessToken}`;
+    if (refreshToken) headers["X-Refresh-Token"] = refreshToken;
+    if (tenantId) headers["X-Tenant-ID"] = tenantId;
+    const res = await fetch(url, { headers });
+    if (!res.ok) throw new Error("Failed to download receipt PDF");
+    return await res.blob();
+  },
+
+  /** Get the print-ready HTML URL for a student fee invoice (dual-copy, no auto-note). */
+  getPrintInvoiceUrl: (studentFeeId: string): string =>
+    getApiUrl(`/api/finance/student-fees/${studentFeeId}/print-invoice?autoprint=1`),
+
+  /** Get the print-ready HTML URL for a payment receipt (dual-copy, no auto-note). */
+  getPrintReceiptUrl: (paymentId: string): string =>
+    getApiUrl(`/api/finance/payments/${paymentId}/print-receipt?autoprint=1`),
+
+  /** Open invoice print page in a new window. Handles auth headers via blob fetch. */
+  printInvoice: async (studentFeeId: string): Promise<void> => {
+    const url = getApiUrl(`/api/finance/student-fees/${studentFeeId}/print-invoice?autoprint=1`);
+    const [accessToken, refreshToken, tenantId] = await Promise.all([
+      getAccessToken(),
+      getRefreshToken(),
+      getTenantId(),
+    ]);
+    const headers: Record<string, string> = {};
+    if (accessToken) headers["Authorization"] = `Bearer ${accessToken}`;
+    if (refreshToken) headers["X-Refresh-Token"] = refreshToken;
+    if (tenantId) headers["X-Tenant-ID"] = tenantId;
+    const res = await fetch(url, { headers });
+    if (!res.ok) throw new Error("Failed to load invoice for print");
+    const html = await res.text();
+    const blob = new Blob([html], { type: "text/html" });
+    const blobUrl = URL.createObjectURL(blob);
+    const w = window.open(blobUrl, "_blank");
+    if (w) w.onload = () => { w.print(); setTimeout(() => URL.revokeObjectURL(blobUrl), 2000); };
+    else { window.open(blobUrl); setTimeout(() => URL.revokeObjectURL(blobUrl), 5000); }
+  },
+
+  /** Open receipt print page in a new window. Handles auth headers via blob fetch. */
+  printReceipt: async (paymentId: string): Promise<void> => {
+    const url = getApiUrl(`/api/finance/payments/${paymentId}/print-receipt?autoprint=1`);
+    const [accessToken, refreshToken, tenantId] = await Promise.all([
+      getAccessToken(),
+      getRefreshToken(),
+      getTenantId(),
+    ]);
+    const headers: Record<string, string> = {};
+    if (accessToken) headers["Authorization"] = `Bearer ${accessToken}`;
+    if (refreshToken) headers["X-Refresh-Token"] = refreshToken;
+    if (tenantId) headers["X-Tenant-ID"] = tenantId;
+    const res = await fetch(url, { headers });
+    if (!res.ok) throw new Error("Failed to load receipt for print");
+    const html = await res.text();
+    const blob = new Blob([html], { type: "text/html" });
+    const blobUrl = URL.createObjectURL(blob);
+    const w = window.open(blobUrl, "_blank");
+    if (w) w.onload = () => { w.print(); setTimeout(() => URL.revokeObjectURL(blobUrl), 2000); };
+    else { window.open(blobUrl); setTimeout(() => URL.revokeObjectURL(blobUrl), 5000); }
   },
 };

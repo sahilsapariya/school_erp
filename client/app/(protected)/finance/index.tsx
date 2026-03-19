@@ -143,6 +143,21 @@ export default function FinanceDashboardPage() {
               </View>
               <Ionicons name="chevron-forward" size={22} color={Colors.textSecondary} />
             </Pressable>
+            <Pressable
+              style={({ pressed }) => [styles.linkCard, pressed && styles.linkCardPressed]}
+              onPress={() => router.push("/(protected)/finance/invoices" as any)}
+            >
+              <View style={styles.cardContent}>
+                <View style={[styles.cardIcon, styles.cardIconPrimary]}>
+                  <Ionicons name="receipt-outline" size={26} color={Colors.primary} />
+                </View>
+                <View style={styles.linkText}>
+                  <Text style={styles.linkTitle}>Fee Invoices</Text>
+                  <Text style={styles.linkSubtitle}>Manage invoices, payments & receipts</Text>
+                </View>
+              </View>
+              <Ionicons name="chevron-forward" size={22} color={Colors.textSecondary} />
+            </Pressable>
           </View>
 
           <View style={styles.section}>

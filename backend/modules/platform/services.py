@@ -356,6 +356,9 @@ def get_tenant_by_id(tenant_id: str) -> Dict[str, Any]:
         "contact_email": tenant.contact_email,
         "phone": tenant.phone,
         "address": tenant.address,
+        "logo_url": tenant.logo_url,
+        "tagline": tenant.tagline,
+        "board_affiliation": tenant.board_affiliation,
         "status": tenant.status,
         "plan_id": tenant.plan_id,
         "plan_name": tenant.plan.name if tenant.plan else None,
@@ -373,6 +376,9 @@ def update_tenant(
     contact_email: Optional[str] = None,
     phone: Optional[str] = None,
     address: Optional[str] = None,
+    logo_url: Optional[str] = None,
+    tagline: Optional[str] = None,
+    board_affiliation: Optional[str] = None,
 ) -> Dict[str, Any]:
     tenant = Tenant.query.get(tenant_id)
     if not tenant:
@@ -385,13 +391,19 @@ def update_tenant(
         tenant.phone = phone
     if address is not None:
         tenant.address = address
+    if logo_url is not None:
+        tenant.logo_url = logo_url or None
+    if tagline is not None:
+        tenant.tagline = tagline or None
+    if board_affiliation is not None:
+        tenant.board_affiliation = board_affiliation or None
     tenant.updated_at = datetime.utcnow()
     db.session.commit()
     log_platform_action(
         platform_admin_id=platform_admin_id,
         action="tenant.updated",
         tenant_id=tenant_id,
-        metadata={"updated_fields": ["name", "contact_email", "phone", "address"]},
+        metadata={"updated_fields": ["name", "contact_email", "phone", "address", "logo_url", "tagline", "board_affiliation"]},
     )
     return {"success": True, "tenant": {"id": tenant.id}}
 

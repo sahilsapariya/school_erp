@@ -12,6 +12,7 @@ import {
   Modal,
   Alert,
   SafeAreaView,
+  Platform,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -21,6 +22,7 @@ import {
   useRefundPayment,
   useDeleteStudentFee,
 } from "@/modules/finance/hooks/useFinance";
+import { financeService } from "@/modules/finance/services/financeService";
 import type { RecordPaymentInput } from "@/modules/finance/types";
 import { Colors } from "@/common/constants/colors";
 import { Spacing, Layout } from "@/common/constants/spacing";
@@ -71,6 +73,7 @@ export default function StudentFeeDetailPage() {
   const [refundModalOpen, setRefundModalOpen] = useState(false);
   const [refundPaymentId, setRefundPaymentId] = useState<string | null>(null);
   const [refundReason, setRefundReason] = useState("");
+  const [downloading, setDownloading] = useState<string | null>(null);
 
   const { data, isLoading, error, refetch, isRefetching } = useStudentFee(id);
   const recordMut = useRecordPayment();
@@ -188,6 +191,49 @@ export default function StudentFeeDetailPage() {
       setRefundReason("");
     } catch (e: any) {
       Alert.alert("Error", e?.message ?? "Failed to refund");
+    }
+  };
+
+  const handleDownloadInvoice = async () => {
+    if (!id) return;
+    setDownloading("invoice");
+    try {
+      const blob = await financeService.downloadInvoicePdf(id);
+      if (Platform.OS === "web") {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `invoice_${data?.fee_structure_name?.replace(/\s+/g, "_") ?? id}.pdf`;
+        a.click();
+        URL.revokeObjectURL(url);
+      } else {
+        Alert.alert("Invoice PDF", "Download available on web. For native, install expo-sharing to share/save.");
+      }
+    } catch (e) {
+      Alert.alert("Error", e instanceof Error ? e.message : "Failed to download invoice");
+    } finally {
+      setDownloading(null);
+    }
+  };
+
+  const handleDownloadReceipt = async (paymentId: string) => {
+    setDownloading(paymentId);
+    try {
+      const blob = await financeService.downloadReceiptPdf(paymentId);
+      if (Platform.OS === "web") {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `receipt_${paymentId.slice(0, 8)}.pdf`;
+        a.click();
+        URL.revokeObjectURL(url);
+      } else {
+        Alert.alert("Receipt PDF", "Download available on web. For native, install expo-sharing to share/save.");
+      }
+    } catch (e) {
+      Alert.alert("Error", e instanceof Error ? e.message : "Failed to download receipt");
+    } finally {
+      setDownloading(null);
     }
   };
 
@@ -326,6 +372,18 @@ export default function StudentFeeDetailPage() {
             <Text style={styles.statusText}>{data.status}</Text>
           </View>
         </View>
+        <TouchableOpacity
+          style={[styles.recordBtn, styles.downloadInvoiceBtn]}
+          onPress={handleDownloadInvoice}
+          disabled={!!downloading}
+        >
+          {downloading === "invoice" ? (
+            <ActivityIndicator size="small" color={Colors.primary} />
+          ) : (
+            <Ionicons name="document-text-outline" size={20} color={Colors.primary} />
+          )}
+          <Text style={styles.downloadInvoiceBtnText}>Download Invoice</Text>
+        </TouchableOpacity>
         {remaining > 0 && (
           <TouchableOpacity
             style={styles.recordBtn}
@@ -412,13 +470,27 @@ export default function StudentFeeDetailPage() {
                 <Text style={styles.paymentStatusText}>{p.status}</Text>
               </View>
               {p.status === "success" && (
-                <TouchableOpacity
-                  onPress={() => openRefundModal(p.id)}
-                  style={styles.refundBtn}
-                >
-                  <Ionicons name="arrow-undo-outline" size={18} color={Colors.error} />
-                  <Text style={styles.refundBtnText}>Refund</Text>
-                </TouchableOpacity>
+                <>
+                  <TouchableOpacity
+                    onPress={() => handleDownloadReceipt(p.id)}
+                    disabled={!!downloading}
+                    style={styles.receiptBtn}
+                  >
+                    {downloading === p.id ? (
+                      <ActivityIndicator size="small" color={Colors.primary} />
+                    ) : (
+                      <Ionicons name="receipt-outline" size={18} color={Colors.primary} />
+                    )}
+                    <Text style={styles.receiptBtnText}>Receipt</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => openRefundModal(p.id)}
+                    style={styles.refundBtn}
+                  >
+                    <Ionicons name="arrow-undo-outline" size={18} color={Colors.error} />
+                    <Text style={styles.refundBtnText}>Refund</Text>
+                  </TouchableOpacity>
+                </>
               )}
             </View>
           </View>
